@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Portal - Incentives & Payments</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .incentive-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 0;
+        }
+
+        .tab-button {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            color: #718096;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+            bottom: -2px;
+        }
+
+        .tab-button:hover {
+            color: #667eea;
+        }
+
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-left: 4px solid #667eea;
+        }
+
+        .summary-card h4 {
+            font-size: 13px;
+            color: #718096;
+            margin: 0 0 8px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .summary-card .amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .config-section {
+            background: white;
+            padding: 28px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+
+        .config-section h3 {
+            margin: 0 0 20px;
+            font-size: 18px;
+            color: #1a202c;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .config-item {
+            background: #f7fafc;
+            padding: 18px;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .config-item label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+        }
+
+        .config-item input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .config-item input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .employee-incentive-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .employee-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 18px;
+            border-bottom: 2px solid #f7fafc;
+            margin-bottom: 20px;
+        }
+
+        .employee-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .employee-dept {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .incentive-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .incentive-box {
+            background: linear-gradient(135deg, #f7fafc 0%, #ffffff 100%);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .incentive-box label {
+            font-size: 11px;
+            color: #718096;
+            text-transform: uppercase;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .incentive-box .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .payment-history {
+            margin-top: 20px;
+        }
+
+        .payment-item {
+            background: #f7fafc;
+            padding: 15px 18px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .payment-item.advance {
+            border-left-color: #f5576c;
+        }
+
+        .payment-item.daily-bonus {
+            border-left-color: #38ef7d;
+        }
+
+        .payment-item.course-reward {
+            border-left-color: #4facfe;
+        }
+
+        .payment-details {
+            flex: 1;
+        }
+
+        .payment-type {
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .payment-item.advance .payment-type {
+            color: #f5576c;
+        }
+
+        .payment-item.daily-bonus .payment-type {
+            color: #38ef7d;
+        }
+
+        .payment-item.course-reward .payment-type {
+            color: #4facfe;
+        }
+
+        .payment-desc {
+            font-size: 14px;
+            color: #2d3748;
+        }
+
+        .payment-date {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+        }
+
+        .payment-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 13px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-sm.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-sm.success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-sm.info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-sm.danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-sm:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding: 18px;
+            background: #f7fafc;
+            border-radius: 10px;
+        }
+
+        .filter-bar select {
+            padding: 10px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .no-data-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .no-data-message i {
+            font-size: 64px;
+            opacity: 0.3;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-users-cog"></i>
+                <h2>HR Portal</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="index.html" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="employees.html" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Employees</span>
+                </a>
+                <a href="sales-tracking.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Sales Tracking</span>
+                </a>
+                <a href="incentives.html" class="nav-item active">
+                    <i class="fas fa-hand-holding-usd"></i>
+                    <span>Incentives & Payments</span>
+                </a>
+                <a href="leave-management.html" class="nav-item">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Leave Management</span>
+                </a>
+                <a href="leave-calendar.html" class="nav-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Leave Calendar</span>
+                </a>
+                <a href="holidays.html" class="nav-item">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Holidays</span>
+                </a>
+                <a href="chatbot.html" class="nav-item">
+                    <i class="fas fa-robot"></i>
+                    <span>AI Assistant</span>
+                </a>
+                <a href="account.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Account Details</span>
+                </a>
+                <a href="logs.html" class="nav-item">
+                    <i class="fas fa-history"></i>
+                    <span>Activity Logs</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1>Incentives & Payments</h1>
+                    <p class="subtitle">Manage employee incentives, rewards, and salary advances</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="openConfigModal()">
+                        <i class="fas fa-cog"></i> Configure Settings
+                    </button>
+                </div>
+            </header>
+
+            <!-- Tabs -->
+            <div class="incentive-tabs">
+                <button class="tab-button active" onclick="switchTab('monthly')">
+                    <i class="fas fa-calendar-alt"></i> Monthly Incentives
+                </button>
+                <button class="tab-button" onclick="switchTab('daily')">
+                    <i class="fas fa-calendar-day"></i> Daily Bonuses & Course Rewards
+                </button>
+                <button class="tab-button" onclick="switchTab('salary')">
+                    <i class="fas fa-wallet"></i> Salary Crediting
+                </button>
+                <button class="tab-button" onclick="switchTab('advances')">
+                    <i class="fas fa-money-bill-wave"></i> Salary Advances
+                </button>
+            </div>
+
+            <!-- Monthly Incentives Tab -->
+            <div id="monthly-tab" class="tab-content active">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h4>Total Monthly Incentives</h4>
+                        <div class="amount" id="totalMonthlyIncentives">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Pending Approvals</h4>
+                        <div class="amount" id="pendingIncentives">0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Paid This Month</h4>
+                        <div class="amount" id="paidThisMonth">₹0</div>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <select id="monthlyMonthFilter" onchange="loadMonthlyIncentives()">
+                        <!-- Populated by JS -->
+                    </select>
+                    <select id="monthlyEmployeeFilter" onchange="loadMonthlyIncentives()">
+                        <option value="">All Employees</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div id="monthlyIncentivesContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Daily Bonuses Tab -->
+            <div id="daily-tab" class="tab-content">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h4>Total Daily Rewards</h4>
+                        <div class="amount" id="totalDailyBonuses">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Today's Rewards</h4>
+                        <div class="amount" id="todayBonuses">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>One-Time Admissions</h4>
+                        <div class="amount" id="oneTimeCount">0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Annual Admissions</h4>
+                        <div class="amount" id="annualCount">0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Semester Admissions</h4>
+                        <div class="amount" id="semesterCount">0</div>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <button class="btn btn-success" onclick="openDailyBonusModal()">
+                        <i class="fas fa-plus"></i> Record Daily Sales
+                    </button>
+                </div>
+
+                <div id="dailyBonusesContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Salary Crediting Tab -->
+            <div id="salary-tab" class="tab-content">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h4>Total Gross Salary</h4>
+                        <div class="amount" id="totalGrossSalary">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Total Incentives</h4>
+                        <div class="amount" id="totalIncentivesAdded">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Total Deductions</h4>
+                        <div class="amount" id="totalDeductions">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Net Payable</h4>
+                        <div class="amount" id="totalNetPayable">₹0</div>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <select id="salaryMonthFilter" onchange="loadSalaryCrediting()">
+                        <!-- Populated by JS -->
+                    </select>
+                    <select id="salaryEmployeeFilter" onchange="loadSalaryCrediting()">
+                        <option value="">All Employees</option>
+                        <!-- Populated by JS -->
+                    </select>
+                    <select id="salaryDepartmentFilter" onchange="loadSalaryCrediting()">
+                        <option value="">All Departments</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div id="salaryCreditingContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Salary Advances Tab -->
+            <div id="advances-tab" class="tab-content">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h4>Total Advances Given</h4>
+                        <div class="amount" id="totalAdvances">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>This Month Advances</h4>
+                        <div class="amount" id="thisMonthAdvances">₹0</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Outstanding Advances</h4>
+                        <div class="amount" id="outstandingAdvances">₹0</div>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <button class="btn btn-danger" onclick="openAdvanceModal()">
+                        <i class="fas fa-plus"></i> Give Salary Advance
+                    </button>
+                </div>
+
+                <div id="advancesContainer">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="configModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>Incentive Configuration</h2>
+                <button class="close-btn" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <form id="configForm" onsubmit="saveConfiguration(event)">
+                <div style="padding: 30px;">
+                    <div class="config-section">
+                        <h3><i class="fas fa-percentage"></i> Monthly Incentive Slabs</h3>
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <label>100% Target - Incentive %</label>
+                                <input type="number" id="slab100" step="0.1" min="0" value="3" required>
+                            </div>
+                            <div class="config-item">
+                                <label>150% Target - Incentive %</label>
+                                <input type="number" id="slab150" step="0.1" min="0" value="4" required>
+                            </div>
+                            <div class="config-item">
+                                <label>200% Target - Incentive %</label>
+                                <input type="number" id="slab200" step="0.1" min="0" value="7" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <h3><i class="fas fa-graduation-cap"></i> Course Type Rewards (₹)</h3>
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <label>One-Time Payment</label>
+                                <input type="number" id="rewardOneTime" min="0" value="1000" required>
+                            </div>
+                            <div class="config-item">
+                                <label>Annual Plan</label>
+                                <input type="number" id="rewardAnnual" min="0" value="500" required>
+                            </div>
+                            <div class="config-item">
+                                <label>Semester Plan</label>
+                                <input type="number" id="rewardSemester" min="0" value="300" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <h3><i class="fas fa-bullseye"></i> Daily Sales Target</h3>
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <label>Target Sales Count</label>
+                                <input type="number" id="dailyTarget" min="0" value="2" required>
+                            </div>
+                            <div class="config-item">
+                                <label>Bonus Amount (₹)</label>
+                                <input type="number" id="dailyBonus" min="0" value="1000" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Daily Bonus Modal -->
+    <div id="dailyBonusModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2>Record Daily Sales & Rewards</h2>
+                <button class="close-btn" onclick="closeDailyBonusModal()">&times;</button>
+            </div>
+            <form id="dailyBonusForm" onsubmit="saveDailyBonus(event)">
+                <div style="padding: 30px;">
+                    <div class="form-group">
+                        <label for="bonusEmployee">Select Employee *</label>
+                        <select id="bonusEmployee" required>
+                            <option value="">Choose employee...</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="bonusDate">Date *</label>
+                            <input type="date" id="bonusDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="bonusSalesCount">Total Sales Made *</label>
+                            <input type="number" id="bonusSalesCount" min="0" value="0" onchange="calculateDailyReward()">
+                        </div>
+                    </div>
+
+                    <div class="config-section" style="margin: 20px 0; padding: 20px; background: #f7fafc; border-radius: 10px;">
+                        <h3 style="margin: 0 0 15px; font-size: 16px;"><i class="fas fa-graduation-cap"></i> Course Admissions</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="oneTimeCount">One-Time Payments</label>
+                                <input type="number" id="oneTimeCount" min="0" value="0" onchange="calculateDailyReward()">
+                            </div>
+                            <div class="form-group">
+                                <label for="annualCount">Annual Plans</label>
+                                <input type="number" id="annualCount" min="0" value="0" onchange="calculateDailyReward()">
+                            </div>
+                            <div class="form-group">
+                                <label for="semesterCount">Semester Plans</label>
+                                <input type="number" id="semesterCount" min="0" value="0" onchange="calculateDailyReward()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bonusAmount">Total Reward Amount (₹) *</label>
+                        <input type="number" id="bonusAmount" min="0" required readonly style="background: #e2e8f0; font-weight: 700; font-size: 18px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="universityNames">University Names (Optional)</label>
+                        <input type="text" id="universityNames" placeholder="e.g., Harvard, MIT, Stanford">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bonusNotes">Additional Notes</label>
+                        <textarea id="bonusNotes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeDailyBonusModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Record Sales</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Salary Advance Modal -->
+    <div id="advanceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Give Salary Advance</h2>
+                <button class="close-btn" onclick="closeAdvanceModal()">&times;</button>
+            </div>
+            <form id="advanceForm" onsubmit="saveAdvance(event)">
+                <div style="padding: 30px;">
+                    <div class="form-group">
+                        <label for="advanceEmployee">Select Employee *</label>
+                        <select id="advanceEmployee" required>
+                            <option value="">Choose employee...</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="advanceDate">Date *</label>
+                            <input type="date" id="advanceDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="advanceAmount">Advance Amount (₹) *</label>
+                            <input type="number" id="advanceAmount" min="0" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="advanceReason">Reason *</label>
+                        <textarea id="advanceReason" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAdvanceModal()">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Give Advance</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="incentives-script.js"></script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Portal - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-users-cog"></i>
+                <h2>HR Portal</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="index.html" class="nav-item active">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="employees.html" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Employees</span>
+                </a>
+                <a href="sales-tracking.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Sales Tracking</span>
+                </a>
+                <a href="incentives.html" class="nav-item">
+                    <i class="fas fa-hand-holding-usd"></i>
+                    <span>Incentives & Payments</span>
+                </a>
+                <a href="leave-management.html" class="nav-item">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Leave Management</span>
+                </a>
+                <a href="leave-calendar.html" class="nav-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Leave Calendar</span>
+                </a>
+                <a href="holidays.html" class="nav-item">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Holidays</span>
+                </a>
+                <a href="chatbot.html" class="nav-item">
+                    <i class="fas fa-robot"></i>
+                    <span>AI Assistant</span>
+                </a>
+                <a href="account.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Account Details</span>
+                </a>
+                <a href="logs.html" class="nav-item">
+                    <i class="fas fa-history"></i>
+                    <span>Activity Logs</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1>Dashboard</h1>
+                    <p class="subtitle">Welcome back! Here's what's happening today.</p>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <i class="fas fa-user-circle"></i>
+                        <span>HR Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalEmployees">0</h3>
+                        <p>Total Employees</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="activeEmployees">0</h3>
+                        <p>Active Employees</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="pendingLeaveRequests">0</h3>
+                        <p>Pending Leave Requests</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon purple">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="newHires">0</h3>
+                        <p>New This Month</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="section">
+                <h2>Quick Actions</h2>
+                <div class="actions-grid">
+                    <button class="action-btn" onclick="window.location.href='employees.html?action=add'">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Add Employee</span>
+                    </button>
+                    <button class="action-btn" onclick="window.location.href='employees.html'">
+                        <i class="fas fa-edit"></i>
+                        <span>Manage Employees</span>
+                    </button>
+                    <button class="action-btn" onclick="window.location.href='logs.html'">
+                        <i class="fas fa-eye"></i>
+                        <span>View Logs</span>
+                    </button>
+                    <button class="action-btn" onclick="exportData()">
+                        <i class="fas fa-download"></i>
+                        <span>Export Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="section">
+                <h2>Recent Activity</h2>
+                <div class="activity-list" id="recentActivity">
+                    <p class="no-data">No recent activity</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Floating Chat Button -->
+    <a href="chatbot.html" class="floating-chat-btn" title="AI Assistant">
+        <i class="fas fa-robot"></i>
+    </a>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDashboardStats();
+            loadRecentActivity();
+        });
+
+        function updateDashboardStats() {
+            const employees = getEmployees();
+            const logs = getLogs();
+            
+            document.getElementById('totalEmployees').textContent = employees.length;
+            document.getElementById('activeEmployees').textContent = employees.filter(e => e.status === 'Active').length;
+            
+            // Get pending leave requests
+            const leaves = typeof getLeaves === 'function' ? getLeaves() : [];
+            const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
+            document.getElementById('pendingLeaveRequests').textContent = pendingLeaves;
+            
+            // Calculate new hires this month
+            const now = new Date();
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const newHires = employees.filter(e => {
+                const hireDate = new Date(e.hireDate);
+                return hireDate >= firstDayOfMonth;
+            }).length;
+            document.getElementById('newHires').textContent = newHires;
+        }
+
+        function loadRecentActivity() {
+            const logs = getLogs();
+            const recentLogs = logs.slice(-5).reverse();
+            
+            const activityList = document.getElementById('recentActivity');
+            
+            if (recentLogs.length === 0) {
+                activityList.innerHTML = '<p class="no-data">No recent activity</p>';
+                return;
+            }
+            
+            activityList.innerHTML = recentLogs.map(log => `
+                <div class="activity-item">
+                    <div class="activity-icon ${log.type}">
+                        <i class="fas ${getActivityIcon(log.type)}"></i>
+                    </div>
+                    <div class="activity-details">
+                        <p class="activity-text">${log.action}</p>
+                        <p class="activity-time">${formatDate(log.timestamp)}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getActivityIcon(type) {
+            const icons = {
+                'add': 'fa-user-plus',
+                'edit': 'fa-edit',
+                'delete': 'fa-user-times',
+                'export': 'fa-download'
+            };
+            return icons[type] || 'fa-info-circle';
+        }
+
+        function exportData() {
+            const employees = getEmployees();
+            const dataStr = JSON.stringify(employees, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'employees_export_' + new Date().toISOString().split('T')[0] + '.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            addLog('export', 'Exported employee data');
+            showNotification('Data exported successfully!', 'success');
+        }
+    </script>
+</body>
+</html>

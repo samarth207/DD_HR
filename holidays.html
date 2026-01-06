@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR Portal - Official Holidays</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-users-cog"></i>
+                <h2>HR Portal</h2>
+            </div>
+            <nav class="nav-menu">
+                <a href="index.html" class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="employees.html" class="nav-item">
+                    <i class="fas fa-users"></i>
+                    <span>Employees</span>
+                </a>
+                <a href="sales-tracking.html" class="nav-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Sales Tracking</span>
+                </a>
+                <a href="incentives.html" class="nav-item">
+                    <i class="fas fa-hand-holding-usd"></i>
+                    <span>Incentives & Payments</span>
+                </a>
+                <a href="leave-management.html" class="nav-item">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Leave Management</span>
+                </a>
+                <a href="leave-calendar.html" class="nav-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Leave Calendar</span>
+                </a>
+                <a href="holidays.html" class="nav-item active">
+                    <i class="fas fa-calendar-day"></i>
+                    <span>Holidays</span>
+                </a>
+                <a href="chatbot.html" class="nav-item">
+                    <i class="fas fa-robot"></i>
+                    <span>AI Assistant</span>
+                </a>
+                <a href="account.html" class="nav-item">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Account Details</span>
+                </a>
+                <a href="logs.html" class="nav-item">
+                    <i class="fas fa-history"></i>
+                    <span>Activity Logs</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h1>Official Holidays</h1>
+                    <p class="subtitle">Manage company holidays and blocked dates</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="openAddHolidayModal()">
+                        <i class="fas fa-plus"></i> Add Holiday
+                    </button>
+                </div>
+            </header>
+
+            <!-- Holiday Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon purple">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="totalHolidays">0</h3>
+                        <p>Total Holidays</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon blue">
+                        <i class="fas fa-calendar-week"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="upcomingHolidays">0</h3>
+                        <p>Upcoming This Year</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <h3 id="nextHoliday">None</h3>
+                        <p>Next Holiday</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Box -->
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <span><strong>Note:</strong> Employees cannot apply for leave on official holidays. These dates will be automatically blocked in leave requests.</span>
+            </div>
+
+            <!-- Holidays List -->
+            <div class="section">
+                <h2><i class="fas fa-list"></i> Holidays List</h2>
+                <div class="holidays-grid" id="holidaysGrid">
+                    <p class="no-data">No holidays configured</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Holiday Modal -->
+    <div id="holidayModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2 id="holidayModalTitle">Add Holiday</h2>
+                <button class="close-btn" onclick="closeHolidayModal()">&times;</button>
+            </div>
+            <form id="holidayForm" onsubmit="saveHoliday(event)">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="holidayName">Holiday Name *</label>
+                        <input type="text" id="holidayName" required placeholder="e.g., Christmas Day">
+                    </div>
+                    <div class="form-group">
+                        <label for="holidayDate">Date *</label>
+                        <input type="date" id="holidayDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="holidayType">Type</label>
+                        <select id="holidayType">
+                            <option value="Public Holiday">Public Holiday</option>
+                            <option value="National">National</option>
+                            <option value="Festival">Festival</option>
+                            <option value="Religious">Religious</option>
+                            <option value="Company">Company Event</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="holidayDescription">Description</label>
+                        <textarea id="holidayDescription" rows="2" placeholder="Optional description..."></textarea>
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="recurringYearly" checked>
+                            <span>Repeat every year</span>
+                        </label>
+                    </div>
+                </div>
+                <input type="hidden" id="holidayId">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeHolidayModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Holiday</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Holiday Modal -->
+    <div id="deleteHolidayModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h2>Confirm Delete</h2>
+                <button class="close-btn" onclick="closeDeleteHolidayModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this holiday?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeleteHolidayModal()">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteHoliday()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="holidays-script.js"></script>
+</body>
+</html>
