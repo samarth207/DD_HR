@@ -1,14 +1,45 @@
 // Holidays Management Functions
 let deleteHolidayId = null;
+let cachedHolidays = null;
 
-// LocalStorage Functions for Holidays
-function getHolidays() {
-    const holidays = localStorage.getItem('hrHolidays');
-    return holidays ? JSON.parse(holidays) : [];
+// API Functions for Holidays
+async function getHolidays() {
+    if (cachedHolidays) return cachedHolidays;
+    try {
+        const response = await fetch(`${API_BASE_URL}/holidays`);
+        if (!response.ok) throw new Error('Failed to fetch holidays');
+        const holidays = await response.json();
+        cachedHolidays = holidays;
+        return holidays;
+    } catch (error) {
+        console.error('Error fetching holidays:', error);
+        return [];
+    }
 }
 
-function saveHolidays(holidays) {
-    localStorage.setItem('hrHolidays', JSON.stringify(holidays));
+async function saveHolidays(holidays) {
+    cachedHolidays = holidays;
+    try {
+        // Save each holiday individually
+        for (const holiday of holidays) {
+            if (holiday._id) {
+                await fetch(`${API_BASE_URL}/holidays/${holiday.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(holiday)
+                });
+            } else {
+                await fetch(`${API_BASE_URL}/holidays`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(holiday)
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error saving holidays:', error);
+        throw error;
+    }
 }
 
 // Initialize holidays page elements only if on holidays page
@@ -34,8 +65,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function loadHolidays() {
-    const holidays = getHolidays();
+async function loadHolidays() {
+    const holidays = await getHolidays();
     displayHolidays(holidays);
 }
 
@@ -85,8 +116,8 @@ function displayHolidays(holidays) {
     }).join('');
 }
 
-function updateHolidayStats() {
-    const holidays = getHolidays();
+async function updateHolidayStats() {
+    const holidays = await getHolidays();
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     
@@ -123,8 +154,8 @@ function openAddHolidayModal() {
     document.getElementById('holidayModal').classList.add('show');
 }
 
-function editHoliday(id) {
-    const holidays = getHolidays();
+async function editHoliday(id) {
+    const holidays = await getHolidays();
     const holiday = holidays.find(h => h.id === id);
     
     if (!holiday) return;
@@ -140,7 +171,7 @@ function editHoliday(id) {
     document.getElementById('holidayModal').classList.add('show');
 }
 
-function saveHoliday(event) {
+async function saveHoliday(event) {
     event.preventDefault();
     
     const id = document.getElementById('holidayId').value;
@@ -153,22 +184,32 @@ function saveHoliday(event) {
         recurring: document.getElementById('recurringYearly').checked
     };
     
-    const holidays = getHolidays();
-    
-    if (id) {
-        const index = holidays.findIndex(h => h.id === parseInt(id));
-        holidays[index] = holiday;
-        addLog('edit', `Updated holiday: ${holiday.name}`);
-        showNotification('Holiday updated successfully!', 'success');
-    } else {
-        holidays.push(holiday);
-        addLog('add', `Added holiday: ${holiday.name}`);
-        showNotification('Holiday added successfully!', 'success');
+    try {
+        if (id) {
+            await fetch(`${API_BASE_URL}/holidays/${holiday.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(holiday)
+            });
+            addLog('edit', `Updated holiday: ${holiday.name}`);
+            showNotification('Holiday updated successfully!', 'success');
+        } else {
+            await fetch(`${API_BASE_URL}/holidays`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(holiday)
+            });
+            addLog('add', `Added holiday: ${holiday.name}`);
+            showNotification('Holiday added successfully!', 'success');
+        }
+    } catch (error) {
+        showNotification('Failed to save holiday. Please try again.', 'error');
+        return;
     }
     
-    saveHolidays(holidays);
-    loadHolidays();
-    updateHolidayStats();
+    cachedHolidays = null;
+    await loadHolidays();
+    await updateHolidayStats();
     closeHolidayModal();
 }
 
@@ -177,19 +218,28 @@ function deleteHoliday(id) {
     document.getElementById('deleteHolidayModal').classList.add('show');
 }
 
-function confirmDeleteHoliday() {
+async function confirmDeleteHoliday() {
     if (!deleteHolidayId) return;
     
-    const holidays = getHolidays();
+    const holidays = await getHolidays();
     const holiday = holidays.find(h => h.id === deleteHolidayId);
-    const filtered = holidays.filter(h => h.id !== deleteHolidayId);
     
-    saveHolidays(filtered);
-    addLog('delete', `Deleted holiday: ${holiday.name}`);
+    try {
+        const response = await fetch(`${API_BASE_URL}/holidays/${deleteHolidayId}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) throw new Error('Delete failed');
+    } catch (error) {
+        showNotification('Failed to delete holiday. Please try again.', 'error');
+        return;
+    }
+    
+    addLog('delete', `Deleted holiday: ${holiday?.name}`);
     showNotification('Holiday deleted successfully!', 'success');
     
-    loadHolidays();
-    updateHolidayStats();
+    cachedHolidays = null;
+    await loadHolidays();
+    await updateHolidayStats();
     closeDeleteHolidayModal();
 }
 
@@ -203,8 +253,8 @@ function closeDeleteHolidayModal() {
 }
 
 // Check if a date is a holiday
-function isHoliday(dateString) {
-    const holidays = getHolidays();
+async function isHoliday(dateString) {
+    const holidays = await getHolidays();
     const checkDate = new Date(dateString + 'T00:00:00');
     checkDate.setHours(0, 0, 0, 0);
     
@@ -216,8 +266,8 @@ function isHoliday(dateString) {
 }
 
 // Get holiday for a specific date
-function getHolidayByDate(dateString) {
-    const holidays = getHolidays();
+async function getHolidayByDate(dateString) {
+    const holidays = await getHolidays();
     const checkDate = new Date(dateString + 'T00:00:00');
     checkDate.setHours(0, 0, 0, 0);
     

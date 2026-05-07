@@ -1,8 +1,10 @@
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { connectDB } = require('./db');
-require('dotenv').config();
+const path = require('path');
+const { connectDB, isDBConnected } = require('./db');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +13,12 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// Serve static files from parent directory
+app.use(express.static(path.join(__dirname, '..')));
+
+// Serve uploaded documents
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Import routes
 const employeesRoutes = require('./routes/employees');
@@ -32,7 +40,12 @@ app.use('/api/account', accountRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'HR Portal API is running' });
+    res.json({ status: 'OK', message: 'HR Portal API is running', dbConnected: isDBConnected() });
+});
+
+// Root route - serve index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
 // Error handling middleware
@@ -45,14 +58,13 @@ app.use((err, req, res, next) => {
 async function startServer() {
     try {
         await connectDB();
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
-            console.log(`📊 API endpoint: http://localhost:${PORT}/api`);
-        });
     } catch (error) {
-        console.error('Failed to start server:', error);
-        process.exit(1);
+        console.warn('⚠️  Starting without database connection.');
     }
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on http://localhost:${PORT}`);
+        console.log(`📊 API endpoint: http://localhost:${PORT}/api`);
+    });
 }
 
 // Handle graceful shutdown

@@ -30,7 +30,7 @@ router.put('/:id', async (req, res) => {
     try {
         const db = getDB();
         const holidayId = parseInt(req.params.id);
-        const updates = req.body;
+        const { _id, ...updates } = req.body;
         
         const result = await db.collection('holidays').updateOne(
             { id: holidayId },

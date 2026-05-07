@@ -2,8 +2,10 @@
 let currentCalendarDate = new Date();
 
 // Initialize calendar page
-document.addEventListener('DOMContentLoaded', function() {
-    renderCalendar();
+document.addEventListener('DOMContentLoaded', async function() {
+    // Populate caches from DB before rendering
+    await Promise.all([loadEmployees(), loadLeaves()]);
+    await renderCalendar();
     loadTodayLeaves();
     loadUpcomingLeaves();
     
@@ -19,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function renderCalendar() {
+async function renderCalendar() {
     const year = currentCalendarDate.getFullYear();
     const month = currentCalendarDate.getMonth();
     
@@ -43,13 +45,13 @@ function renderCalendar() {
     // Add previous month's days
     for (let i = firstDay - 1; i >= 0; i--) {
         const day = daysInPrevMonth - i;
-        const dayCell = createDayCell(day, 'prev-month', year, month - 1, leaves, employees);
+        const dayCell = await createDayCell(day, 'prev-month', year, month - 1, leaves, employees);
         calendarGrid.appendChild(dayCell);
     }
     
     // Add current month's days
     for (let day = 1; day <= daysInMonth; day++) {
-        const dayCell = createDayCell(day, 'current-month', year, month, leaves, employees);
+        const dayCell = await createDayCell(day, 'current-month', year, month, leaves, employees);
         calendarGrid.appendChild(dayCell);
     }
     
@@ -57,12 +59,12 @@ function renderCalendar() {
     const totalCells = calendarGrid.children.length;
     const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
     for (let day = 1; day <= remainingCells; day++) {
-        const dayCell = createDayCell(day, 'next-month', year, month + 1, leaves, employees);
+        const dayCell = await createDayCell(day, 'next-month', year, month + 1, leaves, employees);
         calendarGrid.appendChild(dayCell);
     }
 }
 
-function createDayCell(day, monthClass, year, month, leaves, employees) {
+async function createDayCell(day, monthClass, year, month, leaves, employees) {
     const cell = document.createElement('div');
     cell.className = `calendar-day ${monthClass}`;
     
@@ -85,8 +87,8 @@ function createDayCell(day, monthClass, year, month, leaves, employees) {
     
     // Check if this day is a holiday
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    if (typeof isHoliday === 'function' && isHoliday(dateStr)) {
-        const holiday = getHolidayByDate(dateStr);
+    if (typeof isHoliday === 'function' && await isHoliday(dateStr)) {
+        const holiday = await getHolidayByDate(dateStr);
         if (holiday) {
             const holidayBadge = document.createElement('div');
             holidayBadge.className = 'holiday-marker';
@@ -200,19 +202,19 @@ function closeDayDetailsModal() {
     document.getElementById('dayDetailsModal').classList.remove('show');
 }
 
-function previousMonth() {
+async function previousMonth() {
     currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
-    renderCalendar();
+    await renderCalendar();
 }
 
-function nextMonth() {
+async function nextMonth() {
     currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
-    renderCalendar();
+    await renderCalendar();
 }
 
-function goToToday() {
+async function goToToday() {
     currentCalendarDate = new Date();
-    renderCalendar();
+    await renderCalendar();
     loadTodayLeaves();
 }
 

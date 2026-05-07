@@ -402,7 +402,7 @@
                     <i class="fas fa-calendar-alt"></i> Monthly Incentives
                 </button>
                 <button class="tab-button" onclick="switchTab('daily')">
-                    <i class="fas fa-calendar-day"></i> Daily Bonuses & Course Rewards
+                    <i class="fas fa-calendar-day"></i> Daily Bonuses
                 </button>
                 <button class="tab-button" onclick="switchTab('salary')">
                     <i class="fas fa-wallet"></i> Salary Crediting
@@ -457,21 +457,21 @@
                     </div>
                     <div class="summary-card">
                         <h4>One-Time Admissions</h4>
-                        <div class="amount" id="oneTimeCount">0</div>
+                        <div class="amount" id="summaryOneTimeCount">0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Annual Admissions</h4>
-                        <div class="amount" id="annualCount">0</div>
+                        <div class="amount" id="summaryAnnualCount">0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Semester Admissions</h4>
-                        <div class="amount" id="semesterCount">0</div>
+                        <div class="amount" id="summarySemesterCount">0</div>
                     </div>
                 </div>
 
                 <div class="filter-bar">
                     <button class="btn btn-success" onclick="openDailyBonusModal()">
-                        <i class="fas fa-plus"></i> Record Daily Sales
+                        <i class="fas fa-plus"></i> Record Daily Bonus
                     </button>
                 </div>
 
@@ -578,33 +578,34 @@
                     </div>
 
                     <div class="config-section">
-                        <h3><i class="fas fa-graduation-cap"></i> Course Type Rewards (₹)</h3>
-                        <div class="config-grid">
+                        <h3><i class="fas fa-graduation-cap"></i> Admission Type Rewards (₹)</h3>
+                        <p style="font-size: 13px; color: #718096; margin-bottom: 15px;">
+                            <i class="fas fa-info-circle"></i> Set the reward amounts and effective date for each admission type. <strong>Note: Rewards are valid for 24 hours only and will reset to ₹0 after expiry.</strong>
+                        </p>
+                        <div class="config-grid" style="grid-template-columns: repeat(2, 1fr);">
                             <div class="config-item">
-                                <label>One-Time Payment</label>
-                                <input type="number" id="rewardOneTime" min="0" value="1000" required>
+                                <label>One-Time Payment Amount (₹)</label>
+                                <input type="text" id="rewardOneTime" inputmode="numeric" value="₹1,000" required>
                             </div>
                             <div class="config-item">
-                                <label>Annual Plan</label>
-                                <input type="number" id="rewardAnnual" min="0" value="500" required>
+                                <label>Effective From (One-Time)</label>
+                                <input type="date" id="rewardOneTimeDate" required>
                             </div>
                             <div class="config-item">
-                                <label>Semester Plan</label>
-                                <input type="number" id="rewardSemester" min="0" value="300" required>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="config-section">
-                        <h3><i class="fas fa-bullseye"></i> Daily Sales Target</h3>
-                        <div class="config-grid">
-                            <div class="config-item">
-                                <label>Target Sales Count</label>
-                                <input type="number" id="dailyTarget" min="0" value="2" required>
+                                <label>Annual Plan Amount (₹)</label>
+                                <input type="text" id="rewardAnnual" inputmode="numeric" value="₹500" required>
                             </div>
                             <div class="config-item">
-                                <label>Bonus Amount (₹)</label>
-                                <input type="number" id="dailyBonus" min="0" value="1000" required>
+                                <label>Effective From (Annual)</label>
+                                <input type="date" id="rewardAnnualDate" required>
+                            </div>
+                            <div class="config-item">
+                                <label>Semester Plan Amount (₹)</label>
+                                <input type="text" id="rewardSemester" inputmode="numeric" value="₹300" required>
+                            </div>
+                            <div class="config-item">
+                                <label>Effective From (Semester)</label>
+                                <input type="date" id="rewardSemesterDate" required>
                             </div>
                         </div>
                     </div>
@@ -622,7 +623,7 @@
     <div id="dailyBonusModal" class="modal">
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
-                <h2>Record Daily Sales & Rewards</h2>
+                <h2>Record Daily Bonus</h2>
                 <button class="close-btn" onclick="closeDailyBonusModal()">&times;</button>
             </div>
             <form id="dailyBonusForm" onsubmit="saveDailyBonus(event)">
@@ -633,38 +634,35 @@
                             <option value="">Choose employee...</option>
                         </select>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="bonusDate">Date *</label>
-                            <input type="date" id="bonusDate" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="bonusSalesCount">Total Sales Made *</label>
-                            <input type="number" id="bonusSalesCount" min="0" value="0" onchange="calculateDailyReward()">
-                        </div>
+                    <div class="form-group">
+                        <label for="bonusDate">Date *</label>
+                        <input type="date" id="bonusDate" required>
                     </div>
 
                     <div class="config-section" style="margin: 20px 0; padding: 20px; background: #f7fafc; border-radius: 10px;">
-                        <h3 style="margin: 0 0 15px; font-size: 16px;"><i class="fas fa-graduation-cap"></i> Course Admissions</h3>
+                        <h3 style="margin: 0 0 10px; font-size: 16px;"><i class="fas fa-graduation-cap"></i> Admission Type</h3>
+                        <div id="rewardRatesInfo" style="font-size: 12px; color: #718096; margin-bottom: 15px; padding: 8px; background: #fff; border-radius: 6px; border-left: 3px solid #4299e1;">
+                            <i class="fas fa-info-circle"></i> Select a date to see applicable reward rates
+                        </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="oneTimeCount">One-Time Payments</label>
-                                <input type="number" id="oneTimeCount" min="0" value="0" onchange="calculateDailyReward()">
+                                <label for="oneTimeCount">One-Time Payments <span id="oneTimeRate" style="color: #38ef7d; font-weight: 600;"></span></label>
+                                <input type="number" id="oneTimeCount" min="0" value="0">
                             </div>
                             <div class="form-group">
-                                <label for="annualCount">Annual Plans</label>
-                                <input type="number" id="annualCount" min="0" value="0" onchange="calculateDailyReward()">
+                                <label for="annualCount">Annual Plans <span id="annualRate" style="color: #38ef7d; font-weight: 600;"></span></label>
+                                <input type="number" id="annualCount" min="0" value="0">
                             </div>
                             <div class="form-group">
-                                <label for="semesterCount">Semester Plans</label>
-                                <input type="number" id="semesterCount" min="0" value="0" onchange="calculateDailyReward()">
+                                <label for="semesterCount">Semester Plans <span id="semesterRate" style="color: #38ef7d; font-weight: 600;"></span></label>
+                                <input type="number" id="semesterCount" min="0" value="0">
                             </div>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="bonusAmount">Total Reward Amount (₹) *</label>
-                        <input type="number" id="bonusAmount" min="0" required readonly style="background: #e2e8f0; font-weight: 700; font-size: 18px;">
+                        <input type="number" id="bonusAmount" min="0" required readonly style="font-weight: 700; font-size: 18px; background: #e2e8f0; cursor: not-allowed;">
                     </div>
 
                     <div class="form-group">
@@ -707,7 +705,7 @@
                         </div>
                         <div class="form-group">
                             <label for="advanceAmount">Advance Amount (₹) *</label>
-                            <input type="number" id="advanceAmount" min="0" required>
+                            <input type="text" id="advanceAmount" inputmode="numeric" required placeholder="e.g., ₹5,000">
                         </div>
                     </div>
                     <div class="form-group">
@@ -723,6 +721,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="script.js"></script>
     <script src="incentives-script.js"></script>
 </body>

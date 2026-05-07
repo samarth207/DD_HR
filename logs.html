@@ -198,11 +198,13 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="script.js"></script>
     <script>
         // Initialize logs page
-        document.addEventListener('DOMContentLoaded', function() {
-            loadLogs();
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadLogs(); // fetch from DB into cache (script.js)
+            renderLogs();
             updateLogStats();
             
             // Add Escape key listener for closing modals
@@ -217,7 +219,7 @@
             });
         });
 
-        function loadLogs() {
+        function renderLogs() {
             const logs = getLogs();
             displayLogs(logs);
         }
@@ -351,12 +353,18 @@
             document.getElementById('clearLogsModal').style.display = 'flex';
         }
 
-        function confirmClearLogs() {
-            localStorage.removeItem('hrLogs');
-            loadLogs();
-            updateLogStats();
-            closeClearModal();
-            showNotification('All logs cleared successfully!', 'success');
+        async function confirmClearLogs() {
+            try {
+                await fetch(`${API_BASE_URL}/logs`, { method: 'DELETE' });
+                await loadLogs(); // re-fetch from DB
+                renderLogs();
+                updateLogStats();
+                closeClearModal();
+                showNotification('All logs cleared successfully!', 'success');
+            } catch (error) {
+                console.error('Error clearing logs:', error);
+                showNotification('Failed to clear logs', 'error');
+            }
         }
 
         function closeClearModal() {

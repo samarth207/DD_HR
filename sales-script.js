@@ -1,5 +1,4 @@
-// API Configuration
-const API_BASE_URL = 'http://localhost:3000/api';
+// API Configuration loaded from config.js
 
 // Sales Data Management Functions
 let cachedSalesData = null;
@@ -13,9 +12,7 @@ async function getSalesData() {
         return data;
     } catch (error) {
         console.error('Error fetching sales data:', error);
-        // Fallback to localStorage if server is unavailable
-        const localData = localStorage.getItem('hrSalesData');
-        return localData ? JSON.parse(localData) : {};
+        return cachedSalesData || {};
     }
 }
 
@@ -45,16 +42,11 @@ async function saveSalesData(data) {
         }
         
         await Promise.all(savePromises);
-        
         cachedSalesData = data;
-        // Also save to localStorage as backup
-        localStorage.setItem('hrSalesData', JSON.stringify(data));
         return true;
     } catch (error) {
         console.error('Error saving sales data:', error);
-        // Fallback to localStorage if server is unavailable
-        localStorage.setItem('hrSalesData', JSON.stringify(data));
-        return false;
+        throw error;
     }
 }
 
@@ -96,7 +88,16 @@ function initializeMonthSelector() {
 async function getSalesEmployees() {
     // Make sure we load fresh data from MongoDB
     const employees = await loadEmployees();
-    return employees.filter(emp => emp.department === 'Sales' && emp.status === 'Active');
+    if (!employees || employees.length === 0) {
+        console.warn('No employees loaded from database');
+        return [];
+    }
+    const salesEmployees = employees.filter(emp => {
+        const department = emp.department?.toLowerCase() || '';
+        const status = emp.status || 'Active';
+        return department.includes('sales') && status === 'Active';
+    });
+    return salesEmployees;
 }
 
 // Load sales data for selected month
@@ -183,8 +184,8 @@ async function loadSalesData() {
                 
                 <div class="stat-box">
                     <label>Revenue Achieved</label>
-                    <div class="value">$${(empData.revenueAchieved || 0).toLocaleString()}</div>
-                    <div class="target">Target: $${(empData.revenueTarget || 0).toLocaleString()}</div>
+                    <div class="value">${formatRupees(empData.revenueAchieved || 0)}</div>
+                    <div class="target">Target: ${formatRupees(empData.revenueTarget || 0)}</div>
                     <div class="progress-bar-container">
                         <div class="progress-bar">
                             <div class="progress-fill ${revenueProgressClass}" style="width: ${Math.min(revenuePercentage, 100)}%"></div>
@@ -208,10 +209,10 @@ async function loadSalesData() {
 
 // Update overall statistics
 function updateOverallStats(stats) {
-    document.getElementById('totalRevenueTarget').textContent = `$${stats.totalRevenueTarget?.toLocaleString() || 0}`;
-    document.getElementById('totalRevenueAchieved').textContent = `$${stats.totalRevenueAchieved?.toLocaleString() || 0}`;
-    document.getElementById('totalSalesTarget').textContent = stats.totalSalesTarget || 0;
-    document.getElementById('totalSalesAchieved').textContent = stats.totalSalesAchieved || 0;
+    document.getElementById('totalRevenueTarget').textContent = formatRupees(stats.totalRevenueTarget || 0);
+    document.getElementById('totalRevenueAchieved').textContent = formatRupees(stats.totalRevenueAchieved || 0);
+    document.getElementById('totalSalesTarget').textContent = formatIndianNumber(stats.totalSalesTarget || 0);
+    document.getElementById('totalSalesAchieved').textContent = formatIndianNumber(stats.totalSalesAchieved || 0);
     
     const revenuePercentage = stats.totalRevenueTarget > 0 ? 
         Math.round((stats.totalRevenueAchieved / stats.totalRevenueTarget) * 100) : 0;
@@ -224,7 +225,7 @@ function updateOverallStats(stats) {
 
 // Open target modal
 async function openTargetModal(employeeId, month) {
-    const employees = await loadEmployees();
+    const employees = await window.loadEmployees();
     const employee = employees.find(e => e.id === employeeId);
     
     if (!employee) return;
@@ -237,7 +238,17 @@ async function openTargetModal(employeeId, month) {
     document.getElementById('targetEmployeeId').value = employeeId;
     document.getElementById('targetMonth').value = month;
     document.getElementById('salesTarget').value = empData.salesTarget || '';
-    document.getElementById('revenueTarget').value = empData.revenueTarget || '';
+    
+    // Format revenue target with Indian currency
+    const revenueInput = document.getElementById('revenueTarget');
+    if (empData.revenueTarget) {
+        revenueInput.value = formatRupees(empData.revenueTarget);
+    } else {
+        revenueInput.value = '';
+    }
+    revenueInput.addEventListener('input', function() {
+        formatCurrencyInput(this);
+    });
     
     document.getElementById('targetModal').style.display = 'flex';
 }
@@ -255,7 +266,7 @@ async function saveTarget(event) {
     const employeeId = parseInt(document.getElementById('targetEmployeeId').value);
     const month = document.getElementById('targetMonth').value;
     const salesTarget = parseInt(document.getElementById('salesTarget').value);
-    const revenueTarget = parseFloat(document.getElementById('revenueTarget').value);
+    const revenueTarget = getRawCurrencyValue(document.getElementById('revenueTarget'));
     
     const salesData = await getSalesData();
     
@@ -275,9 +286,9 @@ async function saveTarget(event) {
     
     await saveSalesData(salesData);
     
-    const employees = await loadEmployees();
+    const employees = await window.loadEmployees();
     const employee = employees.find(e => e.id === employeeId);
-    addLog('sales', `Set sales target for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesTarget} sales, $${revenueTarget.toLocaleString()} revenue`);
+    addLog('sales', `Set sales target for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesTarget} sales, ${formatRupees(revenueTarget)} revenue`);
     
     showNotification('Sales target set successfully!', 'success');
     closeTargetModal();
@@ -286,7 +297,7 @@ async function saveTarget(event) {
 
 // Open sales modal
 async function openSalesModal(employeeId, month) {
-    const employees = await loadEmployees();
+    const employees = await window.loadEmployees();
     const employee = employees.find(e => e.id === employeeId);
     
     if (!employee) return;
@@ -295,8 +306,14 @@ async function openSalesModal(employeeId, month) {
     document.getElementById('salesEmployeeId').value = employeeId;
     document.getElementById('salesMonth').value = month;
     document.getElementById('salesCount').value = '';
-    document.getElementById('revenueAmount').value = '';
     document.getElementById('salesNotes').value = '';
+    
+    // Setup currency formatting for revenue amount
+    const revenueInput = document.getElementById('revenueAmount');
+    revenueInput.value = '';
+    revenueInput.addEventListener('input', function() {
+        formatCurrencyInput(this);
+    });
     
     document.getElementById('salesModal').style.display = 'flex';
 }
@@ -314,7 +331,7 @@ async function recordSales(event) {
     const employeeId = parseInt(document.getElementById('salesEmployeeId').value);
     const month = document.getElementById('salesMonth').value;
     const salesCount = parseInt(document.getElementById('salesCount').value);
-    const revenueAmount = parseFloat(document.getElementById('revenueAmount').value);
+    const revenueAmount = getRawCurrencyValue(document.getElementById('revenueAmount'));
     const notes = document.getElementById('salesNotes').value;
     
     const salesData = await getSalesData();
@@ -337,9 +354,9 @@ async function recordSales(event) {
     
     await saveSalesData(salesData);
     
-    const employees = await loadEmployees();
+    const employees = await window.loadEmployees();
     const employee = employees.find(e => e.id === employeeId);
-    const logMessage = `Recorded sales for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesCount} sales, $${revenueAmount.toLocaleString()} revenue${notes ? ' - ' + notes : ''}`;
+    const logMessage = `Recorded sales for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesCount} sales, ${formatRupees(revenueAmount)} revenue${notes ? ' - ' + notes : ''}`;
     addLog('sales', logMessage);
     
     showNotification('Sales recorded successfully!', 'success');
@@ -358,7 +375,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     // Load employees and sales data from MongoDB
-    await loadEmployees();
+    if (typeof window.loadEmployees === 'function') {
+        await window.loadEmployees();
+    }
     await loadSalesData();
     
     // Add Escape key listener for closing modals

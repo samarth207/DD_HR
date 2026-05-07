@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { getDB, isDBConnected } = require('../db');
+
+const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
 // Get all leaves
 router.get('/', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
         const leaves = await db.collection('leaves').find({}).sort({ startDate: -1 }).toArray();
@@ -43,7 +46,7 @@ router.put('/:id', async (req, res) => {
     try {
         const db = getDB();
         const leaveId = parseInt(req.params.id);
-        const updates = req.body;
+        const { _id, ...updates } = req.body;
         
         const result = await db.collection('leaves').updateOne(
             { id: leaveId },

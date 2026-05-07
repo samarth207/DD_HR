@@ -1,8 +1,125 @@
-// API Configuration
-const API_BASE_URL = 'http://localhost:3000/api';
+// API Configuration loaded from config.js
 let cachedEmployees = null;
 let cachedLeaves = null;
 let cachedLogs = null;
+
+// Format number in Indian numbering system (lakhs, crores)
+function formatIndianNumber(num) {
+    if (num === null || num === undefined || isNaN(num)) return '0';
+    const number = parseFloat(num);
+    return number.toLocaleString('en-IN');
+}
+
+// Format currency in Indian Rupees
+function formatRupees(num) {
+    if (num === null || num === undefined || isNaN(num)) return '₹0';
+    const number = parseFloat(num);
+    return '₹' + number.toLocaleString('en-IN');
+}
+
+// Format currency input field with Indian formatting (for text inputs)
+function formatCurrencyInput(input) {
+    // Remove all non-numeric characters except decimal point
+    let value = input.value.replace(/[^0-9.]/g, '');
+    
+    // Handle multiple decimal points
+    const parts = value.split('.');
+    if (parts.length > 2) {
+        value = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Store raw value
+    const rawValue = value;
+    input.dataset.rawValue = rawValue;
+    
+    // Format for display
+    if (value) {
+        const numParts = value.split('.');
+        const integerPart = parseInt(numParts[0]) || 0;
+        const decimalPart = numParts.length > 1 ? '.' + numParts[1] : '';
+        input.value = '₹' + integerPart.toLocaleString('en-IN') + decimalPart;
+    }
+}
+
+// Get raw value from formatted currency input
+function getRawCurrencyValue(input) {
+    return parseFloat(input.dataset.rawValue || input.value.replace(/[^0-9.]/g, '')) || 0;
+}
+
+// Format number input field with Indian formatting (without ₹ symbol)
+function formatNumberInput(input) {
+    // Remove all non-numeric characters except decimal point
+    let value = input.value.replace(/[^0-9.]/g, '');
+    
+    // Handle multiple decimal points
+    const parts = value.split('.');
+    if (parts.length > 2) {
+        value = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Store raw value
+    input.dataset.rawValue = value;
+    
+    // Format for display
+    if (value) {
+        const numParts = value.split('.');
+        const integerPart = parseInt(numParts[0]) || 0;
+        const decimalPart = numParts.length > 1 ? '.' + numParts[1] : '';
+        input.value = integerPart.toLocaleString('en-IN') + decimalPart;
+    }
+}
+
+// Get raw value from formatted number input
+function getRawNumberValue(input) {
+    return parseFloat(input.dataset.rawValue || input.value.replace(/[^0-9.]/g, '')) || 0;
+}
+
+// Initialize currency formatting for an input element
+function initCurrencyInput(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    // Change to text type to allow formatting
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    
+    // Format on input
+    input.addEventListener('input', () => formatCurrencyInput(input));
+    
+    // Format on blur (ensure proper formatting)
+    input.addEventListener('blur', () => {
+        if (input.value && !input.value.startsWith('₹')) {
+            formatCurrencyInput(input);
+        }
+    });
+    
+    // Format initial value if present
+    if (input.value && !isNaN(parseFloat(input.value))) {
+        const val = input.value;
+        input.value = val;
+        formatCurrencyInput(input);
+    }
+}
+
+// Initialize number formatting for an input element (without ₹)
+function initNumberInput(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    // Change to text type to allow formatting
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    
+    // Format on input
+    input.addEventListener('input', () => formatNumberInput(input));
+    
+    // Format initial value if present
+    if (input.value && !isNaN(parseFloat(input.value))) {
+        const val = input.value;
+        input.value = val;
+        formatNumberInput(input);
+    }
+}
 
 // Helper function for API calls
 async function apiCall(endpoint, method = 'GET', data = null) {
@@ -28,106 +145,92 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         return await response.json();
     } catch (error) {
         console.error('API Error:', error);
-        // Fallback to localStorage if API fails
-        console.warn('Falling back to localStorage');
-        return null;
+        throw error;
     }
 }
 
-// Database Functions (with localStorage fallback)
+// Database Functions (MongoDB only)
 function getEmployees() {
-    // Return cached data immediately, then fetch from DB
-    if (cachedEmployees) {
-        return cachedEmployees;
-    }
-    
-    // Fallback to localStorage for immediate return
-    const localData = localStorage.getItem('hrEmployees');
-    return localData ? JSON.parse(localData) : [];
+    // Return cached data if available
+    return cachedEmployees || [];
 }
 
 async function loadEmployees() {
     try {
         const employees = await apiCall('/employees');
-        if (employees) {
+        if (employees && Array.isArray(employees)) {
             cachedEmployees = employees;
             return employees;
         }
+        return [];
     } catch (error) {
-        console.error('Failed to load employees from DB');
+        console.error('Failed to load employees from DB:', error);
+        return cachedEmployees || [];
     }
-    return getEmployees();
 }
 
 function saveEmployees(employees) {
     cachedEmployees = employees;
-    // Save to both localStorage (backup) and DB
-    localStorage.setItem('hrEmployees', JSON.stringify(employees));
 }
 
 async function saveEmployeeToDB(employee) {
     try {
-        if (employee._id) {
+        if (employee.id && employee._id) {
+            // Update existing employee
             await apiCall(`/employees/${employee.id}`, 'PUT', employee);
         } else {
+            // Create new employee
             await apiCall('/employees', 'POST', employee);
         }
         await loadEmployees(); // Refresh cache
     } catch (error) {
-        console.error('Failed to save employee to DB');
+        console.error('Failed to save employee to DB:', error);
+        throw error;
     }
 }
 
 function getLeaves() {
-    if (cachedLeaves) {
-        return cachedLeaves;
-    }
-    const localData = localStorage.getItem('hrLeaves');
-    return localData ? JSON.parse(localData) : [];
+    return cachedLeaves || [];
 }
 
 async function loadLeaves() {
     try {
         const leaves = await apiCall('/leaves');
-        if (leaves) {
+        if (leaves && Array.isArray(leaves)) {
             cachedLeaves = leaves;
             return leaves;
         }
+        return [];
     } catch (error) {
-        console.error('Failed to load leaves from DB');
+        console.error('Failed to load leaves from DB:', error);
+        return cachedLeaves || [];
     }
-    return getLeaves();
 }
 
 function saveLeaves(leaves) {
     cachedLeaves = leaves;
-    localStorage.setItem('hrLeaves', JSON.stringify(leaves));
 }
 
 function getLogs() {
-    if (cachedLogs) {
-        return cachedLogs;
-    }
-    const localData = localStorage.getItem('hrLogs');
-    return localData ? JSON.parse(localData) : [];
+    return cachedLogs || [];
 }
 
 async function loadLogs() {
     try {
         const logs = await apiCall('/logs');
-        if (logs) {
+        if (logs && Array.isArray(logs)) {
             cachedLogs = logs;
             return logs;
         }
+        return [];
     } catch (error) {
-        console.error('Failed to load logs from DB');
+        console.error('Failed to load logs from DB:', error);
+        return cachedLogs || [];
     }
-    return getLogs();
 }
 
 function saveLogs(logs) {
     cachedLogs = logs;
-    localStorage.setItem('hrLogs', JSON.stringify(logs));
 }
 
 function addLog(type, action) {
@@ -159,7 +262,8 @@ async function checkServerConnection() {
             return true;
         }
     } catch (error) {
-        console.warn('⚠️ MongoDB server not running, using localStorage fallback');
+        console.error('⚠️ MongoDB server not running. Please start the server.');
+        alert('Cannot connect to server. Please ensure the backend server is running.');
     }
     return false;
 }
@@ -239,49 +343,14 @@ window.showNotification = showNotification;
 window.processMonthlyLeaveAccrual = processMonthlyLeaveAccrual;
 window.checkServerConnection = checkServerConnection;
 
-// Monthly Leave Accrual System
-function getLastAccrualDate() {
-    const date = localStorage.getItem('hrLastAccrualDate');
-    return date ? new Date(date) : null;
-}
-
-function setLastAccrualDate(date) {
-    localStorage.setItem('hrLastAccrualDate', date.toISOString());
-}
-
-function processMonthlyLeaveAccrual() {
-    const lastAccrual = getLastAccrualDate();
-    const now = new Date();
-    
-    // If first time or it's a new month since last accrual
-    if (!lastAccrual || (now.getFullYear() > lastAccrual.getFullYear() || 
-        (now.getFullYear() === lastAccrual.getFullYear() && now.getMonth() > lastAccrual.getMonth()))) {
-        
-        const employees = getEmployees();
-        let accrualApplied = false;
-        
-        employees.forEach(employee => {
-            if (!employee.leaveBalance) {
-                employee.leaveBalance = {
-                    annualLeave: 20,
-                    sickLeave: 10,
-                    personalLeave: 5
-                };
-            }
-            
-            // Add 1 day to each leave type
-            employee.leaveBalance.annualLeave += 1;
-            employee.leaveBalance.sickLeave += 1;
-            employee.leaveBalance.personalLeave += 1;
-            
-            accrualApplied = true;
-        });
-        
-        if (accrualApplied) {
-            saveEmployees(employees);
-            setLastAccrualDate(now);
-            addLog('system', `Monthly leave accrual applied: +1 day to all leave types for all employees`);
-        }
+// Monthly Leave Accrual System (MongoDB-based)
+async function processMonthlyLeaveAccrual() {
+    try {
+        // This would be handled by backend cron job or manual trigger
+        // For now, this is a placeholder for future implementation
+        console.log('Leave accrual should be processed on the backend');
+    } catch (error) {
+        console.error('Failed to process leave accrual:', error);
     }
 }
 

@@ -1990,3 +1990,209 @@ input:checked + .toggle-slider:before {
         margin: 10px;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Document Management Styles
+───────────────────────────────────────────────────────────── */
+
+/* Form section title (already used in modal, keep consistent) */
+.form-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--primary-color);
+    padding: 0 24px 0;
+    margin-top: 4px;
+}
+
+/* Doc status button in table */
+.doc-status-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+}
+.doc-badge-complete {
+    background: #d1fae5;
+    color: #065f46;
+}
+.doc-badge-complete:hover { background: #a7f3d0; }
+
+.doc-badge-partial {
+    background: #fef3c7;
+    color: #92400e;
+}
+.doc-badge-partial:hover { background: #fde68a; }
+
+.doc-badge-missing {
+    background: #fee2e2;
+    color: #991b1b;
+}
+.doc-badge-missing:hover { background: #fecaca; }
+
+.doc-missing-chip {
+    background: rgba(0,0,0,.12);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
+    margin-left: 2px;
+}
+
+/* Documents Modal */
+.docs-modal-content {
+    max-width: 860px !important;
+    width: 94% !important;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.docs-missing-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    background: #fff7ed;
+    border-left: 4px solid #f59e0b;
+    color: #92400e;
+    font-size: 13px;
+    padding: 10px 18px;
+}
+
+.missing-chip {
+    background: #fde68a;
+    color: #78350f;
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Docs grid */
+.docs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Individual doc card */
+.doc-card {
+    border-radius: 10px;
+    border: 2px solid var(--border-color);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: box-shadow .2s, border-color .2s;
+    background: #fff;
+}
+.doc-card:hover { box-shadow: var(--shadow-lg); }
+
+.doc-card-uploaded { border-color: #a7f3d0; background: #f0fdf4; }
+.doc-card-empty    { border-color: #fecaca; background: #fff5f5; }
+
+.doc-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.doc-card-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: var(--bg-color);
+    color: var(--primary-color);
+}
+.doc-card-uploaded .doc-card-icon { background:#d1fae5; color:#059669; }
+.doc-card-empty    .doc-card-icon { background:#fee2e2; color:#dc2626; }
+
+.doc-card-status {
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 3px 10px;
+}
+.status-uploaded { background:#d1fae5; color:#065f46; }
+.status-missing  { background:#fee2e2; color:#991b1b; }
+
+.doc-card-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.doc-card-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.doc-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    flex-wrap: wrap;
+}
+
+/* Doc action buttons */
+.btn-doc-upload,
+.btn-doc-view,
+.btn-doc-delete {
+    flex: 1;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all .2s;
+}
+.btn-doc-upload {
+    background: var(--primary-color);
+    color: #fff;
+}
+.btn-doc-upload:hover { background: var(--primary-hover); }
+
+.btn-doc-view {
+    background: #dbeafe;
+    color: #1e40af;
+}
+.btn-doc-view:hover { background: #3b82f6; color:#fff; }
+
+.btn-doc-delete {
+    background: #fee2e2;
+    color: #991b1b;
+    flex: 0 0 auto;
+}
+.btn-doc-delete:hover { background: #ef4444; color:#fff; }
+
+/* Leave badge (already exists, just ensure it's here) */
+.leave-badge {
+    background: #ede9fe;
+    color: #5b21b6;
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+}

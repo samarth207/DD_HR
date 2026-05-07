@@ -558,12 +558,12 @@
             <div class="sales-overview">
                 <div class="sales-card">
                     <p>Total Revenue Target</p>
-                    <h3 id="totalRevenueTarget">$0</h3>
+                    <h3 id="totalRevenueTarget">₹0</h3>
                     <p class="subtitle">Monthly target for the team</p>
                 </div>
                 <div class="sales-card green">
                     <p>Total Revenue Achieved</p>
-                    <h3 id="totalRevenueAchieved">$0</h3>
+                    <h3 id="totalRevenueAchieved">₹0</h3>
                     <p class="subtitle" id="revenuePercentage">0% of target</p>
                 </div>
                 <div class="sales-card orange">
@@ -603,8 +603,8 @@
                         <input type="number" id="salesTarget" min="0" required placeholder="e.g., 50">
                     </div>
                     <div class="form-group">
-                        <label for="revenueTarget">Revenue Target ($) *</label>
-                        <input type="number" id="revenueTarget" min="0" step="0.01" required placeholder="e.g., 100000">
+                        <label for="revenueTarget">Revenue Target (₹) *</label>
+                        <input type="text" id="revenueTarget" inputmode="numeric" required placeholder="e.g., ₹1,00,000">
                     </div>
                 </div>
                 <input type="hidden" id="targetEmployeeId">
@@ -635,8 +635,8 @@
                         <input type="number" id="salesCount" min="0" required placeholder="e.g., 5">
                     </div>
                     <div class="form-group">
-                        <label for="revenueAmount">Revenue Amount ($) *</label>
-                        <input type="number" id="revenueAmount" min="0" step="0.01" required placeholder="e.g., 25000">
+                        <label for="revenueAmount">Revenue Amount (₹) *</label>
+                        <input type="text" id="revenueAmount" inputmode="numeric" required placeholder="e.g., ₹25,000">
                     </div>
                 </div>
                 <div class="form-group">
@@ -653,6 +653,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="script.js"></script>
     <script src="sales-script.js"></script>
 </body>

@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { getDB, isDBConnected } = require('../db');
+
+const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
 // Get incentive configuration
 router.get('/config', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
         const config = await db.collection('incentive_config').findOne({});

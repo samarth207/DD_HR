@@ -1,5 +1,6 @@
-const { MongoClient } = require('mongodb');
-require('dotenv').config();
+const { MongoClient, ServerApiVersion } = require('mongodb');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME;
@@ -9,7 +10,16 @@ let db;
 
 async function connectDB() {
     try {
-        client = new MongoClient(uri);
+        client = new MongoClient(uri, {
+            serverApi: {
+                version: ServerApiVersion.v1,
+                strict: true,
+                deprecationErrors: true,
+            },
+            tls: true,
+            tlsAllowInvalidCertificates: false,
+            family: 4,
+        });
         await client.connect();
         console.log('✅ Connected to MongoDB Atlas');
         
@@ -21,8 +31,10 @@ async function connectDB() {
         
         return db;
     } catch (error) {
-        console.error('❌ MongoDB connection error:', error);
-        process.exit(1);
+        console.error('❌ MongoDB connection error:', error.message || error);
+        console.warn('⚠️  Server will start without database. API routes will be unavailable.');
+        db = null;
+        return null;
     }
 }
 
@@ -55,10 +67,11 @@ async function createIndexes() {
 }
 
 function getDB() {
-    if (!db) {
-        throw new Error('Database not initialized. Call connectDB first.');
-    }
-    return db;
+    return db; // may be null if not connected
+}
+
+function isDBConnected() {
+    return db !== null && db !== undefined;
 }
 
 async function closeDB() {
@@ -68,4 +81,4 @@ async function closeDB() {
     }
 }
 
-module.exports = { connectDB, getDB, closeDB };
+module.exports = { connectDB, getDB, isDBConnected, closeDB };

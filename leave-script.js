@@ -2,20 +2,15 @@
 let currentStatusFilter = 'all';
 let deleteLeaveId = null;
 
-// LocalStorage Functions for Leaves
-function getLeaves() {
-    const leaves = localStorage.getItem('hrLeaves');
-    return leaves ? JSON.parse(leaves) : [];
-}
-
-function saveLeaves(leaves) {
-    localStorage.setItem('hrLeaves', JSON.stringify(leaves));
-}
+// Note: getLeaves() and saveLeaves() are already defined in script.js
+// No localStorage functions needed here
 
 // Initialize leave management page
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // Load data from DB first, then render
+    await Promise.all([loadEmployees(), loadLeaves()]);
     loadEmployeeOptions();
-    loadLeaves();
+    renderLeaves();
     updateLeaveStats();
     
     // Add Escape key listener for closing modals
@@ -41,17 +36,45 @@ document.addEventListener('DOMContentLoaded', function() {
 function loadEmployeeOptions() {
     const employees = getEmployees();
     const select = document.getElementById('employeeSelect');
-    
     select.innerHTML = '<option value="">Select Employee</option>';
+    if (!employees || employees.length === 0) {
+        select.innerHTML = '<option value="">No employees found</option>';
+        return;
+    }
     employees.forEach(emp => {
         const option = document.createElement('option');
         option.value = emp.id;
         option.textContent = `${emp.firstName} ${emp.lastName} - ${emp.department}`;
         select.appendChild(option);
     });
+    select.addEventListener('change', showEmployeeLeaveBalance);
 }
 
-function loadLeaves() {
+function showEmployeeLeaveBalance() {
+    const employeeId = parseInt(document.getElementById('employeeSelect').value);
+    const balanceBox = document.getElementById('employeeLeaveBalance');
+    if (!balanceBox) return;
+
+    if (!employeeId) {
+        balanceBox.style.display = 'none';
+        return;
+    }
+
+    const employees = getEmployees();
+    const emp = employees.find(e => e.id === employeeId);
+    if (!emp) { balanceBox.style.display = 'none'; return; }
+
+    const bal = emp.leaveBalance || { annualLeave: 20, sickLeave: 10, personalLeave: 5 };
+    balanceBox.style.display = 'flex';
+    balanceBox.innerHTML = `
+        <span style="font-size:12px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.5px;margin-right:8px;">Leave Balance:</span>
+        <span class="bal-chip annual">🌴 Annual: <strong>${bal.annualLeave ?? 20}</strong></span>
+        <span class="bal-chip sick">🤒 Sick: <strong>${bal.sickLeave ?? 10}</strong></span>
+        <span class="bal-chip personal">⭐ Personal: <strong>${bal.personalLeave ?? 5}</strong></span>
+    `;
+}
+
+function renderLeaves() {
     const leaves = getLeaves();
     displayLeaves(leaves);
 }
@@ -67,14 +90,28 @@ function displayLeaves(leaves) {
     }
     
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="no-data">No leave requests found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="no-data">No leave requests found</td></tr>';
         return;
     }
     
+    const allLeaves = getLeaves();
     tbody.innerHTML = filtered.map(leave => {
         const employee = employees.find(e => e.id === leave.employeeId);
         const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
         const days = calculateDays(leave.startDate, leave.endDate);
+        
+        // Determine pay type for approved leaves (1 paid leave per month policy)
+        let payTypeBadge = '<span style="color:#a0aec0;font-size:12px;">—</span>';
+        if (leave.status === 'approved') {
+            const leaveMonth = leave.startDate.substring(0, 7);
+            const firstApprovedInMonth = allLeaves
+                .filter(l => l.employeeId === leave.employeeId && l.status === 'approved' && l.startDate.substring(0, 7) === leaveMonth)
+                .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0];
+            const isPaid = firstApprovedInMonth?.id === leave.id;
+            payTypeBadge = isPaid
+                ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Paid</span>'
+                : '<span style="background:#fed7d7;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Unpaid</span>';
+        }
         
         return `
             <tr>
@@ -85,6 +122,7 @@ function displayLeaves(leaves) {
                 <td>${days} day${days !== 1 ? 's' : ''}</td>
                 <td>${truncateText(leave.reason || 'N/A', 30)}</td>
                 <td><span class="status-badge ${leave.status}">${capitalize(leave.status)}</span></td>
+                <td>${payTypeBadge}</td>
                 <td class="actions">
                     <button class="icon-btn" onclick="viewLeaveDetails(${leave.id})" title="View Details" style="background-color: #e0e7ff; color: #4338ca;">
                         <i class="fas fa-eye"></i>
@@ -208,6 +246,7 @@ function editLeave(id) {
     document.getElementById('leaveModalTitle').textContent = 'Edit Leave Request';
     document.getElementById('leaveId').value = leave.id;
     document.getElementById('employeeSelect').value = leave.employeeId;
+    showEmployeeLeaveBalance();
     document.getElementById('leaveType').value = leave.leaveType;
     document.getElementById('leaveStatus').value = leave.status;
     document.getElementById('startDate').value = leave.startDate;
@@ -218,7 +257,7 @@ function editLeave(id) {
     document.getElementById('leaveModal').classList.add('show');
 }
 
-function saveLeaveRequest(event) {
+async function saveLeaveRequest(event) {
     event.preventDefault();
     
     const id = document.getElementById('leaveId').value;
@@ -230,14 +269,14 @@ function saveLeaveRequest(event) {
     const endDate = document.getElementById('endDate').value;
     
     // Check if any date in range is a holiday
-    let current = new Date(startDate);
-    const end = new Date(endDate);
+    let current = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
     
     while (current <= end) {
-        const dateStr = current.toISOString().split('T')[0];
-        if (typeof isHoliday === 'function' && isHoliday(dateStr)) {
-            const holiday = getHolidayByDate(dateStr);
-            showNotification(`Cannot apply for leave on ${holiday.name} (${formatDateShort(dateStr)})`, 'error');
+        const dateStr = `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`;
+        if (typeof isHoliday === 'function' && await isHoliday(dateStr)) {
+            const holiday = await getHolidayByDate(dateStr);
+            showNotification(`Cannot apply for leave on ${holiday?.name || 'a holiday'} (${formatDateShort(dateStr)})`, 'error');
             return;
         }
         current.setDate(current.getDate() + 1);
@@ -301,33 +340,39 @@ function saveLeaveRequest(event) {
         
         // Update employee leave balance
         employee.leaveBalance = leaveBalance;
-        saveEmployees(employees);
+        // Persist employee balance update to DB
+        apiCall(`/employees/${employee.id}`, 'PUT', employee).catch(e => console.error('Failed to update employee balance:', e));
     }
     
-    if (id) {
-        const index = leaves.findIndex(l => l.id === parseInt(id));
-        leaves[index] = leave;
-        addLog('edit', `Updated leave request for ${employee.firstName} ${employee.lastName}`);
-        showNotification('Leave request updated successfully!', 'success');
-    } else {
-        leaves.push(leave);
-        addLog('add', `Created leave request for ${employee.firstName} ${employee.lastName}`);
-        showNotification('Leave request created successfully!', 'success');
+    try {
+        if (id) {
+            await apiCall(`/leaves/${leave.id}`, 'PUT', leave);
+            addLog('edit', `Updated leave request for ${employee.firstName} ${employee.lastName}`);
+            showNotification('Leave request updated successfully!', 'success');
+        } else {
+            await apiCall('/leaves', 'POST', leave);
+            addLog('add', `Created leave request for ${employee.firstName} ${employee.lastName}`);
+            showNotification('Leave request created successfully!', 'success');
+        }
+    } catch (err) {
+        showNotification('Failed to save leave request. Please try again.', 'error');
+        return;
     }
-    
-    saveLeaves(leaves);
-    loadLeaves();
+
+    // Refresh cache from DB then re-render
+    await loadLeaves();
+    renderLeaves();
     updateLeaveStats();
     closeLeaveModal();
 }
 
-function calculateLeaveDays() {
+async function calculateLeaveDays() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     
     if (startDate && endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = new Date(startDate + 'T00:00:00');
+        const end = new Date(endDate + 'T00:00:00');
         
         if (end < start) {
             document.getElementById('leaveDuration').textContent = 'Invalid date range';
@@ -340,10 +385,10 @@ function calculateLeaveDays() {
         let holidayDates = [];
         
         while (current <= end) {
-            const dateStr = current.toISOString().split('T')[0];
-            if (typeof isHoliday === 'function' && isHoliday(dateStr)) {
-                const holiday = getHolidayByDate(dateStr);
-                holidayDates.push(holiday.name);
+            const dateStr = `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`;
+            if (typeof isHoliday === 'function' && await isHoliday(dateStr)) {
+                const holiday = await getHolidayByDate(dateStr);
+                holidayDates.push(holiday?.name || 'Holiday');
             }
             current.setDate(current.getDate() + 1);
         }
@@ -395,39 +440,47 @@ function viewLeaveDetails(id) {
     document.getElementById('leaveDetailsModal').classList.add('show');
 }
 
-function approveLeave(id) {
+async function approveLeave(id) {
     const leaves = getLeaves();
     const leave = leaves.find(l => l.id === id);
-    
     if (!leave) return;
-    
-    leave.status = 'approved';
-    saveLeaves(leaves);
-    
+
+    try {
+        await apiCall(`/leaves/${id}`, 'PUT', { ...leave, status: 'approved' });
+    } catch (err) {
+        showNotification('Failed to approve leave. Please try again.', 'error');
+        return;
+    }
+
     const employees = getEmployees();
     const employee = employees.find(e => e.id === leave.employeeId);
-    addLog('edit', `Approved leave request for ${employee.firstName} ${employee.lastName}`);
+    addLog('edit', `Approved leave request for ${employee?.firstName} ${employee?.lastName}`);
     showNotification('Leave request approved!', 'success');
-    
-    loadLeaves();
+
+    await loadLeaves();
+    renderLeaves();
     updateLeaveStats();
 }
 
-function rejectLeave(id) {
+async function rejectLeave(id) {
     const leaves = getLeaves();
     const leave = leaves.find(l => l.id === id);
-    
     if (!leave) return;
-    
-    leave.status = 'rejected';
-    saveLeaves(leaves);
-    
+
+    try {
+        await apiCall(`/leaves/${id}`, 'PUT', { ...leave, status: 'rejected' });
+    } catch (err) {
+        showNotification('Failed to reject leave. Please try again.', 'error');
+        return;
+    }
+
     const employees = getEmployees();
     const employee = employees.find(e => e.id === leave.employeeId);
-    addLog('edit', `Rejected leave request for ${employee.firstName} ${employee.lastName}`);
+    addLog('edit', `Rejected leave request for ${employee?.firstName} ${employee?.lastName}`);
     showNotification('Leave request rejected!', 'success');
-    
-    loadLeaves();
+
+    await loadLeaves();
+    renderLeaves();
     updateLeaveStats();
 }
 
@@ -436,27 +489,34 @@ function deleteLeave(id) {
     document.getElementById('deleteLeaveModal').classList.add('show');
 }
 
-function confirmDeleteLeave() {
+async function confirmDeleteLeave() {
     if (!deleteLeaveId) return;
     
     const leaves = getLeaves();
     const leave = leaves.find(l => l.id === deleteLeaveId);
-    const filtered = leaves.filter(l => l.id !== deleteLeaveId);
-    
     const employees = getEmployees();
-    const employee = employees.find(e => e.id === leave.employeeId);
-    
-    saveLeaves(filtered);
-    addLog('delete', `Deleted leave request for ${employee.firstName} ${employee.lastName}`);
+    const employee = employees.find(e => e.id === leave?.employeeId);
+
+    try {
+        await apiCall(`/leaves/${deleteLeaveId}`, 'DELETE');
+    } catch (err) {
+        showNotification('Failed to delete leave. Please try again.', 'error');
+        return;
+    }
+
+    addLog('delete', `Deleted leave request for ${employee?.firstName} ${employee?.lastName}`);
     showNotification('Leave request deleted successfully!', 'success');
-    
-    loadLeaves();
+
+    await loadLeaves();
+    renderLeaves();
     updateLeaveStats();
     closeDeleteLeaveModal();
 }
 
 function closeLeaveModal() {
     document.getElementById('leaveModal').classList.remove('show');
+    const balanceBox = document.getElementById('employeeLeaveBalance');
+    if (balanceBox) balanceBox.style.display = 'none';
 }
 
 function closeDetailsModal() {

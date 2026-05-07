@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { getDB } = require('../db');
+const { getDB, isDBConnected } = require('../db');
+
+const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
 // Get all sales data
 router.get('/', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
         const salesData = await db.collection('sales').find({}).toArray();
@@ -30,6 +33,7 @@ router.get('/', async (req, res) => {
 
 // Get sales data by month
 router.get('/month/:month', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
         const salesData = await db.collection('sales').find({ 
@@ -43,6 +47,7 @@ router.get('/month/:month', async (req, res) => {
 
 // Update or create sales record
 router.post('/', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
         const { month, employeeId, data } = req.body;

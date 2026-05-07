@@ -56,38 +56,32 @@ function getAccountData() {
         emailNotifications: true,
         memberSince: '2024-01-01'
     };
-    
-    const saved = localStorage.getItem('hrAccount');
-    return saved ? JSON.parse(saved) : defaultData;
+    return defaultData;
 }
 
-function saveAccountData(data) {
-    localStorage.setItem('hrAccount', JSON.stringify(data));
+async function saveAccountData(data) {
+    try {
+        await fetch(`${API_BASE_URL}/account`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    } catch (error) {
+        console.error('Error saving account data:', error);
+    }
 }
 
-function updateSystemInfo() {
-    const employees = getEmployees();
-    const leaves = getLeaves();
-    const logs = getLogs();
+async function updateSystemInfo() {
+    const employees = await loadEmployees();
+    const leaves = await loadLeaves();
+    const logs = await loadLogs();
     
     document.getElementById('totalEmployeesCount').textContent = employees.length;
     document.getElementById('totalLeavesCount').textContent = leaves.length;
     document.getElementById('totalLogsCount').textContent = logs.length;
     
-    // Calculate storage size
-    const storageSize = calculateStorageSize();
-    document.getElementById('dataStorage').textContent = storageSize;
-}
-
-function calculateStorageSize() {
-    let total = 0;
-    for (let key in localStorage) {
-        if (localStorage.hasOwnProperty(key)) {
-            total += localStorage[key].length + key.length;
-        }
-    }
-    const kb = (total / 1024).toFixed(2);
-    return `${kb} KB`;
+    // Calculate MongoDB storage info
+    document.getElementById('dataStorage').textContent = 'MongoDB';
 }
 
 function updateLastLogin() {
@@ -111,7 +105,7 @@ function editPersonalInfo() {
     document.getElementById('editPersonalModal').classList.add('show');
 }
 
-function savePersonalInfo(event) {
+async function savePersonalInfo(event) {
     event.preventDefault();
     
     const accountData = getAccountData();
@@ -121,7 +115,7 @@ function savePersonalInfo(event) {
     accountData.department = document.getElementById('editDepartment').value;
     accountData.position = document.getElementById('editPosition').value;
     
-    saveAccountData(accountData);
+    await saveAccountData(accountData);
     loadAccountDetails();
     closeEditPersonalModal();
     
@@ -180,37 +174,15 @@ function toggleEmailNotif() {
 }
 
 function clearAllData() {
-    document.getElementById('clearDataModal').classList.add('show');
-}
-
-function confirmClearAllData() {
-    const confirmText = document.getElementById('confirmDeleteText').value;
-    
-    if (confirmText !== 'DELETE') {
-        showNotification('Please type DELETE to confirm', 'error');
-        return;
-    }
-    
-    // Clear all data
-    localStorage.removeItem('hrEmployees');
-    localStorage.removeItem('hrLeaves');
-    localStorage.removeItem('hrLogs');
-    
-    addLog('delete', 'Cleared all system data');
-    
+    showNotification('Database clearing must be done from the backend', 'warning');
     closeClearDataModal();
-    showNotification('All data cleared successfully!', 'success');
-    
-    setTimeout(() => {
-        updateSystemInfo();
-    }, 500);
 }
 
-function exportAllData() {
+async function exportAllData() {
     const allData = {
-        employees: getEmployees(),
-        leaves: getLeaves(),
-        logs: getLogs(),
+        employees: await loadEmployees(),
+        leaves: await loadLeaves(),
+        logs: await loadLogs(),
         account: getAccountData(),
         exportDate: new Date().toISOString()
     };

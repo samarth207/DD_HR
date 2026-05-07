@@ -112,13 +112,14 @@
                             <th>Position</th>
                             <th>Hire Date</th>
                             <th>Leave Balance</th>
+                            <th>Documents</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="employeesTableBody">
                         <tr>
-                            <td colspan="10" class="no-data">No employees found</td>
+                            <td colspan="11" class="no-data">No employees found</td>
                         </tr>
                     </tbody>
                 </table>
@@ -172,8 +173,8 @@
                         <input type="date" id="hireDate" required>
                     </div>
                     <div class="form-group">
-                        <label for="salary">Salary</label>
-                        <input type="number" id="salary" min="0" step="1000">
+                        <label for="salary">Salary (₹)</label>
+                        <input type="text" id="salary" inputmode="numeric" placeholder="₹0">
                     </div>
                     <div class="form-group">
                         <label for="status">Status *</label>
@@ -250,6 +251,27 @@
         </div>
     </div>
 
+    <!-- Documents Modal -->
+    <div id="documentsModal" class="modal">
+        <div class="modal-content docs-modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 id="docsModalTitle">Employee Documents</h2>
+                    <p id="docsModalSubtitle" style="color:var(--text-muted);font-size:0.85rem;margin:2px 0 0"></p>
+                </div>
+                <button class="close-btn" onclick="closeDocsModal()">&times;</button>
+            </div>
+            <div id="docsMissingSummary" class="docs-missing-banner" style="display:none"></div>
+            <div id="docsGrid" class="docs-grid"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDocsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden upload input -->
+    <input type="file" id="docFileInput" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+
     <!-- Delete Confirmation Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content small">
@@ -267,13 +289,25 @@
         </div>
     </div>
 
+    <!-- Inline viewer iframe for documents -->
+    <div id="docViewerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;flex-direction:column">
+        <div style="background:#1e1e2e;border-radius:12px;width:90vw;max-width:900px;height:85vh;display:flex;flex-direction:column;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.1)">
+                <span id="docViewerTitle" style="color:#fff;font-weight:600"></span>
+                <button onclick="closeDocViewer()" style="background:none;border:none;color:#aaa;font-size:1.4rem;cursor:pointer">&times;</button>
+            </div>
+            <iframe id="docViewerFrame" style="flex:1;border:none;width:100%"></iframe>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
     <script src="script.js"></script>
     <script>
         let deleteEmployeeId = null;
 
         // Initialize employees page
-        document.addEventListener('DOMContentLoaded', function() {
-            loadEmployees();
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadEmployeesFromDB();
             
             // Check if should open add modal
             const urlParams = new URLSearchParams(window.location.search);
@@ -282,22 +316,49 @@
             }
         });
 
-        function loadEmployees() {
-            const employees = getEmployees();
-            displayEmployees(employees);
+        async function loadEmployeesFromDB() {
+            try {
+                const employees = await loadEmployees();
+                displayEmployees(employees);
+            } catch (error) {
+                console.error('Error loading employees:', error);
+                showNotification('Failed to load employees', 'error');
+            }
+        }
+
+        const DOC_TYPES = [
+            { key: 'marksheet_10th',  label: '10th Marksheet' },
+            { key: 'marksheet_12th',  label: '12th Marksheet' },
+            { key: 'salary_slips',    label: 'Salary Slips / Certificate' },
+            { key: 'relieving_letter',label: 'Relieving Letter' },
+            { key: 'cv_resume',       label: 'CV / Resume' },
+            { key: 'passport_photos', label: 'Passport Photos' },
+            { key: 'age_proof',       label: 'Proof of Age' },
+            { key: 'address_proof',   label: 'Proof of Address' },
+            { key: 'pan_card',        label: 'PAN Card Copy' },
+            { key: 'bank_passbook',   label: 'Bank Passbook Copy' }
+        ];
+
+        function getDocStats(emp) {
+            const docs = emp.documents || {};
+            const uploaded = DOC_TYPES.filter(d => docs[d.key]).length;
+            return { uploaded, total: DOC_TYPES.length, missing: DOC_TYPES.length - uploaded };
         }
 
         function displayEmployees(employees) {
             const tbody = document.getElementById('employeesTableBody');
             
             if (employees.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="no-data">No employees found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" class="no-data">No employees found</td></tr>';
                 return;
             }
             
             tbody.innerHTML = employees.map(emp => {
                 const leaveBalance = emp.leaveBalance || { annualLeave: 0, sickLeave: 0, personalLeave: 0 };
                 const totalLeave = leaveBalance.annualLeave + leaveBalance.sickLeave + leaveBalance.personalLeave;
+                const ds = getDocStats(emp);
+                const docBadgeClass = ds.missing === 0 ? 'doc-badge-complete' : ds.missing <= 4 ? 'doc-badge-partial' : 'doc-badge-missing';
+                const docBadgeIcon  = ds.missing === 0 ? 'fa-check-circle' : 'fa-exclamation-triangle';
                 
                 return `
                 <tr>
@@ -309,10 +370,20 @@
                     <td>${emp.position}</td>
                     <td>${formatDate(emp.hireDate)}</td>
                     <td><span class="leave-badge">${totalLeave} days</span></td>
+                    <td>
+                        <button class="doc-status-btn ${docBadgeClass}" onclick="openDocsModal(${emp.id})" title="Manage Documents">
+                            <i class="fas ${docBadgeIcon}"></i>
+                            ${ds.uploaded}/${ds.total}
+                            ${ds.missing > 0 ? '<span class="doc-missing-chip">' + ds.missing + ' missing</span>' : ''}
+                        </button>
+                    </td>
                     <td><span class="status-badge ${emp.status.toLowerCase().replace(' ', '-')}">${emp.status}</span></td>
                     <td class="actions">
                         <button class="icon-btn edit" onclick="editEmployee(${emp.id})" title="Edit">
                             <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="icon-btn" style="color:#a78bfa" onclick="openDocsModal(${emp.id})" title="Manage Documents">
+                            <i class="fas fa-folder-open"></i>
                         </button>
                         <button class="icon-btn delete" onclick="deleteEmployee(${emp.id})" title="Delete">
                             <i class="fas fa-trash"></i>
@@ -331,11 +402,11 @@
             const employees = getEmployees();
             const filtered = employees.filter(emp => {
                 const matchesSearch = 
-                    emp.firstName.toLowerCase().includes(searchTerm) ||
-                    emp.lastName.toLowerCase().includes(searchTerm) ||
-                    emp.email.toLowerCase().includes(searchTerm) ||
-                    emp.department.toLowerCase().includes(searchTerm) ||
-                    emp.position.toLowerCase().includes(searchTerm);
+                    (emp.firstName || '').toLowerCase().includes(searchTerm) ||
+                    (emp.lastName || '').toLowerCase().includes(searchTerm) ||
+                    (emp.email || '').toLowerCase().includes(searchTerm) ||
+                    (emp.department || '').toLowerCase().includes(searchTerm) ||
+                    (emp.position || '').toLowerCase().includes(searchTerm);
                 
                 const matchesStatus = !statusFilter || emp.status === statusFilter;
                 const matchesDepartment = !departmentFilter || emp.department === departmentFilter;
@@ -351,7 +422,18 @@
             document.getElementById('employeeForm').reset();
             document.getElementById('employeeId').value = '';
             document.getElementById('hireDate').valueAsDate = new Date();
+            // Reset salary formatting
+            const salaryInput = document.getElementById('salary');
+            salaryInput.value = '';
+            salaryInput.dataset.rawValue = '';
+            // Set up currency formatting listener
+            salaryInput.removeEventListener('input', handleSalaryInput);
+            salaryInput.addEventListener('input', handleSalaryInput);
             document.getElementById('employeeModal').classList.add('show');
+        }
+        
+        function handleSalaryInput() {
+            formatCurrencyInput(document.getElementById('salary'));
         }
 
         function editEmployee(id) {
@@ -369,7 +451,18 @@
             document.getElementById('department').value = employee.department;
             document.getElementById('position').value = employee.position;
             document.getElementById('hireDate').value = employee.hireDate;
-            document.getElementById('salary').value = employee.salary || '';
+            // Format salary with Indian rupees
+            const salaryInput = document.getElementById('salary');
+            salaryInput.removeEventListener('input', handleSalaryInput);
+            salaryInput.addEventListener('input', handleSalaryInput);
+            if (employee.salary) {
+                salaryInput.value = employee.salary;
+                salaryInput.dataset.rawValue = employee.salary;
+                formatCurrencyInput(salaryInput);
+            } else {
+                salaryInput.value = '';
+                salaryInput.dataset.rawValue = '';
+            }
             document.getElementById('status').value = employee.status;
             document.getElementById('address').value = employee.address || '';
             
@@ -393,7 +486,7 @@
             document.getElementById('employeeModal').classList.add('show');
         }
 
-        function saveEmployee(event) {
+        async function saveEmployee(event) {
             event.preventDefault();
             
             const id = document.getElementById('employeeId').value;
@@ -406,7 +499,7 @@
                 department: document.getElementById('department').value,
                 position: document.getElementById('position').value,
                 hireDate: document.getElementById('hireDate').value,
-                salary: document.getElementById('salary').value,
+                salary: getRawCurrencyValue(document.getElementById('salary')),
                 status: document.getElementById('status').value,
                 address: document.getElementById('address').value,
                 bankName: document.getElementById('bankName').value,
@@ -423,24 +516,33 @@
                 }
             };
             
-            const employees = getEmployees();
-            
+            // If editing, preserve the _id field from MongoDB
             if (id) {
-                // Update existing employee
-                const index = employees.findIndex(e => e.id === parseInt(id));
-                employees[index] = employee;
-                addLog('edit', `Updated employee: ${employee.firstName} ${employee.lastName}`);
-                showNotification('Employee updated successfully!', 'success');
-            } else {
-                // Add new employee
-                employees.push(employee);
-                addLog('add', `Added new employee: ${employee.firstName} ${employee.lastName}`);
-                showNotification('Employee added successfully!', 'success');
+                const employees = getEmployees();
+                const existingEmployee = employees.find(e => e.id === parseInt(id));
+                if (existingEmployee && existingEmployee._id) {
+                    employee._id = existingEmployee._id;
+                }
             }
             
-            saveEmployees(employees);
-            loadEmployees();
-            closeModal();
+            try {
+                // Save to database using API
+                await saveEmployeeToDB(employee);
+                
+                if (id) {
+                    addLog('edit', `Updated employee: ${employee.firstName} ${employee.lastName}`);
+                    showNotification('Employee updated successfully!', 'success');
+                } else {
+                    addLog('add', `Added new employee: ${employee.firstName} ${employee.lastName}`);
+                    showNotification('Employee added successfully!', 'success');
+                }
+                
+                loadEmployees();
+                closeModal();
+            } catch (error) {
+                console.error('Error saving employee:', error);
+                showNotification('Failed to save employee: ' + error.message, 'error');
+            }
         }
 
         function deleteEmployee(id) {
@@ -448,19 +550,25 @@
             document.getElementById('deleteModal').classList.add('show');
         }
 
-        function confirmDelete() {
+        async function confirmDelete() {
             if (!deleteEmployeeId) return;
             
-            const employees = getEmployees();
-            const employee = employees.find(e => e.id === deleteEmployeeId);
-            const filtered = employees.filter(e => e.id !== deleteEmployeeId);
-            
-            saveEmployees(filtered);
-            addLog('delete', `Deleted employee: ${employee.firstName} ${employee.lastName}`);
-            showNotification('Employee deleted successfully!', 'success');
-            
-            loadEmployees();
-            closeDeleteModal();
+            try {
+                const employees = getEmployees();
+                const employee = employees.find(e => e.id === deleteEmployeeId);
+                
+                // Delete from database using API
+                await apiCall(`/employees/${deleteEmployeeId}`, 'DELETE');
+                
+                addLog('delete', `Deleted employee: ${employee.firstName} ${employee.lastName}`);
+                showNotification('Employee deleted successfully!', 'success');
+                
+                await loadEmployeesFromDB();
+                closeDeleteModal();
+            } catch (error) {
+                console.error('Error deleting employee:', error);
+                showNotification('Failed to delete employee: ' + error.message, 'error');
+            }
         }
 
         function closeModal() {
@@ -472,31 +580,159 @@
             deleteEmployeeId = null;
         }
 
+        // ── Documents Modal ──────────────────────────────────────────────
+        let currentDocsEmployeeId = null;
+        let currentDocsEmployee   = null;
+        let pendingDocType        = null;
+
+        async function openDocsModal(empId) {
+            const employees = getEmployees();
+            const emp = employees.find(e => e.id === empId);
+            if (!emp) return;
+            currentDocsEmployeeId = empId;
+            currentDocsEmployee   = emp;
+
+            document.getElementById('docsModalTitle').textContent = `${emp.firstName} ${emp.lastName} — Documents`;
+            document.getElementById('docsModalSubtitle').textContent = `${emp.position} · ${emp.department}`;
+            document.getElementById('documentsModal').classList.add('show');
+            await renderDocsGrid();
+        }
+
+        function closeDocsModal() {
+            document.getElementById('documentsModal').classList.remove('show');
+            currentDocsEmployeeId = null;
+            currentDocsEmployee   = null;
+            pendingDocType        = null;
+        }
+
+        async function renderDocsGrid() {
+            if (!currentDocsEmployeeId) return;
+            let docsData = {};
+            try {
+                const res = await fetch(`/api/employees/${currentDocsEmployeeId}/documents`);
+                if (res.ok) {
+                    const data = await res.json();
+                    docsData = data.documents || {};
+                    // Refresh employee in local cache
+                    const employees = getEmployees();
+                    const idx = employees.findIndex(e => e.id === currentDocsEmployeeId);
+                    if (idx > -1) { employees[idx].documents = docsData; }
+                    displayEmployees(employees);
+                }
+            } catch(e) { /* offline fallback */ }
+
+            const missing = DOC_TYPES.filter(d => !docsData[d.key]);
+            const banner = document.getElementById('docsMissingSummary');
+            if (missing.length === 0) {
+                banner.style.display = 'none';
+            } else {
+                banner.style.display = 'flex';
+                banner.innerHTML = `<i class="fas fa-exclamation-triangle"></i>&nbsp; <strong>${missing.length} document${missing.length > 1 ? 's' : ''} missing:</strong>&nbsp;` +
+                    missing.map(d => `<span class="missing-chip">${d.label}</span>`).join('');
+            }
+
+            const grid = document.getElementById('docsGrid');
+            grid.innerHTML = DOC_TYPES.map(dt => {
+                const doc = docsData[dt.key];
+                const uploaded = !!doc;
+                return `
+                <div class="doc-card ${uploaded ? 'doc-card-uploaded' : 'doc-card-empty'}">
+                    <div class="doc-card-header">
+                        <div class="doc-card-icon">
+                            <i class="fas ${uploaded ? 'fa-file-check' : 'fa-file-upload'}"></i>
+                        </div>
+                        <div class="doc-card-status ${uploaded ? 'status-uploaded' : 'status-missing'}">
+                            ${uploaded ? '<i class="fas fa-check"></i> Uploaded' : '<i class="fas fa-clock"></i> Missing'}
+                        </div>
+                    </div>
+                    <div class="doc-card-label">${dt.label}</div>
+                    ${uploaded ? `<div class="doc-card-meta"><i class="fas fa-calendar-alt"></i> ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')} &nbsp;·&nbsp; ${(doc.size/1024).toFixed(0)} KB</div>` : ''}
+                    <div class="doc-card-actions">
+                        ${uploaded
+                            ? `<button class="btn-doc-view"  onclick="viewDoc('${dt.key}','${doc.url}','${dt.label}')"><i class="fas fa-eye"></i> View</button>
+                               <button class="btn-doc-delete" onclick="deleteDoc('${dt.key}')"><i class="fas fa-trash"></i> Remove</button>`
+                            : `<button class="btn-doc-upload" onclick="triggerUpload('${dt.key}')"><i class="fas fa-upload"></i> Upload</button>`
+                        }
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function triggerUpload(docType) {
+            pendingDocType = docType;
+            const input = document.getElementById('docFileInput');
+            input.value = '';
+            input.onchange = handleDocFileSelected;
+            input.click();
+        }
+
+        async function handleDocFileSelected() {
+            const input = document.getElementById('docFileInput');
+            if (!input.files.length || !pendingDocType || !currentDocsEmployeeId) return;
+            const file = input.files[0];
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('docType', pendingDocType);
+
+            try {
+                const res = await fetch(`/api/employees/${currentDocsEmployeeId}/documents`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Upload failed');
+                showNotification('Document uploaded successfully!', 'success');
+                addLog('edit', `Uploaded ${pendingDocType} for employee #${currentDocsEmployeeId}`);
+                await renderDocsGrid();
+            } catch(err) {
+                showNotification('Upload failed: ' + err.message, 'error');
+            }
+            pendingDocType = null;
+        }
+
+        async function deleteDoc(docType) {
+            if (!confirm('Remove this document?')) return;
+            try {
+                const res = await fetch(`/api/employees/${currentDocsEmployeeId}/documents/${docType}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Delete failed');
+                showNotification('Document removed.', 'success');
+                await renderDocsGrid();
+            } catch(err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        function viewDoc(docType, url, label) {
+            const overlay = document.getElementById('docViewerOverlay');
+            document.getElementById('docViewerTitle').textContent = label;
+            document.getElementById('docViewerFrame').src = url;
+            overlay.style.display = 'flex';
+        }
+
+        function closeDocViewer() {
+            document.getElementById('docViewerOverlay').style.display = 'none';
+            document.getElementById('docViewerFrame').src = '';
+        }
+
         // Close modal when clicking outside
         window.onclick = function(event) {
-            const employeeModal = document.getElementById('employeeModal');
-            const deleteModal = document.getElementById('deleteModal');
-            if (event.target === employeeModal) {
-                closeModal();
-            }
-            if (event.target === deleteModal) {
-                closeDeleteModal();
-            }
+            const modals = [
+                { el: document.getElementById('employeeModal'), fn: closeModal },
+                { el: document.getElementById('deleteModal'),   fn: closeDeleteModal },
+                { el: document.getElementById('documentsModal'),fn: closeDocsModal }
+            ];
+            modals.forEach(m => { if (event.target === m.el) m.fn(); });
         }
 
         // Close modals with Escape key
         document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape' || event.key === 'Esc') {
-                const employeeModal = document.getElementById('employeeModal');
-                const deleteModal = document.getElementById('deleteModal');
-                
-                if (employeeModal && employeeModal.classList.contains('show')) {
-                    closeModal();
-                }
-                if (deleteModal && deleteModal.classList.contains('show')) {
-                    closeDeleteModal();
-                }
-            }
+            if (event.key !== 'Escape' && event.key !== 'Esc') return;
+            if (document.getElementById('docViewerOverlay').style.display === 'flex') { closeDocViewer(); return; }
+            if (document.getElementById('documentsModal').classList.contains('show')) { closeDocsModal(); return; }
+            if (document.getElementById('employeeModal').classList.contains('show')) { closeModal(); return; }
+            if (document.getElementById('deleteModal').classList.contains('show')) { closeDeleteModal(); return; }
         });
     </script>
 </body>
