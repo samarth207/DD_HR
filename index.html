@@ -166,6 +166,7 @@
                 </div>
             </div>
             <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button onclick="openAdminPwdModal()" style="margin-top:6px;width:100%;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#a5b4fc;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-key"></i> Change Password</button>
         </div>
     </aside>
 
@@ -462,6 +463,115 @@
         loadRecentActivity();
         loadSalaryReminders();
     });
+
+    // ── Change Admin Password Modal ─────────────────────────────────────────
+    function openAdminPwdModal() {
+        document.getElementById('adminPwdModal').style.display = 'flex';
+        document.getElementById('adminPwdMsg').style.display = 'none';
+        document.getElementById('adminCurPwd').value = '';
+        document.getElementById('adminNewPwd').value = '';
+        document.getElementById('adminConfPwd').value = '';
+    }
+    function closeAdminPwdModal() {
+        document.getElementById('adminPwdModal').style.display = 'none';
+    }
+    function toggleAdminPwd(id, btn) {
+        const inp = document.getElementById(id);
+        const icon = btn.querySelector('i');
+        if (inp.type === 'password') { inp.type = 'text'; icon.className = 'fas fa-eye-slash'; }
+        else { inp.type = 'password'; icon.className = 'fas fa-eye'; }
+    }
+    async function saveAdminPassword() {
+        const cur  = document.getElementById('adminCurPwd').value.trim();
+        const nw   = document.getElementById('adminNewPwd').value.trim();
+        const conf = document.getElementById('adminConfPwd').value.trim();
+        const msg  = document.getElementById('adminPwdMsg');
+        const btn  = document.getElementById('adminPwdSaveBtn');
+
+        const show = (text, ok) => {
+            msg.textContent = text;
+            msg.style.display = 'block';
+            msg.style.background = ok ? '#d1fae5' : '#fee2e2';
+            msg.style.color      = ok ? '#065f46' : '#991b1b';
+            msg.style.border     = `1px solid ${ok ? '#6ee7b7' : '#fca5a5'}`;
+        };
+
+        if (!cur || !nw || !conf) return show('Please fill in all fields.', false);
+        if (nw.length < 6)        return show('New password must be at least 6 characters.', false);
+        if (nw !== conf)          return show('New passwords do not match.', false);
+
+        const auth = JSON.parse(localStorage.getItem('hrPortalAuth') || '{}');
+        btn.disabled = true; btn.textContent = 'Saving…';
+
+        try {
+            const resp = await fetch(`${API_BASE_URL}/auth/change-admin-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` },
+                body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+            });
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                show('\u2713 Password changed successfully!', true);
+                document.getElementById('adminCurPwd').value = '';
+                document.getElementById('adminNewPwd').value = '';
+                document.getElementById('adminConfPwd').value = '';
+            } else {
+                show(data.error || 'Failed to change password.', false);
+            }
+        } catch(e) {
+            show('Server error. Please try again.', false);
+        } finally {
+            btn.disabled = false; btn.textContent = 'Update Password';
+        }
+    }
+    document.getElementById('adminPwdModal').addEventListener('click', e => {
+        if (e.target === document.getElementById('adminPwdModal')) closeAdminPwdModal();
+    });
+    window.openAdminPwdModal  = openAdminPwdModal;
+    window.closeAdminPwdModal = closeAdminPwdModal;
+    window.saveAdminPassword  = saveAdminPassword;
+    window.toggleAdminPwd     = toggleAdminPwd;
 </script>
+
+<!-- Change Admin Password Modal -->
+<div id="adminPwdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:20px;padding:32px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="margin:0;font-size:18px;color:#1e293b;"><i class="fas fa-key" style="color:#6366f1;margin-right:8px;"></i>Change Admin Password</h3>
+            <button onclick="closeAdminPwdModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;">&times;</button>
+        </div>
+        <div id="adminPwdMsg" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;"></div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+                <label style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Current Password</label>
+                <div style="position:relative;margin-top:6px;">
+                    <input type="password" id="adminCurPwd" placeholder="Current password"
+                        style="width:100%;box-sizing:border-box;padding:10px 40px 10px 12px;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;color:#1e293b;">
+                    <button onclick="toggleAdminPwd('adminCurPwd',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <div>
+                <label style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">New Password</label>
+                <div style="position:relative;margin-top:6px;">
+                    <input type="password" id="adminNewPwd" placeholder="New password (min 6 chars)"
+                        style="width:100%;box-sizing:border-box;padding:10px 40px 10px 12px;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;color:#1e293b;">
+                    <button onclick="toggleAdminPwd('adminNewPwd',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <div>
+                <label style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;">Confirm New Password</label>
+                <div style="position:relative;margin-top:6px;">
+                    <input type="password" id="adminConfPwd" placeholder="Repeat new password"
+                        style="width:100%;box-sizing:border-box;padding:10px 40px 10px 12px;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;color:#1e293b;">
+                    <button onclick="toggleAdminPwd('adminConfPwd',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+            <button id="adminPwdSaveBtn" onclick="saveAdminPassword()"
+                style="padding:11px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">
+                Update Password
+            </button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { getDB, isDBConnected } = require('../db');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
@@ -160,6 +161,14 @@ router.post('/', async (req, res) => {
         const existing = await db.collection('employees').findOne({ email: employee.email });
         if (existing) {
             return res.status(400).json({ error: 'Email already exists' });
+        }
+
+        // Set initial password = phone number (hashed)
+        if (employee.phone) {
+            const salt = crypto.randomBytes(32).toString('hex');
+            const hash = crypto.scryptSync(employee.phone.trim(), salt, 64).toString('hex');
+            employee.passwordHash = hash;
+            employee.passwordSalt = salt;
         }
         
         const result = await db.collection('employees').insertOne(employee);

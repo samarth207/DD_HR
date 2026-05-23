@@ -54,9 +54,10 @@ function notify(sectionId, msg, type = 'success') {
 // â”€â”€ Tab navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function showTab(name) {
-    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-section').forEach(s => { s.classList.remove('active'); s.style.display = 'none'; });
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('section-' + name).classList.add('active');
+    const section = document.getElementById('section-' + name);
+    if (section) { section.classList.add('active'); section.style.display = 'block'; }
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'calendar')   renderCalendar();
     if (name === 'sales')      loadMySales();
@@ -800,7 +801,58 @@ async function loadMyAttendance() {
     }
 }
 
-// â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Security / Change Password ──────────────────────────────────────────────
+
+function togglePortalPwd(id, btn) {
+    const inp  = document.getElementById(id);
+    const icon = btn.querySelector('i');
+    if (inp.type === 'password') { inp.type = 'text';     icon.className = 'fas fa-eye-slash'; }
+    else                         { inp.type = 'password'; icon.className = 'fas fa-eye'; }
+}
+
+async function changeEmployeePassword() {
+    const currentPwd = document.getElementById('pwdCurrent').value.trim();
+    const newPwd     = document.getElementById('pwdNew').value.trim();
+    const confirmPwd = document.getElementById('pwdConfirm').value.trim();
+    const msgEl      = document.getElementById('pwdChangeMsg');
+    const btn        = document.getElementById('pwdChangeBtn');
+
+    const showMsg = (text, ok) => {
+        msgEl.textContent = text;
+        msgEl.style.display = 'block';
+        msgEl.style.background = ok ? '#d1fae5' : '#fee2e2';
+        msgEl.style.color      = ok ? '#065f46' : '#991b1b';
+        msgEl.style.border     = `1px solid ${ok ? '#6ee7b7' : '#fca5a5'}`;
+    };
+
+    if (!currentPwd || !newPwd || !confirmPwd) return showMsg('Please fill in all fields.', false);
+    if (newPwd.length < 6)                     return showMsg('New password must be at least 6 characters.', false);
+    if (newPwd !== confirmPwd)                 return showMsg('New passwords do not match.', false);
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating\u2026';
+
+    try {
+        const res = await apiFetch('/auth/change-employee-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` },
+            body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd })
+        });
+        if (res && res.success) {
+            showMsg('\u2713 Password changed successfully!', true);
+            document.getElementById('pwdCurrent').value = '';
+            document.getElementById('pwdNew').value     = '';
+            document.getElementById('pwdConfirm').value = '';
+        } else {
+            showMsg(res?.error || 'Failed to change password.', false);
+        }
+    } catch (e) {
+        showMsg(e?.message || 'Server error. Please try again.', false);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-lock"></i> Update Password';
+    }
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfile();
