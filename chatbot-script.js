@@ -160,24 +160,22 @@ function handleAddLeave(command) {
         return;
     }
     
-    // Detect leave type from command
-    let leaveType = 'annualLeave';
-    if (command.toLowerCase().includes('sick')) {
-        leaveType = 'sickLeave';
-    } else if (command.toLowerCase().includes('personal')) {
-        leaveType = 'personalLeave';
-    }
+    // Detect leave type from command - all leave types use paidLeave balance
+    let leaveType = 'paidLeave';
     
     if (!employee.leaveBalance) {
-        employee.leaveBalance = { annualLeave: 0, sickLeave: 0, personalLeave: 0 };
+        employee.leaveBalance = { paidLeave: 0 };
+    }
+    // Migrate legacy structure
+    if (employee.leaveBalance.paidLeave === undefined) {
+        employee.leaveBalance.paidLeave = (employee.leaveBalance.annualLeave || 0) + (employee.leaveBalance.sickLeave || 0) + (employee.leaveBalance.personalLeave || 0);
     }
     
-    employee.leaveBalance[leaveType] += amount;
+    employee.leaveBalance.paidLeave += amount;
     saveEmployees(employees);
-    addLog('edit', `Added ${amount} days of ${leaveType.replace('Leave', ' leave')} to ${employee.firstName} ${employee.lastName} via AI Assistant`);
+    addLog('edit', `Added ${amount} days of paid leave to ${employee.firstName} ${employee.lastName} via AI Assistant`);
     
-    const leaveTypeName = leaveType.replace('Leave', ' Leave').replace(/([A-Z])/g, ' $1').trim();
-    addMessage(`✅ Successfully added ${amount} day(s) to ${employee.firstName} ${employee.lastName}'s ${leaveTypeName}.<br><br><strong>Updated Balance:</strong><br>Annual: ${employee.leaveBalance.annualLeave} days<br>Sick: ${employee.leaveBalance.sickLeave} days<br>Personal: ${employee.leaveBalance.personalLeave} days`, 'bot');
+    addMessage(`✅ Successfully added ${amount} day(s) to ${employee.firstName} ${employee.lastName}'s Paid Leave.<br><br><strong>Updated Balance:</strong><br>Paid Leave: ${employee.leaveBalance.paidLeave} days`, 'bot');
 }
 
 function handleRemoveLeave(command) {
@@ -204,14 +202,18 @@ function handleRemoveLeave(command) {
     }
     
     if (!employee.leaveBalance) {
-        employee.leaveBalance = { annualLeave: 0, sickLeave: 0, personalLeave: 0 };
+        employee.leaveBalance = { paidLeave: 0 };
+    }
+    // Migrate legacy structure
+    if (employee.leaveBalance.paidLeave === undefined) {
+        employee.leaveBalance.paidLeave = employee.leaveBalance.annualLeave || 0;
     }
     
-    employee.leaveBalance.annualLeave = Math.max(0, employee.leaveBalance.annualLeave - amount);
+    employee.leaveBalance.paidLeave = Math.max(0, employee.leaveBalance.paidLeave - amount);
     saveEmployees(employees);
     addLog('edit', `Removed ${amount} days of leave from ${employee.firstName} ${employee.lastName} via AI Assistant`);
     
-    addMessage(`✅ Successfully removed ${amount} day(s) from ${employee.firstName} ${employee.lastName}'s leave balance.<br><br>New balance: ${employee.leaveBalance.annualLeave} days`, 'bot');
+    addMessage(`✅ Successfully removed ${amount} day(s) from ${employee.firstName} ${employee.lastName}'s leave balance.<br><br>New balance: ${employee.leaveBalance.paidLeave} days`, 'bot');
 }
 
 function handleApproveLeave(command) {
@@ -246,18 +248,19 @@ function handleApproveLeave(command) {
     
     pendingLeave.status = 'approved';
     
-    // Deduct leave balance
+    // Deduct leave balance from paidLeave
     const days = calculateLeaveDays(pendingLeave.startDate, pendingLeave.endDate);
-    if (pendingLeave.leaveType === 'Annual Leave') {
-        employee.leaveBalance.annualLeave -= days;
-    } else if (pendingLeave.leaveType === 'Sick Leave') {
-        employee.leaveBalance.sickLeave -= days;
-    } else if (pendingLeave.leaveType === 'Personal Leave') {
-        employee.leaveBalance.personalLeave -= days;
+    if (!employee.leaveBalance) employee.leaveBalance = { paidLeave: 0 };
+    if (employee.leaveBalance.paidLeave === undefined) {
+        employee.leaveBalance.paidLeave = (employee.leaveBalance.annualLeave || 0) + (employee.leaveBalance.sickLeave || 0) + (employee.leaveBalance.personalLeave || 0);
+    }
+    if (pendingLeave.leaveType !== 'Unpaid Leave' && pendingLeave.leaveType !== 'Maternity Leave' && pendingLeave.leaveType !== 'Paternity Leave') {
+        employee.leaveBalance.paidLeave = Math.max(0, employee.leaveBalance.paidLeave - days);
+        apiCall(`/employees/${employee.id}`, 'PUT', employee).catch(e => console.error('Failed to update employee balance:', e));
     }
     
-    saveLeaves(leaves);
-    saveEmployees(employees);
+    apiCall(`/leaves/${pendingLeave.id}`, 'PUT', pendingLeave)
+        .catch(e => console.error('Failed to update leave status:', e));
     addLog('edit', `Approved leave for ${employee.firstName} ${employee.lastName} via AI Assistant`);
     
     addMessage(`✅ Leave request approved for ${employee.firstName} ${employee.lastName}<br>Type: ${pendingLeave.leaveType}<br>Duration: ${days} day(s)<br>Dates: ${pendingLeave.startDate} to ${pendingLeave.endDate}`, 'bot');
@@ -376,7 +379,8 @@ function handleShowEmployee(command) {
         return;
     }
     
-    const leaveBalance = employee.leaveBalance || { annualLeave: 0, sickLeave: 0, personalLeave: 0 };
+    const leaveBalance = employee.leaveBalance || { paidLeave: 0 };
+    const paidLeave = leaveBalance.paidLeave ?? (leaveBalance.annualLeave || 0);
     
     let response = `<strong>${employee.firstName} ${employee.lastName}</strong><br><br>`;
     response += `📧 Email: ${employee.email}<br>`;
@@ -385,9 +389,7 @@ function handleShowEmployee(command) {
     response += `📅 Hire Date: ${employee.hireDate}<br>`;
     response += `📊 Status: ${employee.status}<br><br>`;
     response += `<strong>Leave Balance:</strong><br>`;
-    response += `Annual: ${leaveBalance.annualLeave} days<br>`;
-    response += `Sick: ${leaveBalance.sickLeave} days<br>`;
-    response += `Personal: ${leaveBalance.personalLeave} days<br>`;
+    response += `💰 Paid Leave: ${paidLeave} days<br>`;
     
     if (employee.companyEmail) {
         response += `<br>🏢 Company Email: ${employee.companyEmail}`;
@@ -432,14 +434,11 @@ function handleShowLeaveBalance(command) {
         return;
     }
     
-    const leaveBalance = employee.leaveBalance || { annualLeave: 0, sickLeave: 0, personalLeave: 0 };
-    const total = leaveBalance.annualLeave + leaveBalance.sickLeave + leaveBalance.personalLeave;
+    const leaveBalance = employee.leaveBalance || { paidLeave: 0 };
+    const paidLeave = leaveBalance.paidLeave ?? (leaveBalance.annualLeave || 0);
     
     let response = `<strong>Leave Balance for ${employee.firstName} ${employee.lastName}:</strong><br><br>`;
-    response += `📅 Annual Leave: ${leaveBalance.annualLeave} days<br>`;
-    response += `🏥 Sick Leave: ${leaveBalance.sickLeave} days<br>`;
-    response += `🎯 Personal Leave: ${leaveBalance.personalLeave} days<br>`;
-    response += `<br><strong>Total: ${total} days</strong>`;
+    response += `💰 Paid Leave: ${paidLeave} days<br>`;
     
     addMessage(response, 'bot');
 }
@@ -550,11 +549,11 @@ function handleGenerateReport(command) {
     let totalLeave = 0;
     employees.forEach(e => {
         if (e.leaveBalance) {
-            totalLeave += e.leaveBalance.annualLeave + e.leaveBalance.sickLeave + e.leaveBalance.personalLeave;
+            totalLeave += e.leaveBalance.paidLeave ?? ((e.leaveBalance.annualLeave || 0) + (e.leaveBalance.sickLeave || 0) + (e.leaveBalance.personalLeave || 0));
         }
     });
     
-    response += `<br><strong>Total Leave Balance:</strong> ${totalLeave} days across all employees`;
+    response += `<br><strong>Total Paid Leave Balance:</strong> ${totalLeave} days across all employees`;
     
     addMessage(response, 'bot');
 }

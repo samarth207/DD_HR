@@ -3,236 +3,403 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR Portal - Dashboard</title>
+    <title>HR Portal – Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ── Dashboard-specific overrides ── */
+        body { font-family: 'Inter', sans-serif; background: #f0f2f8; }
+
+        /* Sidebar enhancements */
+        .sidebar { background: linear-gradient(180deg,#1a1f36 0%,#111827 100%); border-right: none; }
+        .logo { background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.07); padding: 22px 20px; }
+        .logo-icon { width:40px;height:40px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0; }
+        .logo h2 { font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px; }
+        .logo small { font-size:11px;color:rgba(255,255,255,.4);font-weight:400; }
+        .nav-section-title { font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);padding:18px 20px 6px; }
+        .nav-item { border-radius:0;border-left:3px solid transparent;color:rgba(255,255,255,.55);font-size:13.5px;font-weight:500;transition:all .18s; }
+        .nav-item:hover { background:rgba(255,255,255,.06);color:rgba(255,255,255,.9);border-left-color:rgba(99,102,241,.5); }
+        .nav-item.active { background:rgba(99,102,241,.18);color:#fff;border-left-color:#6366f1; }
+        .nav-item i { width:18px;font-size:15px; }
+        .sidebar-footer { padding:16px 20px;border-top:1px solid rgba(255,255,255,.07);margin-top:auto; }
+        .sidebar-user { display:flex;align-items:center;gap:10px; }
+        .sidebar-avatar { width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700; }
+        .sidebar-user-info p { font-size:13px;color:#fff;font-weight:600;margin:0; }
+        .sidebar-user-info span { font-size:11px;color:rgba(255,255,255,.4); }
+
+        /* Main */
+        .main-content { background:#f0f2f8;padding:28px 32px; }
+
+        /* Top header bar */
+        .dash-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:28px; }
+        .dash-header-left h1 { font-size:22px;font-weight:800;color:#111827;letter-spacing:-.4px;margin:0; }
+        .dash-header-left p { font-size:13px;color:#6b7280;margin:3px 0 0; }
+        .dash-header-right { display:flex;align-items:center;gap:12px; }
+        .header-btn { width:38px;height:38px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#6b7280;font-size:15px;transition:all .15s; }
+        .header-btn:hover { border-color:#6366f1;color:#6366f1; }
+        .header-badge { position:relative; }
+        .header-badge::after { content:'3';position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#ef4444;border-radius:50%;font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700; }
+        .date-chip { background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:600;color:#374151;display:flex;align-items:center;gap:7px; }
+        .date-chip i { color:#6366f1; }
+
+        /* KPI Cards */
+        .kpi-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:24px; }
+        .kpi-card { border-radius:16px;padding:22px 22px 18px;position:relative;overflow:hidden;cursor:default;transition:transform .2s,box-shadow .2s; }
+        .kpi-card:hover { transform:translateY(-3px);box-shadow:0 16px 40px rgba(0,0,0,.13); }
+        .kpi-card::before { content:'';position:absolute;right:-20px;top:-20px;width:100px;height:100px;border-radius:50%;opacity:.12;background:#fff; }
+        .kpi-card::after { content:'';position:absolute;right:10px;top:10px;width:60px;height:60px;border-radius:50%;opacity:.08;background:#fff; }
+        .kpi-1 { background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%); }
+        .kpi-2 { background:linear-gradient(135deg,#10b981 0%,#059669 100%); }
+        .kpi-3 { background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%); }
+        .kpi-4 { background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%); }
+        .kpi-label { font-size:12px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px; }
+        .kpi-value { font-size:36px;font-weight:800;color:#fff;line-height:1;margin-bottom:10px; }
+        .kpi-footer { display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.7); }
+        .kpi-icon-bg { position:absolute;right:20px;top:50%;transform:translateY(-50%);width:52px;height:52px;background:rgba(255,255,255,.15);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;z-index:1; }
+
+        /* Middle row */
+        .mid-row { display:grid;grid-template-columns:1fr 340px;gap:18px;margin-bottom:20px; }
+
+        /* Quick Actions */
+        .dash-card { background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,.06); }
+        .dash-card-title { font-size:14px;font-weight:700;color:#111827;margin:0 0 16px;display:flex;align-items:center;justify-content:space-between; }
+        .dash-card-title a { font-size:12px;font-weight:600;color:#6366f1;text-decoration:none; }
+        .qa-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:12px; }
+        .qa-btn { border:none;border-radius:12px;padding:18px 16px;cursor:pointer;display:flex;align-items:center;gap:14px;text-align:left;transition:all .18s;font-family:'Inter',sans-serif; }
+        .qa-btn:hover { transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.1); }
+        .qa-btn.indigo { background:linear-gradient(135deg,#eef2ff,#e0e7ff); }
+        .qa-btn.green  { background:linear-gradient(135deg,#ecfdf5,#d1fae5); }
+        .qa-btn.amber  { background:linear-gradient(135deg,#fffbeb,#fef3c7); }
+        .qa-btn.purple { background:linear-gradient(135deg,#f5f3ff,#ede9fe); }
+        .qa-icon { width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0; }
+        .qa-btn.indigo .qa-icon { background:#6366f1;color:#fff; }
+        .qa-btn.green  .qa-icon { background:#10b981;color:#fff; }
+        .qa-btn.amber  .qa-icon { background:#f59e0b;color:#fff; }
+        .qa-btn.purple .qa-icon { background:#8b5cf6;color:#fff; }
+        .qa-text p { font-size:13px;font-weight:700;color:#111827;margin:0 0 2px; }
+        .qa-text span { font-size:11px;color:#6b7280; }
+
+        /* Dept breakdown */
+        .dept-list { display:flex;flex-direction:column;gap:12px; }
+        .dept-row { display:flex;flex-direction:column;gap:5px; }
+        .dept-meta { display:flex;justify-content:space-between;font-size:12.5px; }
+        .dept-name { font-weight:600;color:#374151; }
+        .dept-count { font-weight:700;color:#6366f1; }
+        .dept-bar-track { height:6px;background:#f3f4f6;border-radius:99px;overflow:hidden; }
+        .dept-bar-fill { height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1); }
+
+        /* Bottom row */
+        .bot-row { display:grid;grid-template-columns:1fr 1fr;gap:18px; }
+
+        /* Activity feed */
+        .activity-feed { display:flex;flex-direction:column;gap:0; }
+        .af-item { display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #f3f4f6; }
+        .af-item:last-child { border-bottom:none; }
+        .af-dot { width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0; }
+        .af-dot.add    { background:#d1fae5;color:#059669; }
+        .af-dot.edit   { background:#dbeafe;color:#1d4ed8; }
+        .af-dot.delete { background:#fee2e2;color:#dc2626; }
+        .af-dot.export { background:#fef3c7;color:#d97706; }
+        .af-dot.leave  { background:#ede9fe;color:#7c3aed; }
+        .af-body p { font-size:13px;color:#374151;margin:0 0 2px;font-weight:500;line-height:1.4; }
+        .af-body span { font-size:11px;color:#9ca3af; }
+        .af-empty { text-align:center;padding:30px 0;color:#9ca3af;font-size:13px; }
+        .af-empty i { font-size:28px;display:block;margin-bottom:8px;opacity:.4; }
+
+        /* Employees at-a-glance */
+        .emp-list { display:flex;flex-direction:column;gap:10px; }
+        .emp-row { display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;transition:background .15s;cursor:pointer; }
+        .emp-row:hover { background:#f9fafb; }
+        .emp-avatar { width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;color:#fff; }
+        .emp-info p { font-size:13px;font-weight:600;color:#111827;margin:0 0 2px; }
+        .emp-info span { font-size:11px;color:#6b7280; }
+        .emp-status { margin-left:auto;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px; }
+        .emp-status.active   { background:#d1fae5;color:#065f46; }
+        .emp-status.inactive { background:#fee2e2;color:#991b1b; }
+        .emp-status.on-leave { background:#fef3c7;color:#92400e; }
+
+        /* Floating AI btn */
+        .floating-chat-btn { position:fixed;bottom:28px;right:28px;width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 8px 24px rgba(99,102,241,.45);text-decoration:none;transition:all .2s;z-index:999; }
+        .floating-chat-btn:hover { transform:translateY(-3px) scale(1.06);box-shadow:0 12px 32px rgba(99,102,241,.55); }
+
+        /* Responsive */
+        @media(max-width:1200px){
+            .kpi-grid{grid-template-columns:repeat(2,1fr);}
+            .mid-row,.bot-row{grid-template-columns:1fr;}
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="logo">
-                <i class="fas fa-users-cog"></i>
-                <h2>HR Portal</h2>
+<div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar" style="display:flex;flex-direction:column;">
+        <div class="logo" style="display:flex;align-items:center;gap:12px;">
+            <div class="logo-icon"><i class="fas fa-users-cog"></i></div>
+            <div>
+                <h2 style="margin:0;">HR Portal</h2>
+                <small>Management System</small>
             </div>
-            <nav class="nav-menu">
-                <a href="index.html" class="nav-item active">
-                    <i class="fas fa-home"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="employees.html" class="nav-item">
-                    <i class="fas fa-users"></i>
-                    <span>Employees</span>
-                </a>
-                <a href="sales-tracking.html" class="nav-item">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Sales Tracking</span>
-                </a>
-                <a href="incentives.html" class="nav-item">
-                    <i class="fas fa-hand-holding-usd"></i>
-                    <span>Incentives & Payments</span>
-                </a>
-                <a href="leave-management.html" class="nav-item">
-                    <i class="fas fa-calendar-check"></i>
-                    <span>Leave Management</span>
-                </a>
-                <a href="leave-calendar.html" class="nav-item">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Leave Calendar</span>
-                </a>
-                <a href="holidays.html" class="nav-item">
-                    <i class="fas fa-calendar-day"></i>
-                    <span>Holidays</span>
-                </a>
-                <a href="chatbot.html" class="nav-item">
-                    <i class="fas fa-robot"></i>
-                    <span>AI Assistant</span>
-                </a>
-                <a href="account.html" class="nav-item">
-                    <i class="fas fa-user-circle"></i>
-                    <span>Account Details</span>
-                </a>
-                <a href="logs.html" class="nav-item">
-                    <i class="fas fa-history"></i>
-                    <span>Activity Logs</span>
-                </a>
-            </nav>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Header -->
-            <header class="header">
-                <div class="header-left">
-                    <h1>Dashboard</h1>
-                    <p class="subtitle">Welcome back! Here's what's happening today.</p>
-                </div>
-                <div class="header-right">
-                    <div class="user-info">
-                        <i class="fas fa-user-circle"></i>
-                        <span>HR Admin</span>
-                    </div>
-                </div>
-            </header>
-
-            <!-- Stats Cards -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon blue">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="totalEmployees">0</h3>
-                        <p>Total Employees</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon green">
-                        <i class="fas fa-user-check"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="activeEmployees">0</h3>
-                        <p>Active Employees</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon orange">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="pendingLeaveRequests">0</h3>
-                        <p>Pending Leave Requests</p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon purple">
-                        <i class="fas fa-calendar-alt"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3 id="newHires">0</h3>
-                        <p>New This Month</p>
-                    </div>
+        </div>
+        <nav class="nav-menu" style="flex:1;">
+            <div class="nav-section-title">Main Menu</div>
+            <a href="index.html" class="nav-item active"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="employees.html" class="nav-item"><i class="fas fa-users"></i><span>Employees</span></a>
+            <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+            <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+            <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives & Payments</span></a>
+            <div class="nav-section-title">Leave</div>
+            <a href="leave-management.html" class="nav-item"><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
+            <a href="leave-calendar.html" class="nav-item"><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
+            <a href="holidays.html" class="nav-item"><i class="fas fa-calendar-day"></i><span>Holidays</span></a>
+            <div class="nav-section-title">Tools</div>
+            <a href="chatbot.html" class="nav-item"><i class="fas fa-robot"></i><span>AI Assistant</span></a>
+            <a href="account.html" class="nav-item"><i class="fas fa-user-circle"></i><span>Account Details</span></a>
+            <a href="logs.html" class="nav-item"><i class="fas fa-history"></i><span>Activity Logs</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-avatar">HR</div>
+                <div class="sidebar-user-info">
+                    <p>HR Admin</p>
+                    <span>Administrator</span>
                 </div>
             </div>
+        </div>
+    </aside>
 
-            <!-- Quick Actions -->
-            <div class="section">
-                <h2>Quick Actions</h2>
-                <div class="actions-grid">
-                    <button class="action-btn" onclick="window.location.href='employees.html?action=add'">
-                        <i class="fas fa-user-plus"></i>
-                        <span>Add Employee</span>
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Header -->
+        <div class="dash-header">
+            <div class="dash-header-left">
+                <h1>Good Morning 👋</h1>
+                <p id="dashSubtitle">Loading dashboard…</p>
+            </div>
+            <div class="dash-header-right">
+                <div class="date-chip"><i class="fas fa-calendar"></i><span id="todayDate"></span></div>
+                <div class="header-btn header-badge" title="Notifications"><i class="fas fa-bell"></i></div>
+                <a href="account.html" class="header-btn" title="Settings"><i class="fas fa-cog"></i></a>
+            </div>
+        </div>
+
+        <!-- KPI Row -->
+        <div class="kpi-grid">
+            <div class="kpi-card kpi-1">
+                <div class="kpi-label">Total Employees</div>
+                <div class="kpi-value" id="totalEmployees">–</div>
+                <div class="kpi-footer"><i class="fas fa-arrow-up"></i><span id="kpiFooter1">Loading…</span></div>
+                <div class="kpi-icon-bg"><i class="fas fa-users"></i></div>
+            </div>
+            <div class="kpi-card kpi-2">
+                <div class="kpi-label">Active Now</div>
+                <div class="kpi-value" id="activeEmployees">–</div>
+                <div class="kpi-footer"><i class="fas fa-check-circle"></i><span id="kpiFooter2">Loading…</span></div>
+                <div class="kpi-icon-bg"><i class="fas fa-user-check"></i></div>
+            </div>
+            <div class="kpi-card kpi-3">
+                <div class="kpi-label">Pending Leaves</div>
+                <div class="kpi-value" id="pendingLeaveRequests">–</div>
+                <div class="kpi-footer"><i class="fas fa-clock"></i><span>Awaiting approval</span></div>
+                <div class="kpi-icon-bg"><i class="fas fa-calendar-check"></i></div>
+            </div>
+            <div class="kpi-card kpi-4">
+                <div class="kpi-label">New This Month</div>
+                <div class="kpi-value" id="newHires">–</div>
+                <div class="kpi-footer"><i class="fas fa-user-plus"></i><span>Hired this month</span></div>
+                <div class="kpi-icon-bg"><i class="fas fa-sparkles"></i></div>
+            </div>
+        </div>
+
+        <!-- Middle Row: Quick Actions + Dept Breakdown -->
+        <div class="mid-row">
+            <div class="dash-card">
+                <div class="dash-card-title">Quick Actions <a href="employees.html">See all →</a></div>
+                <div class="qa-grid">
+                    <button class="qa-btn indigo" onclick="window.location.href='employees.html?action=add'">
+                        <div class="qa-icon"><i class="fas fa-user-plus"></i></div>
+                        <div class="qa-text"><p>Add Employee</p><span>Onboard new hire</span></div>
                     </button>
-                    <button class="action-btn" onclick="window.location.href='employees.html'">
-                        <i class="fas fa-edit"></i>
-                        <span>Manage Employees</span>
+                    <button class="qa-btn green" onclick="window.location.href='employees.html'">
+                        <div class="qa-icon"><i class="fas fa-users"></i></div>
+                        <div class="qa-text"><p>Manage Team</p><span>View all records</span></div>
                     </button>
-                    <button class="action-btn" onclick="window.location.href='logs.html'">
-                        <i class="fas fa-eye"></i>
-                        <span>View Logs</span>
+                    <button class="qa-btn amber" onclick="window.location.href='leave-management.html'">
+                        <div class="qa-icon"><i class="fas fa-calendar-check"></i></div>
+                        <div class="qa-text"><p>Leave Requests</p><span>Approve / Reject</span></div>
                     </button>
-                    <button class="action-btn" onclick="exportData()">
-                        <i class="fas fa-download"></i>
-                        <span>Export Data</span>
+                    <button class="qa-btn purple" onclick="exportData()">
+                        <div class="qa-icon"><i class="fas fa-download"></i></div>
+                        <div class="qa-text"><p>Export Data</p><span>Download as JSON</span></div>
                     </button>
                 </div>
             </div>
 
-            <!-- Recent Activity -->
-            <div class="section">
-                <h2>Recent Activity</h2>
-                <div class="activity-list" id="recentActivity">
-                    <p class="no-data">No recent activity</p>
+            <div class="dash-card">
+                <div class="dash-card-title">By Department</div>
+                <div class="dept-list" id="deptList">
+                    <div style="color:#9ca3af;font-size:13px;text-align:center;padding:20px 0;">Loading…</div>
                 </div>
             </div>
-        </main>
-    </div>
+        </div>
 
-    <!-- Floating Chat Button -->
-    <a href="chatbot.html" class="floating-chat-btn" title="AI Assistant">
-        <i class="fas fa-robot"></i>
-    </a>
-
-    <script src="config.js"></script>
-    <script src="script.js"></script>
-    <script>
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', async function() {
-            await Promise.all([loadEmployees(), loadLeaves(), loadLogs()]);
-            await updateDashboardStats();
-            loadRecentActivity();
-        });
-
-        async function updateDashboardStats() {
-            const employees = await loadEmployees();
-            const logs = getLogs();
-            
-            document.getElementById('totalEmployees').textContent = employees.length;
-            document.getElementById('activeEmployees').textContent = employees.filter(e => e.status === 'Active').length;
-            
-            // Get pending leave requests
-            const leaves = typeof getLeaves === 'function' ? getLeaves() : [];
-            const pendingLeaves = leaves.filter(l => l.status === 'pending').length;
-            document.getElementById('pendingLeaveRequests').textContent = pendingLeaves;
-            
-            // Calculate new hires this month
-            const now = new Date();
-            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            const newHires = employees.filter(e => {
-                const hireDate = new Date(e.hireDate);
-                return hireDate >= firstDayOfMonth;
-            }).length;
-            document.getElementById('newHires').textContent = newHires;
-        }
-
-        function loadRecentActivity() {
-            const logs = getLogs();
-            const recentLogs = logs.slice(-5).reverse();
-            
-            const activityList = document.getElementById('recentActivity');
-            
-            if (recentLogs.length === 0) {
-                activityList.innerHTML = '<p class="no-data">No recent activity</p>';
-                return;
-            }
-            
-            activityList.innerHTML = recentLogs.map(log => `
-                <div class="activity-item">
-                    <div class="activity-icon ${log.type}">
-                        <i class="fas ${getActivityIcon(log.type)}"></i>
-                    </div>
-                    <div class="activity-details">
-                        <p class="activity-text">${log.action}</p>
-                        <p class="activity-time">${formatDate(log.timestamp)}</p>
-                    </div>
+        <!-- Bottom Row: Activity + Recent Employees -->
+        <div class="bot-row">
+            <div class="dash-card">
+                <div class="dash-card-title">Recent Activity <a href="logs.html">View all →</a></div>
+                <div class="activity-feed" id="recentActivity">
+                    <div class="af-empty"><i class="fas fa-clipboard-list"></i>No recent activity</div>
                 </div>
-            `).join('');
-        }
+            </div>
 
-        function getActivityIcon(type) {
-            const icons = {
-                'add': 'fa-user-plus',
-                'edit': 'fa-edit',
-                'delete': 'fa-user-times',
-                'export': 'fa-download'
-            };
-            return icons[type] || 'fa-info-circle';
-        }
+            <div class="dash-card">
+                <div class="dash-card-title">Recent Employees <a href="employees.html">View all →</a></div>
+                <div class="emp-list" id="recentEmpList">
+                    <div style="color:#9ca3af;font-size:13px;text-align:center;padding:20px 0;">Loading…</div>
+                </div>
+            </div>
+        </div>
 
-        async function exportData() {
-            const employees = await loadEmployees();
-            const dataStr = JSON.stringify(employees, null, 2);
-            const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'employees_export_' + new Date().toISOString().split('T')[0] + '.json';
-            link.click();
-            URL.revokeObjectURL(url);
-            
-            addLog('export', 'Exported employee data');
-            showNotification('Data exported successfully!', 'success');
-        }
-    </script>
+    </main>
+</div>
+
+<!-- Floating AI Button -->
+<a href="chatbot.html" class="floating-chat-btn" title="AI Assistant">
+    <i class="fas fa-robot"></i>
+</a>
+
+<script src="config.js"></script>
+<script src="script.js"></script>
+<script>
+    const DEPT_COLORS = {
+        'Engineering': '#6366f1','Sales':'#10b981','Marketing':'#f59e0b',
+        'HR':'#8b5cf6','Finance':'#3b82f6','Operations':'#ec4899'
+    };
+    const AVATAR_COLORS = ['#6366f1','#10b981','#f59e0b','#8b5cf6','#3b82f6','#ec4899','#14b8a6'];
+
+    // Set greeting based on time
+    function setGreeting(){
+        const h = new Date().getHours();
+        const g = h<12?'Good Morning 👋':h<17?'Good Afternoon 👋':'Good Evening 👋';
+        document.querySelector('.dash-header-left h1').textContent = g;
+    }
+
+    // Set today's date
+    function setDate(){
+        const d = new Date();
+        document.getElementById('todayDate').textContent = d.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    }
+
+    // KPI stats
+    async function updateStats(){
+        const employees = await loadEmployees();
+        const leaves    = typeof getLeaves === 'function' ? getLeaves() : [];
+        const total     = employees.length;
+        const active    = employees.filter(e=>e.status==='Active').length;
+        const pending   = leaves.filter(l=>l.status==='pending').length;
+        const now       = new Date();
+        const firstDOM  = new Date(now.getFullYear(), now.getMonth(), 1);
+        const newH      = employees.filter(e=>new Date(e.hireDate)>=firstDOM).length;
+
+        animateCount('totalEmployees', total);
+        animateCount('activeEmployees', active);
+        animateCount('pendingLeaveRequests', pending);
+        animateCount('newHires', newH);
+
+        const inactiveCount = employees.filter(e=>e.status!=='Active').length;
+        document.getElementById('kpiFooter1').textContent = `${inactiveCount} inactive`;
+        document.getElementById('kpiFooter2').textContent = `${Math.round(active/Math.max(total,1)*100)}% of workforce`;
+        document.getElementById('dashSubtitle').textContent = `You have ${total} employee${total!==1?'s':''} in the system today.`;
+
+        buildDeptBars(employees);
+        buildRecentEmps(employees);
+    }
+
+    function animateCount(id, target){
+        const el = document.getElementById(id);
+        let start = 0;
+        const step = Math.ceil(target/30);
+        const timer = setInterval(()=>{
+            start = Math.min(start+step, target);
+            el.textContent = start;
+            if(start>=target) clearInterval(timer);
+        }, 30);
+    }
+
+    function buildDeptBars(employees){
+        const depts = {};
+        employees.forEach(e=>{ depts[e.department] = (depts[e.department]||0)+1; });
+        const max = Math.max(...Object.values(depts), 1);
+        const sorted = Object.entries(depts).sort((a,b)=>b[1]-a[1]);
+        const el = document.getElementById('deptList');
+        if(!sorted.length){ el.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:20px 0;">No data</div>'; return; }
+        el.innerHTML = sorted.map(([dept,count])=>`
+            <div class="dept-row">
+                <div class="dept-meta">
+                    <span class="dept-name">${dept}</span>
+                    <span class="dept-count">${count} emp${count!==1?'s':''}</span>
+                </div>
+                <div class="dept-bar-track">
+                    <div class="dept-bar-fill" style="width:${Math.round(count/max*100)}%;background:${DEPT_COLORS[dept]||'#6366f1'}"></div>
+                </div>
+            </div>`).join('');
+    }
+
+    function buildRecentEmps(employees){
+        const recent = [...employees].sort((a,b)=>new Date(b.hireDate)-new Date(a.hireDate)).slice(0,5);
+        const el = document.getElementById('recentEmpList');
+        if(!recent.length){ el.innerHTML='<div style="color:#9ca3af;font-size:13px;text-align:center;padding:20px 0;">No employees yet</div>'; return; }
+        el.innerHTML = recent.map((emp,i)=>{
+            const initials = (emp.firstName?.[0]||'')+(emp.lastName?.[0]||'');
+            const color = AVATAR_COLORS[i%AVATAR_COLORS.length];
+            const statusClass = (emp.status||'').toLowerCase().replace(' ','-');
+            return `<div class="emp-row" onclick="window.location.href='employees.html'">
+                <div class="emp-avatar" style="background:${color}">${initials}</div>
+                <div class="emp-info">
+                    <p>${emp.firstName} ${emp.lastName}</p>
+                    <span>${emp.position} · ${emp.department}</span>
+                </div>
+                <span class="emp-status ${statusClass}">${emp.status}</span>
+            </div>`;
+        }).join('');
+    }
+
+    function loadRecentActivity(){
+        const logs = getLogs();
+        const recent = logs.slice(-6).reverse();
+        const el = document.getElementById('recentActivity');
+        if(!recent.length){ el.innerHTML='<div class="af-empty"><i class="fas fa-clipboard-list"></i>No recent activity</div>'; return; }
+        const icons = {add:'fa-user-plus',edit:'fa-edit',delete:'fa-user-times',export:'fa-download',leave:'fa-calendar'};
+        el.innerHTML = recent.map(log=>`
+            <div class="af-item">
+                <div class="af-dot ${log.type}"><i class="fas ${icons[log.type]||'fa-info-circle'}"></i></div>
+                <div class="af-body">
+                    <p>${log.action}</p>
+                    <span>${formatDate(log.timestamp)}</span>
+                </div>
+            </div>`).join('');
+    }
+
+    async function exportData(){
+        const employees = await loadEmployees();
+        const blob = new Blob([JSON.stringify(employees,null,2)],{type:'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'employees_'+new Date().toISOString().split('T')[0]+'.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        addLog('export','Exported employee data');
+        showNotification('Data exported successfully!','success');
+    }
+
+    document.addEventListener('DOMContentLoaded', async ()=>{
+        setGreeting();
+        setDate();
+        await Promise.all([loadEmployees(), loadLeaves(), loadLogs()]);
+        await updateStats();
+        loadRecentActivity();
+    });
+</script>
 </body>
 </html>

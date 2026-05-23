@@ -152,50 +152,44 @@ async function loadSalesData() {
         const salesProgressClass = salesPercentage >= 100 ? 'high' : salesPercentage >= 50 ? '' : 'low';
         const revenueProgressClass = revenuePercentage >= 100 ? 'high' : revenuePercentage >= 50 ? '' : 'low';
         
-        const card = document.createElement('div');
-        card.className = 'sales-member-card';
-        card.innerHTML = `
-            <div class="sales-member-header">
-                <div class="member-info">
-                    <h3>${employee.firstName} ${employee.lastName}</h3>
-                    <p>${employee.position}</p>
+        const row = document.createElement('tr');
+        row.style.borderTop = '1px solid #f0f4f8';
+        row.innerHTML = `
+            <td style="padding:10px 14px;vertical-align:middle;">
+                <div style="font-weight:600;font-size:13px;color:#1a202c;">${employee.firstName} ${employee.lastName}</div>
+                <div style="font-size:11px;color:#718096;">${employee.position}</div>
+            </td>
+            <td style="padding:10px 14px;vertical-align:middle;min-width:180px;">
+                <div style="font-size:12px;color:#4a5568;margin-bottom:4px;">
+                    <strong>${empData.salesAchieved || 0}</strong> / ${empData.salesTarget || 0}
+                    <span style="color:${salesPercentage >= 100 ? '#059669' : salesPercentage >= 50 ? '#2563eb' : '#dc2626'};font-size:11px;margin-left:6px;">${salesPercentage}%</span>
                 </div>
-                <div class="member-actions">
-                    <button class="btn-icon primary" onclick="openTargetModal(${employee.id}, '${selectedMonth}')">
-                        <i class="fas fa-bullseye"></i> Set Target
+                <div class="progress-bar" style="height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+                    <div class="progress-fill ${salesProgressClass}" style="width:${Math.min(salesPercentage, 100)}%;height:100%;"></div>
+                </div>
+            </td>
+            <td style="padding:10px 14px;vertical-align:middle;min-width:200px;">
+                <div style="font-size:12px;color:#4a5568;margin-bottom:4px;">
+                    <strong>${formatRupees(empData.revenueAchieved || 0)}</strong> / ${formatRupees(empData.revenueTarget || 0)}
+                    <span style="color:${revenuePercentage >= 100 ? '#059669' : revenuePercentage >= 50 ? '#2563eb' : '#dc2626'};font-size:11px;margin-left:6px;">${revenuePercentage}%</span>
+                </div>
+                <div class="progress-bar" style="height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+                    <div class="progress-fill ${revenueProgressClass}" style="width:${Math.min(revenuePercentage, 100)}%;height:100%;"></div>
+                </div>
+            </td>
+            <td style="padding:10px 14px;vertical-align:middle;">
+                <div style="display:flex;gap:6px;">
+                    <button class="btn-icon primary" style="padding:5px 10px;font-size:12px;" onclick="openTargetModal(${employee.id}, '${selectedMonth}')">
+                        <i class="fas fa-bullseye"></i> Target
                     </button>
-                    <button class="btn-icon success" onclick="openSalesModal(${employee.id}, '${selectedMonth}')">
-                        <i class="fas fa-plus"></i> Record Sales
+                    <button class="btn-icon success" style="padding:5px 10px;font-size:12px;" onclick="openSalesModal(${employee.id}, '${selectedMonth}')">
+                        <i class="fas fa-plus"></i> Record
                     </button>
                 </div>
-            </div>
-            
-            <div class="sales-stats">
-                <div class="stat-box">
-                    <label>Sales Achieved</label>
-                    <div class="value">${empData.salesAchieved || 0}</div>
-                    <div class="target">Target: ${empData.salesTarget || 0} sales</div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill ${salesProgressClass}" style="width: ${Math.min(salesPercentage, 100)}%"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="stat-box">
-                    <label>Revenue Achieved</label>
-                    <div class="value">${formatRupees(empData.revenueAchieved || 0)}</div>
-                    <div class="target">Target: ${formatRupees(empData.revenueTarget || 0)}</div>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill ${revenueProgressClass}" style="width: ${Math.min(revenuePercentage, 100)}%"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </td>
         `;
         
-        container.appendChild(card);
+        container.appendChild(row);
     });
     
     // Update overall stats

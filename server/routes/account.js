@@ -45,4 +45,22 @@ router.put('/', async (req, res) => {
     }
 });
 
+// Backward-compatible update route (legacy frontend uses POST)
+router.post('/', async (req, res) => {
+    try {
+        const db = getDB();
+        const accountData = req.body;
+
+        await db.collection('account').updateOne(
+            {},
+            { $set: accountData },
+            { upsert: true }
+        );
+
+        res.json({ success: true, message: 'Account updated' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

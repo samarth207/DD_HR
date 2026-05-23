@@ -48,6 +48,12 @@ function loadEmployeeOptions() {
         select.appendChild(option);
     });
     select.addEventListener('change', showEmployeeLeaveBalance);
+
+    // Re-calculate projected balance when these fields change
+    ['leaveType', 'leaveStatus'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', showEmployeeLeaveBalance);
+    });
 }
 
 function showEmployeeLeaveBalance() {
@@ -64,13 +70,44 @@ function showEmployeeLeaveBalance() {
     const emp = employees.find(e => e.id === employeeId);
     if (!emp) { balanceBox.style.display = 'none'; return; }
 
-    const bal = emp.leaveBalance || { annualLeave: 20, sickLeave: 10, personalLeave: 5 };
+    const bal = emp.leaveBalance || { paidLeave: 12 };
+    const paidLeave = bal.paidLeave ?? bal.annualLeave ?? 12;
+
+    // Calculate projected balance based on current form values
+    const leaveType = document.getElementById('leaveType')?.value;
+    const status = document.getElementById('leaveStatus')?.value;
+    const startDate = document.getElementById('startDate')?.value;
+    const endDate = document.getElementById('endDate')?.value;
+    const leaveId = document.getElementById('leaveId')?.value;
+
+    const isPaidType = leaveType === 'Paid Leave';
+    const isApproved = status === 'approved';
+    const daysInForm = (startDate && endDate) ? calculateDays(startDate, endDate) : 0;
+
+    // For edits, get the old approved days so we don't double-count
+    let oldApprovedDays = 0;
+    if (leaveId && isPaidType) {
+        const existing = getLeaves().find(l => l.id === parseInt(leaveId));
+        if (existing && existing.status === 'approved' && existing.leaveType === 'Paid Leave') {
+            oldApprovedDays = calculateDays(existing.startDate, existing.endDate);
+        }
+    }
+
+    let projectedLeave = paidLeave;
+    if (isPaidType && isApproved && daysInForm > 0) {
+        projectedLeave = Math.round((paidLeave + oldApprovedDays - daysInForm) * 10) / 10;
+    }
+
+    const balanceChanged = isPaidType && isApproved && daysInForm > 0 && projectedLeave !== paidLeave;
+    const projectedColor = projectedLeave < 0 ? '#c53030' : (projectedLeave < 3 ? '#c05621' : '#065f46');
+    const projectedBg = projectedLeave < 0 ? '#fed7d7' : (projectedLeave < 3 ? '#feebc8' : '#d1fae5');
+
     balanceBox.style.display = 'flex';
     balanceBox.innerHTML = `
         <span style="font-size:12px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.5px;margin-right:8px;">Leave Balance:</span>
-        <span class="bal-chip annual">🌴 Annual: <strong>${bal.annualLeave ?? 20}</strong></span>
-        <span class="bal-chip sick">🤒 Sick: <strong>${bal.sickLeave ?? 10}</strong></span>
-        <span class="bal-chip personal">⭐ Personal: <strong>${bal.personalLeave ?? 5}</strong></span>
+        <span class="bal-chip paid">Paid Leave: <strong>${paidLeave}</strong>${balanceChanged ? ` <span style="color:#718096;font-weight:400;">→</span> <strong style="color:${projectedColor};">${projectedLeave}</strong>` : ''}</span>
+        <span class="bal-chip unpaid">Unpaid Leave: <strong>Unlimited</strong></span>
+        ${projectedLeave < 0 ? '<span style="color:#c53030;font-size:11px;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> Insufficient balance</span>' : ''}
     `;
 }
 
@@ -94,20 +131,15 @@ function displayLeaves(leaves) {
         return;
     }
     
-    const allLeaves = getLeaves();
     tbody.innerHTML = filtered.map(leave => {
         const employee = employees.find(e => e.id === leave.employeeId);
         const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
         const days = calculateDays(leave.startDate, leave.endDate);
         
-        // Determine pay type for approved leaves (1 paid leave per month policy)
-        let payTypeBadge = '<span style="color:#a0aec0;font-size:12px;">—</span>';
+        // Determine pay type from selected leave type
+        let payTypeBadge = '<span style="color:#a0aec0;font-size:12px;">-</span>';
         if (leave.status === 'approved') {
-            const leaveMonth = leave.startDate.substring(0, 7);
-            const firstApprovedInMonth = allLeaves
-                .filter(l => l.employeeId === leave.employeeId && l.status === 'approved' && l.startDate.substring(0, 7) === leaveMonth)
-                .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0];
-            const isPaid = firstApprovedInMonth?.id === leave.id;
+            const isPaid = leave.leaveType === 'Paid Leave';
             payTypeBadge = isPaid
                 ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Paid</span>'
                 : '<span style="background:#fed7d7;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Unpaid</span>';
@@ -234,6 +266,8 @@ function openLeaveModal() {
     document.getElementById('leaveForm').reset();
     document.getElementById('leaveId').value = '';
     document.getElementById('leaveDuration').textContent = '0 days';
+    const balanceBox = document.getElementById('employeeLeaveBalance');
+    if (balanceBox) balanceBox.style.display = 'none';
     document.getElementById('leaveModal').classList.add('show');
 }
 
@@ -292,58 +326,7 @@ async function saveLeaveRequest(event) {
         reason: document.getElementById('leaveReason').value,
         appliedDate: id ? (getLeaves().find(l => l.id === parseInt(id))?.appliedDate || new Date().toISOString()) : new Date().toISOString()
     };
-    
-    const leaves = getLeaves();
-    const days = calculateDays(leave.startDate, leave.endDate);
-    
-    // Deduct from employee leave balance when approved
-    if (leave.status === 'approved' && employee) {
-        const leaveBalance = employee.leaveBalance || { annualLeave: 20, sickLeave: 10, personalLeave: 5 };
-        
-        // Check if editing existing leave
-        let previousDays = 0;
-        if (id) {
-            const existingLeave = leaves.find(l => l.id === parseInt(id));
-            if (existingLeave && existingLeave.status === 'approved') {
-                previousDays = calculateDays(existingLeave.startDate, existingLeave.endDate);
-            }
-        }
-        
-        // Restore previous days if editing
-        if (previousDays > 0) {
-            const previousType = leaves.find(l => l.id === parseInt(id))?.leaveType;
-            if (previousType === 'Annual Leave') leaveBalance.annualLeave += previousDays;
-            else if (previousType === 'Sick Leave') leaveBalance.sickLeave += previousDays;
-            else if (previousType === 'Personal Leave') leaveBalance.personalLeave += previousDays;
-        }
-        
-        // Deduct new days
-        if (leave.leaveType === 'Annual Leave') {
-            if (leaveBalance.annualLeave < days) {
-                showNotification(`Insufficient annual leave balance! Available: ${leaveBalance.annualLeave} days`, 'error');
-                return;
-            }
-            leaveBalance.annualLeave -= days;
-        } else if (leave.leaveType === 'Sick Leave') {
-            if (leaveBalance.sickLeave < days) {
-                showNotification(`Insufficient sick leave balance! Available: ${leaveBalance.sickLeave} days`, 'error');
-                return;
-            }
-            leaveBalance.sickLeave -= days;
-        } else if (leave.leaveType === 'Personal Leave') {
-            if (leaveBalance.personalLeave < days) {
-                showNotification(`Insufficient personal leave balance! Available: ${leaveBalance.personalLeave} days`, 'error');
-                return;
-            }
-            leaveBalance.personalLeave -= days;
-        }
-        
-        // Update employee leave balance
-        employee.leaveBalance = leaveBalance;
-        // Persist employee balance update to DB
-        apiCall(`/employees/${employee.id}`, 'PUT', employee).catch(e => console.error('Failed to update employee balance:', e));
-    }
-    
+
     try {
         if (id) {
             await apiCall(`/leaves/${leave.id}`, 'PUT', leave);
@@ -360,7 +343,7 @@ async function saveLeaveRequest(event) {
     }
 
     // Refresh cache from DB then re-render
-    await loadLeaves();
+    await Promise.all([loadLeaves(), loadEmployees()]);
     renderLeaves();
     updateLeaveStats();
     closeLeaveModal();
@@ -407,6 +390,8 @@ async function calculateLeaveDays() {
         document.getElementById('leaveDuration').textContent = `${days} day${days !== 1 ? 's' : ''}`;
         document.getElementById('leaveDuration').style.color = '';
     }
+    // Refresh projected balance whenever dates change
+    showEmployeeLeaveBalance();
 }
 
 function calculateDays(startDate, endDate) {
@@ -457,7 +442,7 @@ async function approveLeave(id) {
     addLog('edit', `Approved leave request for ${employee?.firstName} ${employee?.lastName}`);
     showNotification('Leave request approved!', 'success');
 
-    await loadLeaves();
+    await Promise.all([loadLeaves(), loadEmployees()]);
     renderLeaves();
     updateLeaveStats();
 }
@@ -479,7 +464,7 @@ async function rejectLeave(id) {
     addLog('edit', `Rejected leave request for ${employee?.firstName} ${employee?.lastName}`);
     showNotification('Leave request rejected!', 'success');
 
-    await loadLeaves();
+    await Promise.all([loadLeaves(), loadEmployees()]);
     renderLeaves();
     updateLeaveStats();
 }
@@ -507,7 +492,7 @@ async function confirmDeleteLeave() {
     addLog('delete', `Deleted leave request for ${employee?.firstName} ${employee?.lastName}`);
     showNotification('Leave request deleted successfully!', 'success');
 
-    await loadLeaves();
+    await Promise.all([loadLeaves(), loadEmployees()]);
     renderLeaves();
     updateLeaveStats();
     closeDeleteLeaveModal();
@@ -562,3 +547,5 @@ window.onclick = function(event) {
         closeDeleteLeaveModal();
     }
 }
+
+

@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HR Portal - Leave Management</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .bal-chip { padding: 4px 10px; border-radius: 20px; font-size: 13px; }
-        .bal-chip.annual  { background: #e0f2fe; color: #0369a1; }
-        .bal-chip.sick    { background: #fef9c3; color: #854d0e; }
-        .bal-chip.personal{ background: #f3e8ff; color: #6b21a8; }
+        .bal-chip.paid    { background: #d1fae5; color: #065f46; }
+        .bal-chip.unpaid  { background: #fee2e2; color: #991b1b; }
     </style>
 </head>
 <body>
@@ -18,51 +18,31 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="logo">
-                <i class="fas fa-users-cog"></i>
-                <h2>HR Portal</h2>
+                <div class="logo-icon"><i class="fas fa-users-cog"></i></div>
+                <div><h2 style="margin:0;">HR Portal</h2><small>Management System</small></div>
             </div>
             <nav class="nav-menu">
-                <a href="index.html" class="nav-item">
-                    <i class="fas fa-home"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="employees.html" class="nav-item">
-                    <i class="fas fa-users"></i>
-                    <span>Employees</span>
-                </a>
-                <a href="sales-tracking.html" class="nav-item">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Sales Tracking</span>
-                </a>
-                <a href="incentives.html" class="nav-item">
-                    <i class="fas fa-hand-holding-usd"></i>
-                    <span>Incentives & Payments</span>
-                </a>
-                <a href="leave-management.html" class="nav-item active">
-                    <i class="fas fa-calendar-check"></i>
-                    <span>Leave Management</span>
-                </a>
-                <a href="leave-calendar.html" class="nav-item">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>Leave Calendar</span>
-                </a>
-                <a href="holidays.html" class="nav-item">
-                    <i class="fas fa-calendar-day"></i>
-                    <span>Holidays</span>
-                </a>
-                <a href="chatbot.html" class="nav-item">
-                    <i class="fas fa-robot"></i>
-                    <span>AI Assistant</span>
-                </a>
-                <a href="account.html" class="nav-item">
-                    <i class="fas fa-user-circle"></i>
-                    <span>Account Details</span>
-                </a>
-                <a href="logs.html" class="nav-item">
-                    <i class="fas fa-history"></i>
-                    <span>Activity Logs</span>
-                </a>
+                <div class="nav-section-title">Main Menu</div>
+                <a href="index.html" class="nav-item "><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="employees.html" class="nav-item "><i class="fas fa-users"></i><span>Employees</span></a>
+                <a href="attendance.html" class="nav-item "><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+                <a href="sales-tracking.html" class="nav-item "><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+                <a href="incentives.html" class="nav-item "><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+                <div class="nav-section-title">Leave</div>
+                <a href="leave-management.html" class="nav-item active"><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
+                <a href="leave-calendar.html" class="nav-item "><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
+                <a href="holidays.html" class="nav-item "><i class="fas fa-calendar-day"></i><span>Holidays</span></a>
+                <div class="nav-section-title">Tools</div>
+                <a href="chatbot.html" class="nav-item "><i class="fas fa-robot"></i><span>AI Assistant</span></a>
+                <a href="account.html" class="nav-item "><i class="fas fa-user-circle"></i><span>Account Details</span></a>
+                <a href="logs.html" class="nav-item "><i class="fas fa-history"></i><span>Activity Logs</span></a>
             </nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-avatar">HR</div>
+                    <div class="sidebar-user-info"><p>HR Admin</p><span>Administrator</span></div>
+                </div>
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -137,11 +117,7 @@
                 <div class="filter-group">
                     <select id="leaveTypeFilter" onchange="filterLeaves()">
                         <option value="">All Leave Types</option>
-                        <option value="Annual Leave">Annual Leave</option>
-                        <option value="Sick Leave">Sick Leave</option>
-                        <option value="Personal Leave">Personal Leave</option>
-                        <option value="Maternity Leave">Maternity Leave</option>
-                        <option value="Paternity Leave">Paternity Leave</option>
+                        <option value="Paid Leave">Paid Leave</option>
                         <option value="Unpaid Leave">Unpaid Leave</option>
                     </select>
                     <select id="monthFilter" onchange="filterLeaves()">
@@ -208,11 +184,7 @@
                         <label for="leaveType">Leave Type *</label>
                         <select id="leaveType" required>
                             <option value="">Select Type</option>
-                            <option value="Annual Leave">Annual Leave</option>
-                            <option value="Sick Leave">Sick Leave</option>
-                            <option value="Personal Leave">Personal Leave</option>
-                            <option value="Maternity Leave">Maternity Leave</option>
-                            <option value="Paternity Leave">Paternity Leave</option>
+                            <option value="Paid Leave">Paid Leave</option>
                             <option value="Unpaid Leave">Unpaid Leave</option>
                         </select>
                     </div>
@@ -324,3 +296,5 @@
     <script src="leave-script.js"></script>
 </body>
 </html>
+
+

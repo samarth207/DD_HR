@@ -1162,6 +1162,48 @@ async function markSalaryPaid(employeeId, employeeName, month, grossSalary, dedu
     }
 }
 
+// Returns number of half-day-equivalent leave days accumulated from late attendance this month
+async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
+    // Read settings saved by attendance page
+    let settings = { officeStartTime: '09:00', lateThresholdMins: 10, lateDaysHalfDay: 3 };
+    try {
+        const saved = localStorage.getItem('attendanceSettings');
+        if (saved) settings = { ...settings, ...JSON.parse(saved) };
+    } catch (e) {}
+
+    // Fetch attendance records for the month
+    let docs = [];
+    try {
+        const res = await fetch(`${API_BASE_URL}/attendance/month/${month}`);
+        if (res.ok) docs = await res.json();
+    } catch (e) {}
+
+    // Also check localStorage
+    Object.keys(localStorage)
+        .filter(k => k.startsWith(`attendance_${month}`))
+        .forEach(k => {
+            const date = k.replace('attendance_', '');
+            if (!docs.find(d => d.date === date)) {
+                try { docs.push({ date, records: JSON.parse(localStorage.getItem(k)) }); } catch (e) {}
+            }
+        });
+
+    // Count late days for this employee
+    const [oh, om] = settings.officeStartTime.split(':').map(Number);
+    let lateDays = 0;
+    docs.forEach(doc => {
+        const rec = (doc.records || {})[employeeId];
+        if (rec && rec.time) {
+            const [eh, em] = rec.time.split(':').map(Number);
+            const minsLate = (eh * 60 + em) - (oh * 60 + om);
+            if (minsLate > settings.lateThresholdMins) lateDays++;
+        }
+    });
+
+    const halfDays = Math.floor(lateDays / settings.lateDaysHalfDay);
+    return halfDays * 0.5; // each half-day = 0.5 leave days
+}
+
 async function loadSalaryCrediting() {
     const month = document.getElementById('salaryMonthFilter').value;
     const employeeFilter = document.getElementById('salaryEmployeeFilter').value;
@@ -1188,6 +1230,10 @@ async function loadSalaryCrediting() {
         const dailyRate = grossSalary / 30;
         const unpaidLeaveDays = getUnpaidLeaveDaysForMonth(emp.id, month);
         const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
+
+        // Half-day attendance deduction: each accumulated half-day = 0.5 day × daily rate
+        const halfDayAttDays = await getHalfDayAttendanceDaysForMonth(emp.id, month);
+        const halfDayAttDeduction = Math.round(halfDayAttDays * dailyRate * 100) / 100;
         
         // Calculate monthly incentive if sales department
         let monthlyIncentive = 0;
@@ -1199,7 +1245,7 @@ async function loadSalaryCrediting() {
         }
         
         const totalEarnings = grossSalary + monthlyIncentive;
-        const totalDeductionsAmt = outstandingAdvance + unpaidLeaveDeduction;
+        const totalDeductionsAmt = outstandingAdvance + unpaidLeaveDeduction + halfDayAttDeduction;
         const netSalary = totalEarnings - totalDeductionsAmt;
         
         const paymentStatus = await getSalaryPaymentStatus(emp.id, month);
@@ -1241,6 +1287,12 @@ async function loadSalaryCrediting() {
                     <div class="value" style="color: #f5576c;">- ${formatRupees(unpaidLeaveDeduction)}</div>
                 </div>
                 ` : ''}
+                ${halfDayAttDeduction > 0 ? `
+                <div class="incentive-box">
+                    <label>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</label>
+                    <div class="value" style="color: #f5576c;">- ${formatRupees(halfDayAttDeduction)}</div>
+                </div>
+                ` : ''}
                 <div class="incentive-box">
                     <label>Outstanding Advances</label>
                     <div class="value" style="color: ${outstandingAdvance > 0 ? '#f5576c' : '#718096'};">- ${formatRupees(outstandingAdvance)}</div>
@@ -1261,6 +1313,13 @@ async function loadSalaryCrediting() {
             <div style="margin-top: 15px; padding: 12px; background: #fff5f5; border-left: 4px solid #f5576c; border-radius: 6px;">
                 <small style="color: #c53030; font-weight: 600;">
                     <i class="fas fa-calendar-times"></i> Unpaid leave deduction: ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day (salary ÷ 30) = ${formatRupees(unpaidLeaveDeduction)}
+                </small>
+            </div>
+            ` : ''}
+            ${halfDayAttDeduction > 0 ? `
+            <div style="margin-top: 15px; padding: 12px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px;">
+                <small style="color: #92400e; font-weight: 600;">
+                    <i class="fas fa-adjust"></i> Late half-day deduction: ${halfDayAttDays} day${halfDayAttDays !== 0.5 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day = ${formatRupees(halfDayAttDeduction)}
                 </small>
             </div>
             ` : ''}
