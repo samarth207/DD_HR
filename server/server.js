@@ -29,6 +29,8 @@ const incentivesRoutes = require('./routes/incentives');
 const logsRoutes = require('./routes/logs');
 const accountRoutes = require('./routes/account');
 const attendanceRoutes = require('./routes/attendance');
+const salaryPaymentsRoutes = require('./routes/salaryPayments');
+const adminRoutes = require('./routes/admin');
 
 // Use routes
 app.use('/api/employees', employeesRoutes);
@@ -39,6 +41,8 @@ app.use('/api/incentives', incentivesRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/salary-payments', salaryPaymentsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

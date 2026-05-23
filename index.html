@@ -212,6 +212,31 @@
             </div>
         </div>
 
+        <!-- Salary Reminders (compact — links to Incentives page) -->
+        <div id="salaryRemindersSection" style="display:none;margin-bottom:24px;">
+            <a href="incentives.html" style="text-decoration:none;" title="Open Incentives & Payments">
+                <div class="dash-card" style="border-left:4px solid #f59e0b;cursor:pointer;transition:box-shadow .15s;" 
+                     onmouseover="this.style.boxShadow='0 4px 16px rgba(245,158,11,.2)'" 
+                     onmouseout="this.style.boxShadow=''">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i class="fas fa-bell" style="color:#f59e0b;font-size:18px;"></i>
+                            <div>
+                                <div style="font-weight:700;font-size:15px;color:#1a202c;">
+                                    <span id="salaryReminderCount" style="background:#f59e0b;color:#fff;border-radius:20px;padding:2px 9px;font-size:13px;font-weight:700;margin-right:8px;"></span>
+                                    Salary Due Tomorrow
+                                </div>
+                                <div id="salaryReminderNames" style="font-size:12px;color:#718096;margin-top:3px;"></div>
+                            </div>
+                        </div>
+                        <div style="color:#f59e0b;font-weight:600;font-size:13px;white-space:nowrap;">
+                            Credit in Incentives &amp; Payments <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
         <!-- Middle Row: Quick Actions + Dept Breakdown -->
         <div class="mid-row">
             <div class="dash-card">
@@ -393,12 +418,46 @@
         showNotification('Data exported successfully!','success');
     }
 
+    // ── Salary reminders ──────────────────────────────────────────────
+    async function loadSalaryReminders() {
+        const employees = getEmployees();
+        const today = new Date();
+        const todayMonth = today.getMonth() + 1;
+        const todayYear  = today.getFullYear();
+
+        const tomorrowDate = new Date(today);
+        tomorrowDate.setDate(today.getDate() + 1);
+        const tomorrowDay = tomorrowDate.getDate();
+
+        const due = employees.filter(e => e.salaryDay && parseInt(e.salaryDay) === tomorrowDay && e.status === 'Active');
+        if (!due.length) return;
+
+        // Fetch which ones are already paid this month from /salary-payments
+        let paidRecords = [];
+        try {
+            const resp = await fetch(`${API_BASE_URL}/salary-payments?month=${todayMonth}&year=${todayYear}`);
+            if (resp.ok) paidRecords = await resp.json();
+        } catch (_) {}
+        const paidIds = new Set(paidRecords.map(r => r.employeeId));
+        const unpaid = due.filter(e => !paidIds.has(e.id));
+        if (!unpaid.length) return;
+
+        const section  = document.getElementById('salaryRemindersSection');
+        const countEl  = document.getElementById('salaryReminderCount');
+        const namesEl  = document.getElementById('salaryReminderNames');
+        section.style.display = 'block';
+        countEl.textContent   = unpaid.length;
+        namesEl.textContent   = unpaid.map(e => `${e.firstName} ${e.lastName}`).join(', ');
+    }
+    // ─────────────────────────────────────────────────────────────────
+
     document.addEventListener('DOMContentLoaded', async ()=>{
         setGreeting();
         setDate();
         await Promise.all([loadEmployees(), loadLeaves(), loadLogs()]);
         await updateStats();
         loadRecentActivity();
+        loadSalaryReminders();
     });
 </script>
 </body>

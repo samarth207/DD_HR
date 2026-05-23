@@ -123,11 +123,9 @@ function switchTab(tabName, event) {
         const targetBtn = event.target.closest('.tab-button');
         if (targetBtn) targetBtn.classList.add('active');
     } else {
-        // Find and activate button by tab name
-        const tabButtons = document.querySelectorAll('.tab-button');
-        tabButtons.forEach(btn => {
-            const btnText = btn.textContent.trim().toLowerCase();
-            if (btnText.includes(tabName)) {
+        // Find and activate button by matching the onclick parameter exactly
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            if (btn.getAttribute('onclick') === `switchTab('${tabName}')`) {
                 btn.classList.add('active');
             }
         });
@@ -218,7 +216,8 @@ async function saveConfiguration(event) {
     closeConfigModal();
     
     // Refresh current tab
-    const activeTab = document.querySelector('.tab-button.active')?.textContent.trim().split(' ')[0].toLowerCase() || 'monthly';
+    const activeTabContent = document.querySelector('.tab-content.active');
+    const activeTab = activeTabContent ? activeTabContent.id.replace('-tab', '') : 'monthly';
     switchTab(activeTab);
 }
 
@@ -312,24 +311,36 @@ function initializeMonthFilters() {
 
 async function loadEmployeeFilters() {
     const allEmployees = await loadEmployees();
-    const employees = allEmployees.filter(e => e.department === 'Sales' && e.status === 'Active');
-    const selects = ['monthlyEmployeeFilter', 'bonusEmployee', 'advanceEmployee'];
-    
-    selects.forEach(selectId => {
+    const salesEmployees = allEmployees.filter(e => e.department === 'Sales' && e.status === 'Active');
+    const activeEmployees = allEmployees.filter(e => e.status === 'Active');
+
+    // Monthly incentives and daily bonuses are Sales-only
+    const salesSelects = ['monthlyEmployeeFilter', 'bonusEmployee'];
+    salesSelects.forEach(selectId => {
         const select = document.getElementById(selectId);
-        if (selectId === 'monthlyEmployeeFilter') {
-            select.innerHTML = '<option value="">All Employees</option>';
-        } else {
-            select.innerHTML = '<option value="">Choose employee...</option>';
-        }
-        
-        employees.forEach(emp => {
+        if (!select) return;
+        select.innerHTML = selectId === 'monthlyEmployeeFilter'
+            ? '<option value="">All Employees</option>'
+            : '<option value="">Choose employee...</option>';
+        salesEmployees.forEach(emp => {
             const option = document.createElement('option');
             option.value = emp.id;
             option.textContent = `${emp.firstName} ${emp.lastName}`;
             select.appendChild(option);
         });
     });
+
+    // Salary advances are available for all active employees
+    const advSelect = document.getElementById('advanceEmployee');
+    if (advSelect) {
+        advSelect.innerHTML = '<option value="">Choose employee...</option>';
+        activeEmployees.forEach(emp => {
+            const option = document.createElement('option');
+            option.value = emp.id;
+            option.textContent = `${emp.firstName} ${emp.lastName} (${emp.department})`;
+            advSelect.appendChild(option);
+        });
+    }
 }
 
 async function loadMonthlyIncentives() {
@@ -1134,7 +1145,7 @@ async function markSalaryPaid(employeeId, employeeName, month, grossSalary, dedu
     try {
         const key = `${month}_${employeeId}`;
         
-        // Save to database
+        // Save to incentives collection (used by salary crediting tab)
         await fetch(`${API_BASE_URL}/incentives/salary-payment`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1149,6 +1160,20 @@ async function markSalaryPaid(employeeId, employeeName, month, grossSalary, dedu
                 }
             })
         });
+
+        // Also sync to salary-payments collection so dashboard notification clears
+        try {
+            const [yearStr, monthStr] = (month || '').split('-');
+            const monthNum = parseInt(monthStr, 10);
+            const yearNum  = parseInt(yearStr,  10);
+            if (monthNum && yearNum) {
+                await fetch(`${API_BASE_URL}/salary-payments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ employeeId, month: monthNum, year: yearNum })
+                });
+            }
+        } catch (_) { /* non-critical */ }
         
         // Clear cache to force reload
         cachedIncentiveData = null;
@@ -1204,6 +1229,82 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
     return halfDays * 0.5; // each half-day = 0.5 leave days
 }
 
+// ── Salary-due-tomorrow reminder banner (inside Salary Crediting tab) ──────
+async function loadSalaryDueReminders() {
+    const banner = document.getElementById('salaryDueReminderBanner');
+    if (!banner) return;
+
+    const allEmployees = getEmployees().filter(e => e.status === 'Active' && e.salaryDay);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const tomorrowDay = tomorrow.getDate();
+    const currentMonth = document.getElementById('salaryMonthFilter')?.value || '';
+
+    // Employees whose salary day is tomorrow
+    const due = allEmployees.filter(e => parseInt(e.salaryDay) === tomorrowDay);
+    if (!due.length) { banner.style.display = 'none'; return; }
+
+    // Check which are already paid for current month using the incentive data
+    const unpaid = [];
+    for (const emp of due) {
+        const status = await getSalaryPaymentStatus(emp.id, currentMonth);
+        if (!status.paid) unpaid.push(emp);
+    }
+
+    if (!unpaid.length) { banner.style.display = 'none'; return; }
+
+    banner.style.display = 'block';
+    banner.innerHTML = `
+        <div style="background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:10px;padding:16px 20px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                <i class="fas fa-bell" style="color:#f59e0b;font-size:16px;"></i>
+                <span style="font-weight:700;font-size:15px;color:#92400e;">
+                    Salary Due Tomorrow
+                </span>
+                <span style="background:#f59e0b;color:#fff;border-radius:20px;padding:2px 9px;font-size:12px;font-weight:700;">
+                    ${unpaid.length}
+                </span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                ${unpaid.map(emp => `
+                <div id="salary-due-row-${emp.id}" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;gap:12px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="width:34px;height:34px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-weight:700;color:#92400e;font-size:13px;">
+                            ${(emp.firstName?.[0]||'')+(emp.lastName?.[0]||'')}
+                        </div>
+                        <div>
+                            <div style="font-weight:600;color:#1a202c;font-size:14px;">${emp.firstName} ${emp.lastName}</div>
+                            <div style="font-size:12px;color:#718096;">${emp.department} · Salary day: <strong>${emp.salaryDay}</strong> · Gross: <strong>${formatRupees(parseFloat(emp.salary)||0)}</strong></div>
+                        </div>
+                    </div>
+                    <button onclick="markSalaryPaidFromReminder(${emp.id}, '${emp.firstName} ${emp.lastName}', '${currentMonth}')"
+                        style="background:#10b981;color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                        <i class="fas fa-check"></i> Mark as Paid
+                    </button>
+                </div>`).join('')}
+            </div>
+        </div>`;
+}
+
+async function markSalaryPaidFromReminder(employeeId, employeeName, month) {
+    const allEmployees = getEmployees();
+    const emp = allEmployees.find(e => e.id === employeeId);
+    if (!emp) return;
+    const grossSalary = parseFloat(emp.salary) || 0;
+    // Use 0 for deductions here — full breakdown is visible in the salary crediting cards below
+    await markSalaryPaid(employeeId, employeeName, month, grossSalary, 0, grossSalary);
+    // Remove the row from the reminder banner
+    const row = document.getElementById(`salary-due-row-${employeeId}`);
+    if (row) row.remove();
+    // Hide banner if no rows remain
+    const banner = document.getElementById('salaryDueReminderBanner');
+    if (banner && !banner.querySelector('[id^="salary-due-row-"]')) {
+        banner.style.display = 'none';
+    }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 async function loadSalaryCrediting() {
     const month = document.getElementById('salaryMonthFilter').value;
     const employeeFilter = document.getElementById('salaryEmployeeFilter').value;
@@ -1211,6 +1312,9 @@ async function loadSalaryCrediting() {
     const allEmployees = await loadEmployees();
     const employees = allEmployees.filter(e => e.status === 'Active');
     const container = document.getElementById('salaryCreditingContainer');
+
+    // Refresh salary-due reminders whenever this tab reloads
+    loadSalaryDueReminders();
     
     let totalGross = 0;
     let totalIncentives = 0;
@@ -1431,6 +1535,8 @@ window.saveAdvance = saveAdvance;
 window.markIncentivePaid = markIncentivePaid;
 window.markAdvanceRepaid = markAdvanceRepaid;
 window.markSalaryPaid = markSalaryPaid;
+window.markSalaryPaidFromReminder = markSalaryPaidFromReminder;
+window.loadSalaryDueReminders = loadSalaryDueReminders;
 window.loadMonthlyIncentives = loadMonthlyIncentives;
 window.loadSalaryCrediting = loadSalaryCrediting;
 window.getSalesData = getSalesData;

@@ -215,6 +215,13 @@
                         <input type="number" id="paidLeave" min="0" value="20">
                     </div>
                 </div>
+                <div class="form-section-title">Payroll</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="salaryDay">Salary Credit Day <span style="color:#718096;font-size:12px;">(day of month, 1–28)</span></label>
+                        <input type="number" id="salaryDay" min="1" max="28" placeholder="e.g. 25">
+                    </div>
+                </div>
                 <input type="hidden" id="employeeId">
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -245,19 +252,35 @@
     <!-- Hidden upload input -->
     <input type="file" id="docFileInput" style="display:none" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
 
-    <!-- Delete Confirmation Modal -->
+    <!-- Delete Confirmation Modal (password-protected) -->
     <div id="deleteModal" class="modal">
         <div class="modal-content small">
             <div class="modal-header">
-                <h2>Confirm Delete</h2>
+                <h2><i class="fas fa-trash" style="color:#f5576c;"></i> Delete Employee</h2>
                 <button class="close-btn" onclick="closeDeleteModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete this employee? This action cannot be undone.</p>
+                <p style="color:#e53e3e;font-weight:600;margin-bottom:14px;">
+                    This will permanently delete the employee and <strong>all their leave requests, salary advances, and incentive records</strong>. This action cannot be undone.
+                </p>
+                <div class="form-group">
+                    <label for="deletePassword">Admin Password</label>
+                    <div style="position:relative;">
+                        <input type="password" id="deletePassword" placeholder="Enter admin password" autocomplete="off"
+                            style="width:100%;padding-right:42px;" onkeydown="if(event.key==='Enter')confirmDelete()">
+                        <button type="button" onclick="toggleDeletePwdVisibility()"
+                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#718096;">
+                            <i id="deletePasswordEyeIcon" class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div id="deletePasswordError" style="color:#e53e3e;font-size:12px;margin-top:6px;display:none;"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
-                <button type="button" class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
             </div>
         </div>
     </div>
@@ -453,6 +476,9 @@
             // Leave balance
             const leaveBalance = employee.leaveBalance || { paidLeave: 20 };
             document.getElementById('paidLeave').value = leaveBalance.paidLeave ?? leaveBalance.annualLeave ?? 20;
+
+            // Payroll
+            document.getElementById('salaryDay').value = employee.salaryDay || '';
             
             document.getElementById('employeeModal').classList.add('show');
         }
@@ -482,7 +508,8 @@
                 crmPassword: document.getElementById('crmPassword').value,
                 leaveBalance: {
                     paidLeave: parseInt(document.getElementById('paidLeave').value) || 20
-                }
+                },
+                salaryDay: parseInt(document.getElementById('salaryDay').value) || null
             };
             
             // If editing, preserve the _id field from MongoDB
@@ -516,27 +543,78 @@
 
         function deleteEmployee(id) {
             deleteEmployeeId = id;
+            document.getElementById('deletePassword').value = '';
+            document.getElementById('deletePasswordError').style.display = 'none';
+            document.getElementById('deletePasswordError').textContent = '';
+            document.getElementById('confirmDeleteBtn').disabled = false;
             document.getElementById('deleteModal').classList.add('show');
+            setTimeout(() => document.getElementById('deletePassword').focus(), 150);
+        }
+
+        function toggleDeletePwdVisibility() {
+            const input = document.getElementById('deletePassword');
+            const icon  = document.getElementById('deletePasswordEyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
         }
 
         async function confirmDelete() {
             if (!deleteEmployeeId) return;
-            
+
+            const password = document.getElementById('deletePassword').value;
+            if (!password) {
+                document.getElementById('deletePasswordError').textContent = 'Please enter the admin password.';
+                document.getElementById('deletePasswordError').style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('confirmDeleteBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying…';
+            document.getElementById('deletePasswordError').style.display = 'none';
+
             try {
+                // Verify admin password server-side
+                const verifyResp = await fetch(`${API_BASE_URL}/admin/verify-delete-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const verifyData = await verifyResp.json();
+
+                if (!verifyResp.ok || !verifyData.valid) {
+                    document.getElementById('deletePasswordError').textContent = 'Incorrect password. Deletion cancelled.';
+                    document.getElementById('deletePasswordError').style.display = 'block';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+                    document.getElementById('deletePassword').value = '';
+                    document.getElementById('deletePassword').focus();
+                    return;
+                }
+
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting…';
+
                 const employees = getEmployees();
                 const employee = employees.find(e => e.id === deleteEmployeeId);
-                
-                // Delete from database using API
+
+                // Cascade delete via API
                 await apiCall(`/employees/${deleteEmployeeId}`, 'DELETE');
-                
-                addLog('delete', `Deleted employee: ${employee.firstName} ${employee.lastName}`);
-                showNotification('Employee deleted successfully!', 'success');
-                
+
+                addLog('delete', `Deleted employee: ${employee.firstName} ${employee.lastName} (all related data cleared)`);
+                showNotification('Employee and all related data deleted.', 'success');
+
                 await loadEmployeesFromDB();
                 closeDeleteModal();
             } catch (error) {
                 console.error('Error deleting employee:', error);
                 showNotification('Failed to delete employee: ' + error.message, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
             }
         }
 
@@ -547,6 +625,8 @@
         function closeDeleteModal() {
             document.getElementById('deleteModal').classList.remove('show');
             deleteEmployeeId = null;
+            document.getElementById('deletePassword').value = '';
+            document.getElementById('deletePasswordError').style.display = 'none';
         }
 
         // ── Documents Modal ──────────────────────────────────────────────

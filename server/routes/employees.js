@@ -205,19 +205,45 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-// Delete employee
+// Delete employee + cascade-delete all related data
 router.delete('/:id', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
         const employeeId = parseInt(req.params.id);
-        
-        const result = await db.collection('employees').deleteOne({ id: employeeId });
-        
-        if (result.deletedCount === 0) {
-            return res.status(404).json({ error: 'Employee not found' });
-        }
-        
-        res.json({ success: true, message: 'Employee deleted' });
+
+        const existing = await db.collection('employees').findOne({ id: employeeId });
+        if (!existing) return res.status(404).json({ error: 'Employee not found' });
+
+        // Cascade deletes — run in parallel for speed
+        await Promise.all([
+            // Employee record
+            db.collection('employees').deleteOne({ id: employeeId }),
+            // Leave requests
+            db.collection('leaves').deleteMany({ employeeId }),
+            // Daily bonuses
+            db.collection('daily_bonuses').deleteMany({ employeeId }),
+            // Salary advances
+            db.collection('salary_advances').deleteMany({ employeeId }),
+            // Salary payments (dedicated collection)
+            db.collection('salary_payments').deleteMany({ employeeId }),
+            // Monthly incentives — key is "${month}_${employeeId}"
+            db.collection('monthly_incentives').deleteMany({
+                key: { $regex: `_${employeeId}$` }
+            }),
+            // Salary payments inside incentives collection (same key format)
+            db.collection('salary_payments').deleteMany({
+                key: { $regex: `_${employeeId}$` }
+            }),
+        ]);
+
+        // Remove uploaded documents folder
+        const uploadsDir = require('path').join(__dirname, '..', 'uploads', `employee-${employeeId}`);
+        try {
+            require('fs').rmSync(uploadsDir, { recursive: true, force: true });
+        } catch (_) { /* non-critical */ }
+
+        res.json({ success: true, message: 'Employee and all related data deleted' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -315,6 +315,25 @@ async function saveLeaveRequest(event) {
         }
         current.setDate(current.getDate() + 1);
     }
+
+    // Check for overlapping leaves for the same employee
+    const currentLeaveId = id ? parseInt(id) : -1;
+    const newStart = new Date(startDate + 'T00:00:00');
+    const newEnd   = new Date(endDate + 'T00:00:00');
+    const overlapping = getLeaves().find(l =>
+        l.employeeId === employeeId &&
+        l.id !== currentLeaveId &&
+        l.status !== 'rejected' &&
+        new Date(l.startDate + 'T00:00:00') <= newEnd &&
+        new Date(l.endDate + 'T00:00:00')   >= newStart
+    );
+    if (overlapping) {
+        showNotification(
+            `Employee already has a leave from ${formatDateShort(overlapping.startDate)} to ${formatDateShort(overlapping.endDate)}.`,
+            'error'
+        );
+        return;
+    }
     
     const leave = {
         id: id ? parseInt(id) : Date.now(),
