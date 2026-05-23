@@ -361,15 +361,14 @@
                     <div class="sidebar-avatar">HR</div>
                     <div class="sidebar-user-info"><p>HR Admin</p><span>Administrator</span></div>
                 </div>
+                <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
         </aside>
 
-        <!-- Main Content -->
         <main class="main-content">
-            <!-- Header -->
             <header class="header">
                 <div class="header-left">
-                    <h1>Incentives & Payments</h1>
+                    <h1>Incentives &amp; Payments</h1>
                     <p class="subtitle">Manage employee incentives, rewards, and salary advances</p>
                 </div>
                 <div class="header-right">
@@ -708,6 +707,8 @@
     </div>
 
     <script src="config.js"></script>
+    <script src="auth-guard.js"></script>
+    <script>requireAdmin();</script>
     <script src="script.js"></script>
     <script src="incentives-script.js"></script>
 </body>

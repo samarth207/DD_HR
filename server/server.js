@@ -31,6 +31,8 @@ const accountRoutes = require('./routes/account');
 const attendanceRoutes = require('./routes/attendance');
 const salaryPaymentsRoutes = require('./routes/salaryPayments');
 const adminRoutes = require('./routes/admin');
+const authRoutes  = require('./routes/auth');
+const admissionsRoutes = require('./routes/admissions');
 
 // Use routes
 app.use('/api/employees', employeesRoutes);
@@ -43,6 +45,8 @@ app.use('/api/account', accountRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/salary-payments', salaryPaymentsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/auth',  authRoutes);
+app.use('/api/admissions', admissionsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #f0f2f8;
+            --surface: #ffffff;
+            --surface2: #f8fafc;
+            --border: #e5e7eb;
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --green: #10b981;
+            --red: #ef4444;
+            --amber: #f59e0b;
+            --text: #1e293b;
+            --muted: #64748b;
+            --shadow: 0 2px 8px rgba(0,0,0,.06);
+            --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+            --radius: 14px;
+        }
+
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Inter, system-ui, sans-serif; min-height: 100vh; }
+
+        /* ── Topbar ── */
+        .topbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 0 28px;
+            height: 62px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .topbar-brand { display: flex; align-items: center; gap: 12px; }
+        .topbar-brand .logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 16px;
+        }
+        .topbar-brand span { font-weight: 700; font-size: 16px; color: var(--text); }
+        .topbar-right { display: flex; align-items: center; gap: 16px; }
+        .user-chip {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--surface2); border-radius: 30px;
+            padding: 6px 14px 6px 8px; border: 1px solid var(--border);
+        }
+        .user-avatar {
+            width: 30px; height: 30px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 12px; color: #fff;
+        }
+        .user-chip .user-name { font-size: 13px; font-weight: 600; color: var(--text); }
+        .user-chip .user-role { font-size: 11px; color: var(--muted); }
+        .btn-logout {
+            background: #fee2e2; border: 1px solid #fecaca;
+            color: #dc2626; border-radius: 8px; padding: 7px 14px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 6px; transition: background .2s;
+        }
+        .btn-logout:hover { background: #fecaca; }
+
+        /* ── Nav tabs ── */
+        .nav-bar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 28px;
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+        }
+        .nav-bar::-webkit-scrollbar { height: 3px; }
+        .nav-tab {
+            padding: 14px 20px;
+            background: none; border: none;
+            color: var(--muted); font-size: 13px; font-weight: 600;
+            cursor: pointer; white-space: nowrap;
+            border-bottom: 2px solid transparent;
+            transition: all .2s;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .nav-tab:hover { color: var(--text); }
+        .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        /* ── Main ── */
+        .main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+        .tab-section { display: none; }
+        .tab-section.active { display: block; }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 15px; font-weight: 700; margin-bottom: 18px; color: var(--text);
+            display: flex; align-items: center; gap: 9px;
+        }
+        .card-title i { color: var(--primary); }
+
+        /* ── KPI grid ── */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 14px; margin-bottom: 20px; }
+        .kpi {
+            background: var(--surface); border-radius: 12px; padding: 18px;
+            border: 1px solid var(--border); box-shadow: var(--shadow);
+        }
+        .kpi-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+        .kpi-value { font-size: 26px; font-weight: 800; margin: 6px 0 2px; color: var(--text); }
+        .kpi-sub { font-size: 12px; color: var(--muted); }
+
+        /* ── Table ── */
+        .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--surface2); padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+        td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f8fafc; }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+        }
+        .badge-green  { background: #dcfce7; color: #16a34a; }
+        .badge-red    { background: #fee2e2; color: #dc2626; }
+        .badge-amber  { background: #fef3c7; color: #d97706; }
+        .badge-blue   { background: #dbeafe; color: #2563eb; }
+        .badge-purple { background: #ede9fe; color: #7c3aed; }
+        .badge-gray   { background: #f1f5f9; color: #64748b; }
+
+        /* ── Form ── */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media(max-width:600px){ .form-grid { grid-template-columns:1fr; } }
+        .form-group { display: flex; flex-direction: column; gap: 7px; }
+        .form-group label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            background: var(--surface); border: 1.5px solid var(--border);
+            border-radius: 9px; padding: 10px 13px;
+            color: var(--text); font-size: 13px; outline: none;
+            transition: border-color .2s;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.08); }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        .btn {
+            padding: 10px 22px; border: none; border-radius: 9px;
+            font-size: 13px; font-weight: 700; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 7px;
+            transition: opacity .2s, transform .1s;
+        }
+        .btn:active { transform: scale(.98); }
+        .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; }
+        .btn-primary:hover { opacity: .9; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* ── Balance pill ── */
+        .balance-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: #dcfce7; border: 1px solid #bbf7d0;
+            border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 700; color: #16a34a;
+        }
+
+        /* ── Salary breakup ── */
+        .salary-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+        }
+        .salary-row:last-child { border-bottom: none; font-weight: 700; font-size: 16px; }
+        .salary-row .label { color: var(--muted); }
+        .salary-row .amount { font-weight: 700; color: var(--text); }
+        .salary-row.deduction .amount { color: var(--red); }
+        .salary-row.earning  .amount { color: var(--green); }
+        .salary-row.net      .amount { color: var(--primary); font-size: 22px; }
+
+        /* ── Calendar ── */
+        .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .cal-nav {
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 6px 12px; color: var(--text);
+            cursor: pointer; font-size: 18px; line-height: 1;
+        }
+        .cal-nav:hover { border-color: var(--primary); }
+        .cal-month-label { font-size: 16px; font-weight: 700; color: var(--text); }
+        .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 6px; }
+        .cal-day-name {
+            text-align: center; font-size: 11px; font-weight: 700;
+            color: var(--muted); padding-bottom: 4px;
+        }
+        .cal-day {
+            aspect-ratio: 1/1; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 500; cursor: default;
+            background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+        }
+        .cal-day.empty { background: transparent; border: none; }
+        .cal-day.today { border-color: var(--primary); color: var(--primary); font-weight: 800; background: #ede9fe; }
+        .cal-day.holiday { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+        .cal-day.sunday  { color: var(--red); }
+        .cal-day.my-leave { background: #ede9fe; color: #7c3aed; border-color: #ddd6fe; }
+
+        .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* No data */
+        .no-data { text-align: center; padding: 40px 20px; color: var(--muted); }
+        .no-data i { font-size: 36px; margin-bottom: 10px; display: block; opacity: .4; }
+
+        /* Notification bar */
+        .notify-bar {
+            padding: 12px 18px; border-radius: 10px; margin-bottom: 16px;
+            font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+        }
+        .notify-success { background: #dcfce7; border: 1px solid #bbf7d0; color: #16a34a; }
+        .notify-error   { background: #fee2e2; border: 1px solid #fecaca; color: #dc2626; }
+
+        /* Loading */
+        .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #e5e7eb; border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Attendance ── */
+        .policy-box {
+            background: #eff6ff; border: 1px solid #bfdbfe;
+            border-radius: 10px; padding: 14px 18px;
+            font-size: 13px; color: #1e40af; margin-bottom: 18px;
+            display: flex; align-items: flex-start; gap: 10px; line-height: 1.6;
+        }
+        .policy-box i { margin-top: 2px; flex-shrink: 0; font-size: 15px; }
+
+        /* ── Slab / reward table ── */
+        .mini-table { width: 100%; border-collapse: collapse; font-size: 13px; border-radius: 10px; overflow: hidden; }
+        .mini-table th { background: var(--surface2); padding: 9px 13px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); text-align: left; }
+        .mini-table td { padding: 10px 13px; border-bottom: 1px solid var(--border); }
+        .mini-table tr:last-child td { border-bottom: none; }
+        .mini-table tr:hover td { background: #f8fafc; }
+
+        /* Info grid for target card */
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 16px; }
+        .info-block {
+            background: var(--surface2); border-radius: 10px;
+            padding: 16px; border: 1px solid var(--border);
+            min-width: 0; overflow: hidden;
+        }
+        .info-block-wide { grid-column: 1 / -1; }
+        .info-block-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+
+        @media(max-width:768px){
+            .topbar { padding: 0 16px; }
+            .nav-bar { padding: 0 12px; }
+            .main { padding: 16px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+    <div class="topbar-brand">
+        <div class="logo-icon"><i class="fas fa-users-cog"></i></div>
+        <span>Employee Portal</span>
+    </div>
+    <div class="topbar-right">
+        <div class="user-chip">
+            <div class="user-avatar" id="avatarInitials">?</div>
+            <div>
+                <div class="user-name" id="topbarName">Loading…</div>
+                <div class="user-role" id="topbarRole"></div>
+            </div>
+        </div>
+        <button class="btn-logout" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar">
+    <button class="nav-tab active" onclick="showTab('overview')" id="tab-overview">
+        <i class="fas fa-home"></i> Overview
+    </button>
+    <button class="nav-tab" onclick="showTab('leaves')" id="tab-leaves">
+        <i class="fas fa-calendar-check"></i> My Leaves
+    </button>
+    <button class="nav-tab" onclick="showTab('calendar')" id="tab-calendar">
+        <i class="fas fa-calendar-alt"></i> Holiday Calendar
+    </button>
+    <button class="nav-tab" onclick="showTab('sales')" id="tab-sales">
+        <i class="fas fa-chart-line"></i> My Sales
+    </button>
+    <button class="nav-tab" onclick="showTab('advances')" id="tab-advances">
+        <i class="fas fa-hand-holding-usd"></i> Salary Advances
+    </button>
+    <button class="nav-tab" onclick="showTab('salary')" id="tab-salary">
+        <i class="fas fa-wallet"></i> Salary Breakup
+    </button>
+    <button class="nav-tab" onclick="showTab('attendance')" id="tab-attendance">
+        <i class="fas fa-fingerprint"></i> My Attendance
+    </button>
+</div>
+
+<div class="main">
+
+    <!-- ── OVERVIEW ─────────────────────────────────── -->
+    <div class="tab-section active" id="section-overview">
+        <div id="overviewNotify"></div>
+        <div class="kpi-grid" id="overviewKPIs">
+            <div class="kpi">
+                <div class="kpi-label">Leave Balance</div>
+                <div class="kpi-value" id="kpiLeave">—</div>
+                <div class="kpi-sub">Paid days remaining</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Pending Leaves</div>
+                <div class="kpi-value" id="kpiPending">—</div>
+                <div class="kpi-sub">Awaiting approval</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Outstanding Advance</div>
+                <div class="kpi-value" id="kpiAdvance">—</div>
+                <div class="kpi-sub">To be deducted</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Net Salary</div>
+                <div class="kpi-value" id="kpiSalary">—</div>
+                <div class="kpi-sub">This month (est.)</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-clock"></i> Recent Leave Requests</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th></tr></thead>
+                    <tbody id="recentLeavesBody">
+                        <tr><td colspan="5" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── LEAVES ─────────────────────────────────── -->
+    <div class="tab-section" id="section-leaves">
+        <div id="leaveNotify"></div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-plus-circle"></i> Apply for Leave</div>
+            <form id="leaveForm" onsubmit="submitLeave(event)">
+                <input type="hidden" id="leaveType" value="Paid Leave">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Start Date *</label>
+                        <input type="date" id="leaveStart" required onchange="calcLeaveDays()">
+                    </div>
+                    <div class="form-group">
+                        <label>End Date *</label>
+                        <input type="date" id="leaveEnd" required onchange="calcLeaveDays()">
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Reason <span style="color:var(--red);">*</span></label>
+                        <textarea id="leaveReason" placeholder="Enter reason for leave…" required></textarea>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;flex-wrap:wrap;gap:12px;">
+                    <div id="leaveDayInfo" style="font-size:13px;color:var(--muted);"></div>
+                    <button type="submit" class="btn btn-primary" id="submitLeaveBtn">
+                        <i class="fas fa-paper-plane"></i> Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-list"></i> My Leave History</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th></tr></thead>
+                    <tbody id="leaveHistoryBody">
+                        <tr><td colspan="6" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── CALENDAR ─────────────────────────────────── -->
+    <div class="tab-section" id="section-calendar">
+        <div class="card">
+            <div class="cal-header">
+                <button class="cal-nav" onclick="calPrev()">&#8249;</button>
+                <div class="cal-month-label" id="calMonthLabel"></div>
+                <button class="cal-nav" onclick="calNext()">&#8250;</button>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#fee2e2;"></div> Holiday</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ede9fe;"></div> My Leave</div>
+                <div class="legend-item"><div class="legend-dot" style="border:2px solid var(--primary);background:#ede9fe;"></div> Today</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--surface2);border:1px solid var(--border);"></div> Sunday</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title"><i class="fas fa-star"></i> Upcoming Holidays</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Holiday</th><th>Date</th><th>Day</th><th>Type</th></tr></thead>
+                    <tbody id="upcomingHolidaysBody">
+                        <tr><td colspan="4" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SALES ─────────────────────────────────── -->
+    <div class="tab-section" id="section-sales">
+        <div id="salesNotify"></div>
+        <div class="kpi-grid" id="salesKPIs"></div>
+
+        <div class="card" id="salesTargetCard" style="display:none;">
+            <div class="card-title"><i class="fas fa-bullseye"></i> Sales Target &amp; Incentives</div>
+            <div id="salesTargetInfo"></div>
+        </div>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-table"></i> Sales History</div>
+            <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+                <select id="salesMonthFilter" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;" onchange="loadMySales()">
+                </select>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Customer Name</th><th>Phone</th><th>Email</th><th>Type</th><th>Revenue</th></tr></thead>
+                    <tbody id="salesHistoryBody">
+                        <tr><td colspan="6" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ADVANCES ─────────────────────────────────── -->
+    <div class="tab-section" id="section-advances">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-hand-holding-usd"></i> My Salary Advances</div>
+            <div id="advancesSummary" style="margin-bottom:18px;"></div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Amount</th><th>Reason</th><th>Status</th><th>Repaid</th></tr></thead>
+                    <tbody id="advancesBody">
+                        <tr><td colspan="5" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ATTENDANCE ─────────────────────────────────── -->
+    <div class="tab-section" id="section-attendance">
+        <div class="card">
+            <div class="card-title"><i class="fas fa-fingerprint"></i> My Attendance</div>
+            <div class="policy-box" id="attendancePolicyInfo">
+                <i class="fas fa-info-circle"></i>
+                <span>Loading attendance policy…</span>
+            </div>
+            <div id="attendanceStats" style="margin-bottom:20px;"></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+                <label style="font-size:13px;color:var(--muted);font-weight:600;">Month:</label>
+                <select id="attendanceMonthFilter" style="background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;" onchange="loadMyAttendance()"></select>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Date</th><th>Day</th><th>Entry Time</th><th>Status</th><th>Late By</th></tr></thead>
+                    <tbody id="attendanceBody">
+                        <tr><td colspan="5" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── SALARY BREAKUP ─────────────────────────────────── -->
+    <div class="tab-section" id="section-salary">
+        <div class="card" style="max-width:520px;margin:0 auto;">
+            <div class="card-title"><i class="fas fa-wallet"></i> Salary Breakup</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                <label style="font-size:13px;color:var(--muted);font-weight:600;">Month:</label>
+                <select id="salaryMonthFilter" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;" onchange="loadSalaryBreakup()"></select>
+            </div>
+            <div id="salaryBreakupContent">
+                <div class="no-data"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /main -->
+
+<script src="config.js"></script>
+<script src="auth-guard.js"></script>
+<script src="employee-portal-script.js"></script>
+</body>
+</html>

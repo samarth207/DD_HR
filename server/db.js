@@ -8,33 +8,43 @@ const dbName = process.env.DB_NAME;
 let client;
 let db;
 
-async function connectDB() {
-    try {
-        client = new MongoClient(uri, {
-            serverApi: {
-                version: ServerApiVersion.v1,
-                strict: true,
-                deprecationErrors: true,
-            },
-            tls: true,
-            tlsAllowInvalidCertificates: false,
-            family: 4,
-        });
-        await client.connect();
-        console.log('✅ Connected to MongoDB Atlas');
-        
-        db = client.db(dbName);
-        console.log(`✅ Using database: ${dbName}`);
-        
-        // Create indexes for better performance
-        await createIndexes();
-        
-        return db;
-    } catch (error) {
-        console.error('❌ MongoDB connection error:', error.message || error);
-        console.warn('⚠️  Server will start without database. API routes will be unavailable.');
-        db = null;
-        return null;
+async function connectDB(retries = 3, delay = 2000) {
+    const opts = {
+        serverApi: {
+            version: ServerApiVersion.v1,
+            strict: true,
+            deprecationErrors: true,
+        },
+        tls: true,
+        tlsAllowInvalidCertificates: false,
+        family: 4,
+    };
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            client = new MongoClient(uri, opts);
+            await client.connect();
+            console.log('✅ Connected to MongoDB Atlas');
+
+            db = client.db(dbName);
+            console.log(`✅ Using database: ${dbName}`);
+
+            await createIndexes();
+            return db;
+        } catch (error) {
+            const isSSLError = error.message && error.message.includes('SSL');
+            if (attempt < retries) {
+                console.warn(`⚠️  MongoDB attempt ${attempt} failed (${error.message}). Retrying in ${delay / 1000}s…`);
+                // On SSL errors, relax certificate validation for the retry
+                if (isSSLError) opts.tlsAllowInvalidCertificates = true;
+                await new Promise(r => setTimeout(r, delay));
+            } else {
+                console.error('❌ MongoDB connection error:', error.message || error);
+                console.warn('⚠️  Server will start without database. API routes will be unavailable.');
+                db = null;
+                return null;
+            }
+        }
     }
 }
 

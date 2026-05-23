@@ -185,6 +185,9 @@ async function loadSalesData() {
                     <button class="btn-icon success" style="padding:5px 10px;font-size:12px;" onclick="openSalesModal(${employee.id}, '${selectedMonth}')">
                         <i class="fas fa-plus"></i> Record
                     </button>
+                    <button class="btn-icon" style="padding:5px 10px;font-size:12px;background:#e0e7ff;color:#3730a3;border:none;border-radius:10px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;" onclick="viewAdmissions(${employee.id}, '${employee.firstName} ${employee.lastName}', '${selectedMonth}')">
+                        <i class="fas fa-list"></i> View
+                    </button>
                 </div>
             </td>
         `;
@@ -299,11 +302,14 @@ async function openSalesModal(employeeId, month) {
     document.getElementById('salesEmployeeName').value = `${employee.firstName} ${employee.lastName}`;
     document.getElementById('salesEmployeeId').value = employeeId;
     document.getElementById('salesMonth').value = month;
-    document.getElementById('salesCount').value = '';
-    document.getElementById('salesNotes').value = '';
+    document.getElementById('admCustomerName').value = '';
+    document.getElementById('admCustomerPhone').value = '';
+    document.getElementById('admCustomerEmail').value = '';
+    document.getElementById('admDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('admType').value = '';
     
-    // Setup currency formatting for revenue amount
-    const revenueInput = document.getElementById('revenueAmount');
+    // Setup currency formatting for revenue
+    const revenueInput = document.getElementById('admRevenue');
     revenueInput.value = '';
     revenueInput.addEventListener('input', function() {
         formatCurrencyInput(this);
@@ -318,44 +324,90 @@ function closeSalesModal() {
     document.getElementById('salesForm').reset();
 }
 
-// Record sales
+// Record sales (individual admission)
 async function recordSales(event) {
     event.preventDefault();
     
     const employeeId = parseInt(document.getElementById('salesEmployeeId').value);
     const month = document.getElementById('salesMonth').value;
-    const salesCount = parseInt(document.getElementById('salesCount').value);
-    const revenueAmount = getRawCurrencyValue(document.getElementById('revenueAmount'));
-    const notes = document.getElementById('salesNotes').value;
+    const customerName  = document.getElementById('admCustomerName').value.trim();
+    const customerPhone = document.getElementById('admCustomerPhone').value.trim();
+    const customerEmail = document.getElementById('admCustomerEmail').value.trim();
+    const admissionDate = document.getElementById('admDate').value;
+    const admissionType = document.getElementById('admType').value;
+    const revenue       = getRawCurrencyValue(document.getElementById('admRevenue'));
     
-    const salesData = await getSalesData();
+    const response = await fetch(`${API_BASE_URL}/admissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, admissionDate, admissionType, revenue })
+    });
     
-    if (!salesData[month]) {
-        salesData[month] = {};
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        showNotification(err.error || 'Failed to record admission', 'error');
+        return;
     }
-    
-    if (!salesData[month][employeeId]) {
-        salesData[month][employeeId] = {
-            salesTarget: 0,
-            revenueTarget: 0,
-            salesAchieved: 0,
-            revenueAchieved: 0
-        };
-    }
-    
-    salesData[month][employeeId].salesAchieved = (salesData[month][employeeId].salesAchieved || 0) + salesCount;
-    salesData[month][employeeId].revenueAchieved = (salesData[month][employeeId].revenueAchieved || 0) + revenueAmount;
-    
-    await saveSalesData(salesData);
     
     const employees = await window.loadEmployees();
     const employee = employees.find(e => e.id === employeeId);
-    const logMessage = `Recorded sales for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesCount} sales, ${formatRupees(revenueAmount)} revenue${notes ? ' - ' + notes : ''}`;
-    addLog('sales', logMessage);
+    addLog('sales', `Recorded admission for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${customerName} (${admissionType}), ${formatRupees(revenue)}`);
     
-    showNotification('Sales recorded successfully!', 'success');
+    // Invalidate cached sales data so the table refreshes
+    cachedSalesData = null;
+    
+    showNotification('Admission recorded successfully!', 'success');
     closeSalesModal();
     await loadSalesData();
+}
+
+// View admissions for an employee
+async function viewAdmissions(employeeId, employeeName, month) {
+    const modal = document.getElementById('admissionsListModal');
+    const title = document.getElementById('admListEmployeeName');
+    const tbody = document.getElementById('admListBody');
+
+    title.textContent = `${employeeName} \u2014 ${formatMonth(month)}`;
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#718096;">Loading\u2026</td></tr>';
+    modal.style.display = 'flex';
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/admissions?employeeId=${employeeId}&month=${month}`);
+        const records = await res.json();
+
+        if (!records.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
+            return;
+        }
+
+        const typeLabel = { 'one-time': 'One-Time', 'semester': 'Semester', 'annual': 'Annual' };
+        const typeColor = { 'one-time': '#3730a3', 'semester': '#92400e', 'annual': '#065f46' };
+        const typeBg    = { 'one-time': '#e0e7ff', 'semester': '#fef3c7', 'annual': '#d1fae5' };
+
+        tbody.innerHTML = records
+            .sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate))
+            .map((r, i) => {
+                const dt  = r.admissionDate ? new Date(r.admissionDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
+                const typeLbl = typeLabel[r.admissionType] || r.admissionType || '\u2014';
+                const bg      = typeBg[r.admissionType]    || '#f3f4f6';
+                const clr     = typeColor[r.admissionType]  || '#374151';
+                const rev     = '\u20B9' + (parseFloat(r.revenue) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+                return `<tr style="border-top:1px solid #f0f4f8;">
+                    <td style="padding:10px 12px;font-size:13px;color:#6b7280;">${i + 1}</td>
+                    <td style="padding:10px 12px;font-size:13px;">${dt}</td>
+                    <td style="padding:10px 12px;font-size:13px;font-weight:600;">${r.customerName || '\u2014'}</td>
+                    <td style="padding:10px 12px;font-size:12px;color:#718096;">${r.customerPhone || '\u2014'}<br><span style="color:#a0aec0;">${r.customerEmail || ''}</span></td>
+                    <td style="padding:10px 12px;"><span style="background:${bg};color:${clr};font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;">${typeLbl}</span></td>
+                    <td style="padding:10px 12px;font-weight:700;color:#059669;">${rev}</td>
+                </tr>`;
+            }).join('');
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+    }
+}
+
+function closeAdmissionsListModal() {
+    document.getElementById('admissionsListModal').style.display = 'none';
 }
 
 // Initialize page
@@ -410,6 +462,20 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         });
     }
+
+    const admListModal = document.getElementById('admissionsListModal');
+    if (admListModal) {
+        admListModal.addEventListener('click', function(event) {
+            if (event.target === admListModal) closeAdmissionsListModal();
+        });
+    }
+
+    // Close admissions list modal on Escape
+    document.addEventListener('keydown', function(event) {
+        if ((event.key === 'Escape' || event.key === 'Esc') && admListModal && admListModal.style.display === 'flex') {
+            closeAdmissionsListModal();
+        }
+    });
 });
 
 // Make functions globally available
@@ -420,3 +486,5 @@ window.openSalesModal = openSalesModal;
 window.closeSalesModal = closeSalesModal;
 window.recordSales = recordSales;
 window.loadSalesData = loadSalesData;
+window.viewAdmissions = viewAdmissions;
+window.closeAdmissionsListModal = closeAdmissionsListModal;

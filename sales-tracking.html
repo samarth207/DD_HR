@@ -455,6 +455,7 @@
                     <div class="sidebar-avatar">HR</div>
                     <div class="sidebar-user-info"><p>HR Admin</p><span>Administrator</span></div>
                 </div>
+                <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
         </aside>
 
@@ -551,7 +552,7 @@
     <div id="salesModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Record Sales</h2>
+                <h2>Record Admission</h2>
                 <button class="close-btn" onclick="closeSalesModal()">&times;</button>
             </div>
             <form id="salesForm" onsubmit="recordSales(event)">
@@ -561,29 +562,85 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="salesCount">Number of Sales *</label>
-                        <input type="number" id="salesCount" min="0" required placeholder="e.g., 5">
+                        <label for="admCustomerName">Customer Name *</label>
+                        <input type="text" id="admCustomerName" required placeholder="Full name">
                     </div>
                     <div class="form-group">
-                        <label for="revenueAmount">Revenue Amount (₹) *</label>
-                        <input type="text" id="revenueAmount" inputmode="numeric" required placeholder="e.g., ₹25,000">
+                        <label for="admCustomerPhone">Phone Number *</label>
+                        <input type="tel" id="admCustomerPhone" required placeholder="e.g., 9876543210">
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="salesNotes">Notes (Optional)</label>
-                    <textarea id="salesNotes" rows="3" placeholder="Add any notes about these sales..."></textarea>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="admCustomerEmail">Email *</label>
+                        <input type="email" id="admCustomerEmail" required placeholder="customer@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="admDate">Admission Date *</label>
+                        <input type="date" id="admDate" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="admType">Type of Admission *</label>
+                        <select id="admType" required>
+                            <option value="">Select type…</option>
+                            <option value="one-time">One-Time</option>
+                            <option value="semester">Semester</option>
+                            <option value="annual">Annual</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="admRevenue">Revenue (₹) *</label>
+                        <input type="text" id="admRevenue" inputmode="numeric" required placeholder="e.g., ₹25,000">
+                    </div>
                 </div>
                 <input type="hidden" id="salesEmployeeId">
                 <input type="hidden" id="salesMonth">
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeSalesModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Record Sales</button>
+                    <button type="submit" class="btn btn-primary">Record Admission</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- Admissions List Modal -->
+    <div id="admissionsListModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:780px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div class="modal-header" style="background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%);">
+                <div>
+                    <h2 style="margin:0;font-size:20px;">Admission Records</h2>
+                    <p id="admListEmployeeName" style="margin:4px 0 0;font-size:13px;opacity:.85;"></p>
+                </div>
+                <button class="close-btn" onclick="closeAdmissionsListModal()">&times;</button>
+            </div>
+            <div style="padding:0;overflow:hidden;">
+                <div style="overflow-x:auto;max-height:480px;overflow-y:auto;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead style="position:sticky;top:0;background:#f7fafc;z-index:1;">
+                            <tr>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">#</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Date</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Customer Name</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Contact</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Type</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admListBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAdmissionsListModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="config.js"></script>
+    <script src="auth-guard.js"></script>
+    <script>requireAdmin();</script>
     <script src="script.js"></script>
     <script src="sales-script.js"></script>
 </body>
