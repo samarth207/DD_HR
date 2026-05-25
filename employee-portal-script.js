@@ -92,9 +92,6 @@ async function loadOverview() {
         const myLeaves = (leavesData.leaves || leavesData || []).filter(l => l.employeeId === EMP_ID);
         const pending  = myLeaves.filter(l => l.status === 'pending').length;
 
-        // Leave balance
-        const bal = (empData.leaveBalance || {}).paidLeave ?? 12;
-        document.getElementById('kpiLeave').textContent = `${bal} days`;
         document.getElementById('kpiPending').textContent = pending;
 
         // Outstanding advance
@@ -558,10 +555,20 @@ async function loadSalaryBreakup() {
         const gross     = parseFloat(empData.salary) || 0;
         const dailyRate = gross / 30;
 
-        // â”€â”€ Unpaid leave deduction (policy: 1 paid leave/month; rest unpaid) â”€â”€
+        // â"€â"€ Pro-rate if joining month â"€â"€
         const [yr, mo]  = month.split('-').map(Number);
         const monthStart = new Date(yr, mo - 1, 1);
         const monthEnd   = new Date(yr, mo, 0); monthEnd.setHours(23, 59, 59, 999);
+        let effectiveGross = gross;
+        let joiningDays = 0;
+        if (empData.hireDate) {
+            const hd = new Date(empData.hireDate + 'T00:00:00');
+            const hdMon = `${hd.getFullYear()}-${String(hd.getMonth()+1).padStart(2,'0')}`;
+            if (hdMon === month) {
+                joiningDays = Math.floor((monthEnd - hd) / 86400000) + 1;
+                effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
+            }
+        }
         const myLeaves   = (leavesRaw.leaves || leavesRaw || [])
             .filter(l => (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID)) && l.status === 'approved');
         let totalLeaveDays = 0;
@@ -602,7 +609,7 @@ async function loadSalaryBreakup() {
             .filter(b => (b.employeeId === EMP_ID || b.employeeId === String(EMP_ID)) && (b.date || '').startsWith(month))
             .reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
 
-        const totalEarnings   = gross + incentive + bonusTotal;
+        const totalEarnings   = effectiveGross + incentive + bonusTotal;
         const totalDeductions = advanceDeduction + unpaidLeaveDeduction + halfDayAttDeduction;
         const net = Math.max(0, totalEarnings - totalDeductions);
 
@@ -620,9 +627,13 @@ async function loadSalaryBreakup() {
         content.innerHTML = `
             ${paidBadge}
             ${salaryDayInfo}
+            ${joiningDays > 0 ? `
+            <div style="margin-bottom:12px;padding:10px 14px;background:#1e3a5f;border-left:4px solid #3b82f6;border-radius:10px;font-size:12px;color:#93c5fd;">
+                <i class="fas fa-user-plus"></i> <strong>Joining month:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked \u00d7 \u20b9${Math.round(dailyRate)}/day = ${fmtRupees(effectiveGross)}
+            </div>` : ''}
             <div class="salary-row earning">
-                <span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:6px;"></i>Gross Salary</span>
-                <span class="amount">${fmtRupees(gross)}</span>
+                <span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:6px;"></i>${joiningDays > 0 ? `Salary (${joiningDays}d of ${new Date(yr, mo-1, 1).toLocaleString('en-IN',{month:'short'})})` : 'Gross Salary'}</span>
+                <span class="amount">${fmtRupees(effectiveGross)}</span>
             </div>
             ${incentive > 0 ? `
             <div class="salary-row earning">
@@ -636,12 +647,12 @@ async function loadSalaryBreakup() {
             </div>` : ''}
             ${unpaidLeaveDeduction > 0 ? `
             <div class="salary-row deduction">
-                <span class="label"><i class="fas fa-calendar-times" style="color:var(--red);margin-right:6px;"></i>Unpaid Leave (${unpaidLeaveDays}d Ã— u{20B9}${Math.round(dailyRate)})</span>
+                <span class="label"><i class="fas fa-calendar-times" style="color:var(--red);margin-right:6px;"></i>Unpaid Leave (${unpaidLeaveDays}d × ₹${Math.round(dailyRate)})</span>
                 <span class="amount">- ${fmtRupees(unpaidLeaveDeduction)}</span>
             </div>` : ''}
             ${halfDayAttDeduction > 0 ? `
             <div class="salary-row deduction">
-                <span class="label"><i class="fas fa-adjust" style="color:var(--amber);margin-right:6px;"></i>Late Half Days (${halfDayAttDays}d Ã— u{20B9}${Math.round(dailyRate)})</span>
+                <span class="label"><i class="fas fa-adjust" style="color:var(--amber);margin-right:6px;"></i>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</span>
                 <span class="amount">- ${fmtRupees(halfDayAttDeduction)}</span>
             </div>` : ''}
             ${advanceDeduction > 0 ? `
@@ -657,8 +668,8 @@ async function loadSalaryBreakup() {
             ${unpaidLeaveDays > 0 || halfDayAttDays > 0 ? `
             <div style="margin-top:14px;padding:12px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:12px;color:#c2410c;line-height:1.7;">
                 <i class="fas fa-info-circle"></i>
-                ${unpaidLeaveDays > 0 ? `<strong>Unpaid leave:</strong> ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} above the 1-day paid allowance Ã— u{20B9}${Math.round(dailyRate)}/day<br>` : ''}
-                ${halfDayAttDays > 0 ? `<strong>Late attendance:</strong> ${lateCount} late day${lateCount !== 1 ? 's' : ''} â†’ ${halfDayAttDays} half-day deduction${halfDayAttDays !== 0.5 ? 's' : ''} Ã— u{20B9}${Math.round(dailyRate)}/day` : ''}
+                ${unpaidLeaveDays > 0 ? `<strong>Unpaid leave:</strong> ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} above the 1-day paid allowance × ₹${Math.round(dailyRate)}/day<br>` : ''}
+                ${halfDayAttDays > 0 ? `<strong>Late attendance:</strong> ${lateCount} late day${lateCount !== 1 ? 's' : ''} \u2192 ${halfDayAttDays} half-day deduction${halfDayAttDays !== 0.5 ? 's' : ''} \u00d7 \u20b9${Math.round(dailyRate)}/day` : ''}
             </div>` : ''}`;
     } catch (e) {
         content.innerHTML = `<div class="no-data">Failed to load salary breakup</div>`;

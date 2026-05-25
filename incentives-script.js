@@ -736,15 +736,16 @@ async function loadDailyBonuses() {
             totalCourseAdmissions += (oneTime + annual + semester);
         }
         
+        const courseAdmissions = bonus.courseAdmissions || { onetime: 0, annual: 0, semester: 0 };
         const courseBreakdown = [];
-        if (bonus.courseAdmissions.onetime > 0) {
-            courseBreakdown.push(`${bonus.courseAdmissions.onetime} One-Time (${formatRupees(bonus.courseAdmissions.onetime * config.courseRewards.onetime)})`);
+        if (courseAdmissions.onetime > 0) {
+            courseBreakdown.push(`${courseAdmissions.onetime} One-Time (${formatRupees(courseAdmissions.onetime * config.courseRewards.onetime)})`);
         }
-        if (bonus.courseAdmissions.annual > 0) {
-            courseBreakdown.push(`${bonus.courseAdmissions.annual} Annual (${formatRupees(bonus.courseAdmissions.annual * config.courseRewards.annual)})`);
+        if (courseAdmissions.annual > 0) {
+            courseBreakdown.push(`${courseAdmissions.annual} Annual (${formatRupees(courseAdmissions.annual * config.courseRewards.annual)})`);
         }
-        if (bonus.courseAdmissions.semester > 0) {
-            courseBreakdown.push(`${bonus.courseAdmissions.semester} Semester (${formatRupees(bonus.courseAdmissions.semester * config.courseRewards.semester)})`);
+        if (courseAdmissions.semester > 0) {
+            courseBreakdown.push(`${courseAdmissions.semester} Semester (${formatRupees(courseAdmissions.semester * config.courseRewards.semester)})`);
         }
         
         // Build course types string and calculate breakdown
@@ -775,19 +776,19 @@ async function loadDailyBonuses() {
             semesterReward = isRewardValidForDate(config.courseRewards.semesterDate, bonus.date) ? config.courseRewards.semester : 0;
         }
         
-        if (bonus.courseAdmissions.onetime > 0) {
-            const amt = bonus.courseAdmissions.onetime * onetimeReward;
-            courseTypes.push(`${bonus.courseAdmissions.onetime} One-Time (${formatRupees(amt)})`);
+        if (courseAdmissions.onetime > 0) {
+            const amt = courseAdmissions.onetime * onetimeReward;
+            courseTypes.push(`${courseAdmissions.onetime} One-Time (${formatRupees(amt)})`);
             courseRewardTotal += amt;
         }
-        if (bonus.courseAdmissions.annual > 0) {
-            const amt = bonus.courseAdmissions.annual * annualReward;
-            courseTypes.push(`${bonus.courseAdmissions.annual} Annual (${formatRupees(amt)})`);
+        if (courseAdmissions.annual > 0) {
+            const amt = courseAdmissions.annual * annualReward;
+            courseTypes.push(`${courseAdmissions.annual} Annual (${formatRupees(amt)})`);
             courseRewardTotal += amt;
         }
-        if (bonus.courseAdmissions.semester > 0) {
-            const amt = bonus.courseAdmissions.semester * semesterReward;
-            courseTypes.push(`${bonus.courseAdmissions.semester} Semester (${formatRupees(amt)})`);
+        if (courseAdmissions.semester > 0) {
+            const amt = courseAdmissions.semester * semesterReward;
+            courseTypes.push(`${courseAdmissions.semester} Semester (${formatRupees(amt)})`);
             courseRewardTotal += amt;
         }
         
@@ -1328,10 +1329,25 @@ async function loadSalaryCrediting() {
         if (departmentFilter && emp.department !== departmentFilter) continue;
         
         const grossSalary = parseFloat(emp.salary) || 0;
-        const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id);
-        
-        // Unpaid leave deduction: daily rate × unpaid leave days (1 paid leave/month policy, 30-day basis)
         const dailyRate = grossSalary / 30;
+
+        // Pro-rate salary if employee joined during this month
+        const [pyr, pmo] = month.split('-').map(Number);
+        const monthEndDate = new Date(pyr, pmo, 0); // last day of month
+        let effectiveGross = grossSalary;
+        let joiningDays = 0;
+        if (emp.hireDate) {
+            const hireDate = new Date(emp.hireDate + 'T00:00:00');
+            const hireMon = `${hireDate.getFullYear()}-${String(hireDate.getMonth()+1).padStart(2,'0')}`;
+            if (hireMon === month) {
+                joiningDays = Math.floor((monthEndDate - hireDate) / 86400000) + 1;
+                effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
+            }
+        }
+
+        const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id);
+
+        // Unpaid leave deduction: daily rate × unpaid leave days (1 paid leave/month policy, 30-day basis)
         const unpaidLeaveDays = getUnpaidLeaveDaysForMonth(emp.id, month);
         const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
 
@@ -1348,13 +1364,13 @@ async function loadSalaryCrediting() {
             }
         }
         
-        const totalEarnings = grossSalary + monthlyIncentive;
+        const totalEarnings = effectiveGross + monthlyIncentive;
         const totalDeductionsAmt = outstandingAdvance + unpaidLeaveDeduction + halfDayAttDeduction;
         const netSalary = totalEarnings - totalDeductionsAmt;
         
         const paymentStatus = await getSalaryPaymentStatus(emp.id, month);
         
-        totalGross += grossSalary;
+        totalGross += effectiveGross;
         totalIncentives += monthlyIncentive;
         totalDeductions += totalDeductionsAmt;
         totalNet += netSalary;
@@ -1376,8 +1392,8 @@ async function loadSalaryCrediting() {
             
             <div class="incentive-summary">
                 <div class="incentive-box">
-                    <label>Gross Salary</label>
-                    <div class="value">${formatRupees(grossSalary)}</div>
+                    <label>${joiningDays > 0 ? `Salary (${joiningDays}d of ${new Date(pyr, pmo-1, 1).toLocaleString('en-IN',{month:'short'})} × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
+                    <div class="value">${formatRupees(effectiveGross)}${joiningDays > 0 ? `<span style="font-size:11px;color:#6b7280;display:block;">Full: ${formatRupees(grossSalary)}</span>` : ''}</div>
                 </div>
                 ${monthlyIncentive > 0 ? `
                 <div class="incentive-box">
@@ -1387,13 +1403,13 @@ async function loadSalaryCrediting() {
                 ` : ''}
                 ${unpaidLeaveDeduction > 0 ? `
                 <div class="incentive-box">
-                    <label>Unpaid Leave (${unpaidLeaveDays}d × ₹${Math.round(dailyRate)})</label>
+                    <label>Unpaid Leave (${unpaidLeaveDays}d \u00d7 \u20b9${Math.round(dailyRate)})</label>
                     <div class="value" style="color: #f5576c;">- ${formatRupees(unpaidLeaveDeduction)}</div>
                 </div>
                 ` : ''}
                 ${halfDayAttDeduction > 0 ? `
                 <div class="incentive-box">
-                    <label>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</label>
+                    <label>Late Half Days (${halfDayAttDays}d \u00d7 \u20b9${Math.round(dailyRate)})</label>
                     <div class="value" style="color: #f5576c;">- ${formatRupees(halfDayAttDeduction)}</div>
                 </div>
                 ` : ''}
@@ -1406,6 +1422,10 @@ async function loadSalaryCrediting() {
                     <div class="value" style="color: #667eea; font-size: 24px; font-weight: 700;">${formatRupees(netSalary)}</div>
                 </div>
             </div>
+            ${joiningDays > 0 ? `
+            <div style="margin-top:15px;padding:12px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;">
+                <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> Joining month: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) \u00d7 \u20b9${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
+            </div>` : ''}
             ${monthlyIncentive > 0 ? `
             <div style="margin-top: 15px; padding: 12px; background: #f0fff4; border-left: 4px solid #38ef7d; border-radius: 6px;">
                 <small style="color: #22543d; font-weight: 600;">

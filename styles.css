@@ -404,12 +404,14 @@ body {
     background-color: var(--card-bg);
     border-radius: 12px;
     box-shadow: var(--shadow);
-    overflow: hidden;
+    overflow-x: auto;
+    width: 100%;
 }
 
 .employees-table {
     width: 100%;
     border-collapse: collapse;
+    min-width: 900px;
 }
 
 .employees-table thead {
@@ -417,19 +419,24 @@ body {
 }
 
 .employees-table th {
-    padding: 16px;
+    padding: 12px 10px;
     text-align: left;
     font-weight: 600;
-    font-size: 13px;
+    font-size: 12px;
     text-transform: uppercase;
     color: var(--text-secondary);
     border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
 }
 
 .employees-table td {
-    padding: 16px;
+    padding: 12px 10px;
     border-bottom: 1px solid var(--border-color);
-    font-size: 14px;
+    font-size: 13px;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .employees-table tbody tr {
