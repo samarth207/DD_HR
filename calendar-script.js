@@ -1,5 +1,10 @@
 // Leave Calendar Functions
 let currentCalendarDate = new Date();
+const WORK_FROM_HOME_TYPE = 'Work From Home';
+
+function isWorkFromHomeLeave(leave) {
+    return String(leave?.leaveType || '').trim().toLowerCase() === 'work from home';
+}
 
 // Initialize calendar page
 document.addEventListener('DOMContentLoaded', async function() {
@@ -36,7 +41,7 @@ async function renderCalendar() {
     const daysInPrevMonth = new Date(year, month, 0).getDate();
     
     // Get leaves for this month
-    const leaves = getLeaves();
+    const leaves = getLeaves().filter(l => !isWorkFromHomeLeave(l));
     const employees = getEmployees();
     
     const calendarGrid = document.getElementById('calendarGrid');
@@ -222,7 +227,7 @@ function loadTodayLeaves() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const leaves = getLeaves();
+    const leaves = getLeaves().filter(l => !isWorkFromHomeLeave(l));
     const employees = getEmployees();
     
     const todayLeaves = leaves.filter(leave => {
@@ -269,7 +274,7 @@ function loadUpcomingLeaves() {
     const sevenDaysLater = new Date(today);
     sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
     
-    const leaves = getLeaves();
+    const leaves = getLeaves().filter(l => !isWorkFromHomeLeave(l));
     const employees = getEmployees();
     
     const upcomingLeaves = leaves.filter(leave => {
@@ -314,7 +319,7 @@ function downloadCalendar() {
     const month = currentCalendarDate.getMonth();
     const monthName = currentCalendarDate.toLocaleDateString('en-US', { month: 'long' });
     
-    const leaves = getLeaves();
+    const leaves = getLeaves().filter(l => !isWorkFromHomeLeave(l));
     const employees = getEmployees();
     
     // Filter leaves for current month

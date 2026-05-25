@@ -1,6 +1,7 @@
 // Leave Management Functions
 let currentStatusFilter = 'all';
 let deleteLeaveId = null;
+const WORK_FROM_HOME_TYPE = 'Work From Home';
 
 // Note: getLeaves() and saveLeaves() are already defined in script.js
 // No localStorage functions needed here
@@ -81,6 +82,7 @@ function showEmployeeLeaveBalance() {
     const leaveId = document.getElementById('leaveId')?.value;
 
     const isPaidType = leaveType === 'Paid Leave';
+    const isWorkFromHomeType = leaveType === WORK_FROM_HOME_TYPE;
     const isApproved = status === 'approved';
     const daysInForm = (startDate && endDate) ? calculateDays(startDate, endDate) : 0;
 
@@ -107,6 +109,7 @@ function showEmployeeLeaveBalance() {
         <span style="font-size:12px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.5px;margin-right:8px;">Leave Balance:</span>
         <span class="bal-chip paid">Paid Leave: <strong>${paidLeave}</strong>${balanceChanged ? ` <span style="color:#718096;font-weight:400;">→</span> <strong style="color:${projectedColor};">${projectedLeave}</strong>` : ''}</span>
         <span class="bal-chip unpaid">Unpaid Leave: <strong>Unlimited</strong></span>
+        ${isWorkFromHomeType ? '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">WFH does not deduct leave</span>' : ''}
         ${projectedLeave < 0 ? '<span style="color:#c53030;font-size:11px;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> Insufficient balance</span>' : ''}
     `;
 }
@@ -138,11 +141,13 @@ function displayLeaves(leaves) {
         
         // Determine pay type from selected leave type
         let payTypeBadge = '<span style="color:#a0aec0;font-size:12px;">-</span>';
-        if (leave.status === 'approved') {
-            const isPaid = leave.leaveType === 'Paid Leave';
-            payTypeBadge = isPaid
-                ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Paid</span>'
-                : '<span style="background:#fed7d7;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Unpaid</span>';
+        if (leave.leaveType === WORK_FROM_HOME_TYPE) {
+            payTypeBadge = '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">WFH</span>';
+        } else if (leave.status === 'approved') {
+                const isPaid = leave.leaveType === 'Paid Leave';
+                payTypeBadge = isPaid
+                    ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Paid</span>'
+                    : '<span style="background:#fed7d7;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Unpaid</span>';
         }
         
         return `
@@ -201,7 +206,9 @@ function updateLeaveStats() {
     
     let totalDays = 0;
     thisMonthLeaves.forEach(leave => {
-        totalDays += calculateDays(leave.startDate, leave.endDate);
+        if (leave.leaveType !== WORK_FROM_HOME_TYPE) {
+            totalDays += calculateDays(leave.startDate, leave.endDate);
+        }
     });
     
     document.getElementById('pendingLeaves').textContent = pending;

@@ -28,6 +28,8 @@
         const auth = getAuth();
         if (!auth || !auth.token || auth.role !== 'admin') {
             window.location.replace('login.html');
+        } else {
+            document.documentElement.style.visibility = 'visible';
         }
     };
 
@@ -36,6 +38,8 @@
         const auth = getAuth();
         if (!auth || !auth.token || auth.role !== 'employee') {
             window.location.replace('login.html');
+        } else {
+            document.documentElement.style.visibility = 'visible';
         }
     };
 })();

@@ -4,7 +4,7 @@ const { getDB, isDBConnected } = require('../db');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 const DEFAULT_PAID_LEAVE = 12;
-const UNPAID_LEAVE_TYPES = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternity Leave']);
+const UNPAID_LEAVE_TYPES = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternity Leave', 'Work From Home']);
 
 function parseDate(value) {
     const date = new Date(`${value}T00:00:00`);

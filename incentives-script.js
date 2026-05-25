@@ -1095,6 +1095,10 @@ async function loadSalaryEmployeeFilters() {
 
 // Policy: 1 paid leave per month per employee. Additional approved leaves are unpaid.
 // Returns number of unpaid leave days for the given month (format "YYYY-MM")
+function isWorkFromHomeLeave(leave) {
+    return String(leave?.leaveType || '').trim().toLowerCase() === 'work from home';
+}
+
 function getUnpaidLeaveDaysForMonth(employeeId, month) {
     const [year, mon] = month.split('-').map(Number);
     const monthStart = new Date(year, mon - 1, 1);
@@ -1103,7 +1107,9 @@ function getUnpaidLeaveDaysForMonth(employeeId, month) {
 
     const allLeaves = getLeaves();
     const approvedLeaves = allLeaves.filter(l =>
-        l.employeeId === employeeId && l.status === 'approved'
+        l.employeeId === employeeId &&
+        l.status === 'approved' &&
+        !isWorkFromHomeLeave(l)
     );
 
     // Count total approved leave days that fall within this month
@@ -1231,6 +1237,28 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
 }
 
 // ── Salary-due-tomorrow reminder banner (inside Salary Crediting tab) ──────
+function isMonthEndSalaryDay(salaryDay) {
+    if (salaryDay === null || salaryDay === undefined) return false;
+    const normalized = String(salaryDay).trim().toLowerCase();
+    return ['month_end', 'month-end', 'month end', 'monthend', 'eom'].includes(normalized);
+}
+
+function isSalaryDueOnDate(salaryDay, targetDate) {
+    if (!salaryDay || !targetDate) return false;
+    if (isMonthEndSalaryDay(salaryDay)) {
+        const lastDay = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+        return targetDate.getDate() === lastDay;
+    }
+    const day = parseInt(salaryDay, 10);
+    return Number.isInteger(day) && day >= 1 && day <= 31 && targetDate.getDate() === day;
+}
+
+function formatSalaryDayLabel(salaryDay) {
+    if (isMonthEndSalaryDay(salaryDay)) return 'Month End';
+    const day = parseInt(salaryDay, 10);
+    return Number.isInteger(day) ? `Day ${day}` : '-';
+}
+
 async function loadSalaryDueReminders() {
     const banner = document.getElementById('salaryDueReminderBanner');
     if (!banner) return;
@@ -1239,11 +1267,10 @@ async function loadSalaryDueReminders() {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
-    const tomorrowDay = tomorrow.getDate();
     const currentMonth = document.getElementById('salaryMonthFilter')?.value || '';
 
     // Employees whose salary day is tomorrow
-    const due = allEmployees.filter(e => parseInt(e.salaryDay) === tomorrowDay);
+    const due = allEmployees.filter(e => isSalaryDueOnDate(e.salaryDay, tomorrow));
     if (!due.length) { banner.style.display = 'none'; return; }
 
     // Check which are already paid for current month using the incentive data
@@ -1276,7 +1303,7 @@ async function loadSalaryDueReminders() {
                         </div>
                         <div>
                             <div style="font-weight:600;color:#1a202c;font-size:14px;">${emp.firstName} ${emp.lastName}</div>
-                            <div style="font-size:12px;color:#718096;">${emp.department} · Salary day: <strong>${emp.salaryDay}</strong> · Gross: <strong>${formatRupees(parseFloat(emp.salary)||0)}</strong></div>
+                            <div style="font-size:12px;color:#718096;">${emp.department} · Salary day: <strong>${formatSalaryDayLabel(emp.salaryDay)}</strong> · Gross: <strong>${formatRupees(parseFloat(emp.salary)||0)}</strong></div>
                         </div>
                     </div>
                     <button onclick="markSalaryPaidFromReminder(${emp.id}, '${emp.firstName} ${emp.lastName}', '${currentMonth}')"

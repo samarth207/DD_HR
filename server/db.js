@@ -32,11 +32,8 @@ async function connectDB(retries = 3, delay = 2000) {
             await createIndexes();
             return db;
         } catch (error) {
-            const isSSLError = error.message && error.message.includes('SSL');
             if (attempt < retries) {
                 console.warn(`⚠️  MongoDB attempt ${attempt} failed (${error.message}). Retrying in ${delay / 1000}s…`);
-                // On SSL errors, relax certificate validation for the retry
-                if (isSSLError) opts.tlsAllowInvalidCertificates = true;
                 await new Promise(r => setTimeout(r, delay));
             } else {
                 console.error('❌ MongoDB connection error:', error.message || error);

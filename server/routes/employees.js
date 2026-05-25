@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { getDB, isDBConnected } = require('../db');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
+const MAX_SHORT_EMPLOYEE_ID = 2000;
 
 // Document types list
 const DOCUMENT_TYPES = [
@@ -47,6 +48,20 @@ const upload = multer({
         else cb(new Error('Only PDF, image, and Word documents are allowed'));
     }
 });
+
+async function allocateNextEmployeeId(db) {
+    const rows = await db.collection('employees').find({}, { projection: { id: 1 } }).toArray();
+    const used = new Set(
+        rows
+            .map(r => parseInt(r.id, 10))
+            .filter(id => Number.isInteger(id) && id >= 1 && id <= MAX_SHORT_EMPLOYEE_ID)
+    );
+
+    for (let id = 1; id <= MAX_SHORT_EMPLOYEE_ID; id++) {
+        if (!used.has(id)) return id;
+    }
+    return null;
+}
 
 // Get all employees
 router.get('/', async (req, res) => {
@@ -113,10 +128,15 @@ router.post('/:id/documents', upload.single('file'), async (req, res) => {
             size: req.file.size
         };
 
-        await db.collection('employees').updateOne(
+        const result = await db.collection('employees').updateOne(
             { id: employeeId },
             { $set: { [`documents.${docType}`]: docInfo } }
         );
+        if (result.matchedCount === 0) {
+            const orphanPath = path.join(__dirname, '..', 'uploads', `employee-${employeeId}`, req.file.filename);
+            if (fs.existsSync(orphanPath)) fs.unlinkSync(orphanPath);
+            return res.status(404).json({ error: 'Employee not found' });
+        }
 
         res.json({ success: true, document: docInfo });
     } catch (error) {
@@ -130,6 +150,8 @@ router.delete('/:id/documents/:docType', async (req, res) => {
         const db = getDB();
         const employeeId = parseInt(req.params.id);
         const docType = req.params.docType;
+        const validTypes = DOCUMENT_TYPES.map(d => d.key);
+        if (!validTypes.includes(docType)) return res.status(400).json({ error: 'Invalid document type' });
 
         const employee = await db.collection('employees').findOne({ id: employeeId });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
@@ -156,11 +178,24 @@ router.post('/', async (req, res) => {
     try {
         const db = getDB();
         const employee = req.body;
+
+        let requestedId = parseInt(employee.id, 10);
+        if (!Number.isInteger(requestedId) || requestedId < 1 || requestedId > MAX_SHORT_EMPLOYEE_ID) {
+            requestedId = await allocateNextEmployeeId(db);
+            if (!requestedId) {
+                return res.status(400).json({ error: `Employee ID limit reached (${MAX_SHORT_EMPLOYEE_ID})` });
+            }
+        }
+        employee.id = requestedId;
         
         // Check if email already exists
         const existing = await db.collection('employees').findOne({ email: employee.email });
         if (existing) {
             return res.status(400).json({ error: 'Email already exists' });
+        }
+        const existingId = await db.collection('employees').findOne({ id: employee.id });
+        if (existingId) {
+            return res.status(400).json({ error: `Employee ID ${employee.id} already exists` });
         }
 
         // Set initial password = phone number (hashed)

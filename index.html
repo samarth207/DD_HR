@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HR Portal – Dashboard</title>
     <link rel="stylesheet" href="styles.css">
@@ -423,23 +424,40 @@
     }
 
     // ── Salary reminders ──────────────────────────────────────────────
+    function isMonthEndSalaryDay(salaryDay) {
+        if (salaryDay === null || salaryDay === undefined) return false;
+        const normalized = String(salaryDay).trim().toLowerCase();
+        return ['month_end', 'month-end', 'month end', 'monthend', 'eom'].includes(normalized);
+    }
+
+    function isSalaryDueOnDate(salaryDay, targetDate) {
+        if (!salaryDay || !targetDate) return false;
+        if (isMonthEndSalaryDay(salaryDay)) {
+            const lastDay = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+            return targetDate.getDate() === lastDay;
+        }
+        const day = parseInt(salaryDay, 10);
+        return Number.isInteger(day) && day >= 1 && day <= 31 && targetDate.getDate() === day;
+    }
+
     async function loadSalaryReminders() {
         const employees = getEmployees();
         const today = new Date();
-        const todayMonth = today.getMonth() + 1;
-        const todayYear  = today.getFullYear();
 
         const tomorrowDate = new Date(today);
         tomorrowDate.setDate(today.getDate() + 1);
-        const tomorrowDay = tomorrowDate.getDate();
+        const dueMonth = tomorrowDate.getMonth() + 1;
+        const dueYear  = tomorrowDate.getFullYear();
 
-        const due = employees.filter(e => e.salaryDay && parseInt(e.salaryDay) === tomorrowDay && e.status === 'Active');
+        const due = employees.filter(e =>
+            e.status === 'Active' && isSalaryDueOnDate(e.salaryDay, tomorrowDate)
+        );
         if (!due.length) return;
 
-        // Fetch which ones are already paid this month from /salary-payments
+        // Fetch which ones are already paid for the due month from /salary-payments
         let paidRecords = [];
         try {
-            const resp = await fetch(`${API_BASE_URL}/salary-payments?month=${todayMonth}&year=${todayYear}`);
+            const resp = await fetch(`${API_BASE_URL}/salary-payments?month=${dueMonth}&year=${dueYear}`);
             if (resp.ok) paidRecords = await resp.json();
         } catch (_) {}
         const paidIds = new Set(paidRecords.map(r => r.employeeId));
@@ -524,8 +542,10 @@
             btn.disabled = false; btn.textContent = 'Update Password';
         }
     }
-    document.getElementById('adminPwdModal').addEventListener('click', e => {
-        if (e.target === document.getElementById('adminPwdModal')) closeAdminPwdModal();
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('adminPwdModal').addEventListener('click', e => {
+            if (e.target === document.getElementById('adminPwdModal')) closeAdminPwdModal();
+        });
     });
     window.openAdminPwdModal  = openAdminPwdModal;
     window.closeAdminPwdModal = closeAdminPwdModal;

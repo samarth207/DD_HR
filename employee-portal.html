@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Portal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -263,6 +264,55 @@
         .info-block-wide { grid-column: 1 / -1; }
         .info-block-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
 
+        /* Documents */
+        .docs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+        }
+        .doc-item {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+        }
+        .doc-item h4 {
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+        .doc-meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 10px;
+            min-height: 34px;
+        }
+        .doc-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .btn-doc {
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-doc.primary {
+            background: #e0e7ff;
+            border-color: #c7d2fe;
+            color: #4338ca;
+        }
+        .btn-doc.danger {
+            background: #fee2e2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
+
         @media(max-width:768px){
             .topbar { padding: 0 16px; }
             .nav-bar { padding: 0 12px; }
@@ -299,6 +349,9 @@
     </button>
     <button class="nav-tab" onclick="showTab('leaves')" id="tab-leaves">
         <i class="fas fa-calendar-check"></i> My Leaves
+    </button>
+    <button class="nav-tab" onclick="showTab('documents')" id="tab-documents">
+        <i class="fas fa-folder-open"></i> Documents
     </button>
     <button class="nav-tab" onclick="showTab('calendar')" id="tab-calendar">
         <i class="fas fa-calendar-alt"></i> Holiday Calendar
@@ -363,8 +416,15 @@
         <div class="card">
             <div class="card-title"><i class="fas fa-plus-circle"></i> Apply for Leave</div>
             <form id="leaveForm" onsubmit="submitLeave(event)">
-                <input type="hidden" id="leaveType" value="Paid Leave">
                 <div class="form-grid">
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Request Type *</label>
+                        <select id="leaveType" required>
+                            <option value="Paid Leave">Paid Leave</option>
+                            <option value="Unpaid Leave">Unpaid Leave</option>
+                            <option value="Work From Home">Work From Home</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label>Start Date *</label>
                         <input type="date" id="leaveStart" required onchange="calcLeaveDays()">
@@ -401,6 +461,19 @@
     </div>
 
     <!-- ── CALENDAR ─────────────────────────────────── -->
+    <div class="tab-section" id="section-documents">
+        <div id="documentsNotify"></div>
+        <div class="card">
+            <div class="card-title"><i class="fas fa-folder-open"></i> My Documents</div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Upload and manage your personal employee documents.</p>
+            <div id="myDocsSummary" style="font-size:12px;color:var(--muted);margin-bottom:14px;"></div>
+            <div id="myDocsGrid" class="docs-grid">
+                <div class="no-data" style="padding:26px 10px;"><div class="spinner"></div></div>
+            </div>
+        </div>
+        <input type="file" id="myDocFileInput" style="display:none;" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+    </div>
+
     <div class="tab-section" id="section-calendar">
         <div class="card">
             <div class="cal-header">
@@ -505,6 +578,12 @@
                 <select id="salaryMonthFilter" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;" onchange="loadSalaryBreakup()"></select>
             </div>
             <div id="salaryBreakupContent">
+                <div class="no-data"><div class="spinner"></div></div>
+            </div>
+        </div>
+        <div class="card" style="max-width:520px;margin:16px auto 0;">
+            <div class="card-title"><i class="fas fa-history"></i> Salary History</div>
+            <div id="salaryHistoryContent">
                 <div class="no-data"><div class="spinner"></div></div>
             </div>
         </div>

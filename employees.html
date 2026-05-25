@@ -2,11 +2,46 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HR Portal - Employees</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .input-copy-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .input-copy-wrapper input {
+            flex: 1;
+            margin: 0;
+        }
+        .copy-field-btn {
+            flex-shrink: 0;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0 9px;
+            height: 36px;
+            font-size: 13px;
+            transition: background 0.15s, color 0.15s;
+            display: flex;
+            align-items: center;
+        }
+        .copy-field-btn:hover {
+            background: rgba(99,179,237,0.15);
+            color: #63b3ed;
+            border-color: rgba(99,179,237,0.4);
+        }
+        .copy-field-btn.copied {
+            color: #48bb78;
+            border-color: rgba(72,187,120,0.4);
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -179,11 +214,17 @@
                     </div>
                     <div class="form-group">
                         <label for="accountNumber">Account Number</label>
-                        <input type="text" id="accountNumber" placeholder="e.g., 1234567890">
+                        <div class="input-copy-wrapper">
+                            <input type="text" id="accountNumber" placeholder="e.g., 1234567890">
+                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('accountNumber')" title="Copy"><i class="fas fa-copy"></i></button>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="routingNumber">Routing Number</label>
-                        <input type="text" id="routingNumber" placeholder="e.g., 123456789">
+                        <label for="routingNumber">IFSC Code</label>
+                        <div class="input-copy-wrapper">
+                            <input type="text" id="routingNumber" placeholder="e.g., HDFC0001234">
+                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('routingNumber')" title="Copy"><i class="fas fa-copy"></i></button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="accountType">Account Type</label>
@@ -198,15 +239,24 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="companyEmail">Company Email</label>
-                        <input type="email" id="companyEmail" placeholder="e.g., employee@company.com">
+                        <div class="input-copy-wrapper">
+                            <input type="email" id="companyEmail" placeholder="e.g., employee@company.com">
+                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('companyEmail')" title="Copy"><i class="fas fa-copy"></i></button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="crmUsername">CRM Username</label>
-                        <input type="text" id="crmUsername" placeholder="e.g., emp123">
+                        <div class="input-copy-wrapper">
+                            <input type="text" id="crmUsername" placeholder="e.g., emp123">
+                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('crmUsername')" title="Copy"><i class="fas fa-copy"></i></button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="crmPassword">CRM Password</label>
-                        <input type="password" id="crmPassword" placeholder="CRM credentials">
+                        <div class="input-copy-wrapper">
+                            <input type="password" id="crmPassword" placeholder="CRM credentials">
+                            <button type="button" class="copy-field-btn" onclick="copyFieldValue('crmPassword')" title="Copy"><i class="fas fa-copy"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="form-section-title">Leave Balance</div>
@@ -219,8 +269,10 @@
                 <div class="form-section-title">Payroll</div>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="salaryDay">Salary Credit Day <span style="color:#718096;font-size:12px;">(day of month, 1–28)</span></label>
-                        <input type="number" id="salaryDay" min="1" max="28" placeholder="e.g. 25">
+                        <label for="salaryDay">Salary Credit Day <span style="color:#718096;font-size:12px;">(1-28 or Month End)</span></label>
+                        <select id="salaryDay">
+                            <option value="">Select salary credit day</option>
+                        </select>
                     </div>
                 </div>
                 <input type="hidden" id="employeeId">
@@ -297,15 +349,79 @@
         </div>
     </div>
 
+    <script>
+        function copyFieldValue(fieldId) {
+            const el = document.getElementById(fieldId);
+            if (!el || !el.value) return;
+            navigator.clipboard.writeText(el.value).then(() => {
+                const btn = el.parentElement.querySelector('.copy-field-btn');
+                if (btn) {
+                    btn.classList.add('copied');
+                    btn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 1500);
+                }
+            });
+        }
+    </script>
     <script src="config.js"></script>
     <script src="auth-guard.js"></script>
     <script>requireAdmin();</script>
     <script src="script.js"></script>
     <script>
         let deleteEmployeeId = null;
+        const MONTH_END_SALARY_DAY = 'month_end';
+        const MAX_SHORT_EMPLOYEE_ID = 2000;
+
+        function getSalaryDayValueForForm(rawValue) {
+            if (rawValue === null || rawValue === undefined || rawValue === '') return '';
+            const normalized = String(rawValue).trim().toLowerCase();
+            if (['month_end', 'month-end', 'month end', 'monthend', 'eom'].includes(normalized)) {
+                return MONTH_END_SALARY_DAY;
+            }
+            const day = parseInt(rawValue, 10);
+            if (!Number.isInteger(day) || day < 1 || day > 28) return '';
+            return String(day);
+        }
+
+        function initSalaryDayOptions() {
+            const salaryDaySelect = document.getElementById('salaryDay');
+            if (!salaryDaySelect || salaryDaySelect.dataset.ready === 'true') return;
+
+            salaryDaySelect.innerHTML = '<option value="">Select salary credit day</option>';
+            for (let day = 1; day <= 28; day++) {
+                const option = document.createElement('option');
+                option.value = String(day);
+                option.textContent = `Day ${day}`;
+                salaryDaySelect.appendChild(option);
+            }
+
+            const monthEndOption = document.createElement('option');
+            monthEndOption.value = MONTH_END_SALARY_DAY;
+            monthEndOption.textContent = 'Month End (last day of month)';
+            salaryDaySelect.appendChild(monthEndOption);
+
+            salaryDaySelect.dataset.ready = 'true';
+        }
+
+        function getNextShortEmployeeId() {
+            const employees = getEmployees();
+            const usedIds = new Set(
+                employees
+                    .map(e => parseInt(e.id, 10))
+                    .filter(id => Number.isInteger(id) && id >= 1 && id <= MAX_SHORT_EMPLOYEE_ID)
+            );
+            for (let id = 1; id <= MAX_SHORT_EMPLOYEE_ID; id++) {
+                if (!usedIds.has(id)) return id;
+            }
+            return null;
+        }
 
         // Initialize employees page
         document.addEventListener('DOMContentLoaded', async function() {
+            initSalaryDayOptions();
             await loadEmployeesFromDB();
             
             // Check if should open add modal
@@ -481,7 +597,7 @@
             document.getElementById('paidLeave').value = leaveBalance.paidLeave ?? leaveBalance.annualLeave ?? 20;
 
             // Payroll
-            document.getElementById('salaryDay').value = employee.salaryDay || '';
+            document.getElementById('salaryDay').value = getSalaryDayValueForForm(employee.salaryDay);
             
             document.getElementById('employeeModal').classList.add('show');
         }
@@ -490,8 +606,14 @@
             event.preventDefault();
             
             const id = document.getElementById('employeeId').value;
+            const salaryDayRaw = getSalaryDayValueForForm(document.getElementById('salaryDay').value);
+            const nextShortId = id ? parseInt(id, 10) : getNextShortEmployeeId();
+            if (!nextShortId) {
+                showNotification(`Employee ID limit reached (${MAX_SHORT_EMPLOYEE_ID}).`, 'error');
+                return;
+            }
             const employee = {
-                id: id ? parseInt(id) : Date.now(),
+                id: nextShortId,
                 firstName: document.getElementById('firstName').value,
                 lastName: document.getElementById('lastName').value,
                 email: document.getElementById('email').value,
@@ -512,7 +634,9 @@
                 leaveBalance: {
                     paidLeave: parseInt(document.getElementById('paidLeave').value) || 20
                 },
-                salaryDay: parseInt(document.getElementById('salaryDay').value) || null
+                salaryDay: salaryDayRaw === MONTH_END_SALARY_DAY
+                    ? MONTH_END_SALARY_DAY
+                    : (parseInt(salaryDayRaw, 10) || null)
             };
             
             // If editing, preserve the _id field from MongoDB

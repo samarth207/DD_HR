@@ -265,7 +265,8 @@ router.get('/me', async (req, res) => {
             position: emp.position,
             salary: emp.salary,
             salaryDay: emp.salaryDay,
-            leaveBalance: emp.leaveBalance
+            leaveBalance: emp.leaveBalance,
+            hireDate: emp.hireDate || null
         });
     } catch (err) {
         res.status(500).json({ error: 'Failed to load profile' });
@@ -382,7 +383,8 @@ router.get('/me', async (req, res) => {
             position: emp.position,
             salary: emp.salary,
             salaryDay: emp.salaryDay,
-            leaveBalance: emp.leaveBalance
+            leaveBalance: emp.leaveBalance,
+            hireDate: emp.hireDate || null
         });
     } catch (err) {
         res.status(500).json({ error: 'Failed to load profile' });

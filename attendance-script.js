@@ -9,6 +9,7 @@ let attendanceSettings = {
 let currentDate = '';
 // attendanceData: { 'YYYY-MM-DD': { [employeeId]: { time: '09:05' | null, status: 'present'|'late'|'absent' } } }
 let attendanceData = {};
+const WORK_FROM_HOME_TYPE = 'Work From Home';
 
 // ─── Init ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ function isLate(entryTime) {
 }
 
 function getMonthStr(dateStr) { return dateStr.substring(0, 7); }
+
+function isWorkFromHomeLeave(leave) {
+    return String(leave?.leaveType || '').trim().toLowerCase() === 'work from home';
+}
 
 // ─── Settings ──────────────────────────────────────────────────────────────
 
@@ -145,6 +150,18 @@ function getLeaveForDate(employeeId, dateStr) {
     return leaves.find(l =>
         l.employeeId === employeeId &&
         l.status === 'approved' &&
+        !isWorkFromHomeLeave(l) &&
+        dateStr >= l.startDate &&
+        dateStr <= l.endDate
+    ) || null;
+}
+
+function getWorkFromHomeForDate(employeeId, dateStr) {
+    const leaves = getLeaves();
+    return leaves.find(l =>
+        l.employeeId === employeeId &&
+        l.status === 'approved' &&
+        isWorkFromHomeLeave(l) &&
         dateStr >= l.startDate &&
         dateStr <= l.endDate
     ) || null;
@@ -220,11 +237,14 @@ function renderAttendanceTable() {
 
     tbody.innerHTML = employees.map((emp, idx) => {
         const leave = getLeaveForDate(emp.id, currentDate);
+        const wfh = getWorkFromHomeForDate(emp.id, currentDate);
         const rec = dayRecs[emp.id] || {};
 
         let status;
         if (leave) {
             status = 'on-leave';
+        } else if (wfh) {
+            status = 'wfh';
         } else if (rec.time) {
             status = isLate(rec.time) ? 'late' : 'present';
         } else {
@@ -255,18 +275,23 @@ function renderAttendanceTable() {
             present: `<i class="fas fa-check"></i> Present`,
             late:     `<i class="fas fa-clock"></i> Late`,
             absent:   `<i class="fas fa-times"></i> Absent`,
-            'on-leave': `<i class="fas fa-umbrella-beach"></i> On Leave`
+            'on-leave': `<i class="fas fa-umbrella-beach"></i> On Leave`,
+            wfh: `<i class="fas fa-house-laptop"></i> WFH`
         };
 
         // Time cell
         const timeCell = leave
             ? `<span style="font-size:12px;color:#718096;">${leave.leaveType}</span>`
-            : (rec.time ? formatTime12h(rec.time) : '—');
+            : (wfh
+                ? `<span style="font-size:12px;color:#2563eb;">Work From Home</span>`
+                : (rec.time ? formatTime12h(rec.time) : '—'));
 
         // Action cell
         let actionCell;
         if (leave) {
             actionCell = `<span style="font-size:12px;color:#718096;font-style:italic;">On Leave</span>`;
+        } else if (wfh) {
+            actionCell = `<span style="font-size:12px;color:#2563eb;font-style:italic;">WFH</span>`;
         } else {
             actionCell = `<div class="time-wrap">
                 <input type="time" value="${rec.time || ''}" onchange="setEntryTime(${emp.id}, this.value)" title="Set entry time">
@@ -298,9 +323,10 @@ function renderAttendanceTable() {
 }
 
 function updateStats(employees, dayRecs, monthStr) {
-    let present = 0, late = 0, onLeave = 0, absent = 0, halfDayTotal = 0;
+    let present = 0, late = 0, onLeave = 0, wfh = 0, absent = 0, halfDayTotal = 0;
     employees.forEach(emp => {
         if (getLeaveForDate(emp.id, currentDate)) { onLeave++; }
+        else if (getWorkFromHomeForDate(emp.id, currentDate)) { wfh++; }
         else {
             const rec = dayRecs[emp.id] || {};
             if (rec.time) { if (isLate(rec.time)) late++; else present++; }
@@ -310,7 +336,7 @@ function updateStats(employees, dayRecs, monthStr) {
     });
     document.getElementById('statPresent').textContent = present;
     document.getElementById('statLate').textContent    = late;
-    document.getElementById('statOnLeave').textContent = onLeave;
+    document.getElementById('statOnLeave').textContent = onLeave + wfh;
     document.getElementById('statAbsent').textContent  = absent;
     document.getElementById('statHalfDay').textContent = halfDayTotal;
 }
@@ -362,11 +388,13 @@ function generateMessage() {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     });
 
-    const onTime = [], late = [], onLeave = [], absent = [];
+    const onTime = [], late = [], onLeave = [], wfh = [], absent = [];
 
     employees.forEach(emp => {
         const leaveRec = getLeaveForDate(emp.id, currentDate);
         if (leaveRec) { onLeave.push({ emp, leaveType: leaveRec.leaveType }); return; }
+        const wfhRec = getWorkFromHomeForDate(emp.id, currentDate);
+        if (wfhRec) { wfh.push({ emp }); return; }
 
         const rec = dayRecs[emp.id] || {};
         if (rec.time) {
@@ -396,13 +424,18 @@ function generateMessage() {
         onLeave.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName} — ${r.leaveType}\n`; });
         msg += '\n';
     }
+    if (wfh.length > 0) {
+        msg += `🏠 *Work From Home (${wfh.length}):*\n`;
+        wfh.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName}\n`; });
+        msg += '\n';
+    }
     if (absent.length > 0) {
         msg += `❌ *Absent (${absent.length}):*\n`;
         absent.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName}\n`; });
         msg += '\n';
     }
 
-    msg += `📊 Total: ${onTime.length + late.length} Present | ${onLeave.length} On Leave | ${absent.length} Absent`;
+    msg += `📊 Total: ${onTime.length + late.length + wfh.length} Working | ${onLeave.length} On Leave | ${absent.length} Absent`;
 
     document.getElementById('attendanceMessage').value = msg;
 
