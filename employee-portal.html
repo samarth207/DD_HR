@@ -434,6 +434,19 @@
                         <input type="date" id="leaveEnd" required onchange="calcLeaveDays()">
                     </div>
                     <div class="form-group" style="grid-column:1/-1;">
+                        <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;">
+                            <input type="checkbox" id="halfDayCheckEmp" onchange="toggleHalfDaySessionEmp()" style="width:16px;height:16px;accent-color:#4338ca;cursor:pointer;">
+                            Half Day
+                        </label>
+                        <div id="halfDaySessionRowEmp" style="display:none;margin-top:10px;">
+                            <label for="halfDaySessionEmp" style="font-size:13px;color:var(--muted);margin-bottom:4px;display:block;">Which Half? *</label>
+                            <select id="halfDaySessionEmp" style="max-width:260px;">
+                                <option value="First Half">First Half (Morning)</option>
+                                <option value="Second Half">Second Half (Afternoon)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
                         <label>Reason <span style="color:var(--red);">*</span></label>
                         <textarea id="leaveReason" placeholder="Enter reason for leave…" required></textarea>
                     </div>

@@ -1093,12 +1093,8 @@ async function loadSalaryEmployeeFilters() {
     });
 }
 
-// Policy: 1 paid leave per month per employee. Additional approved leaves are unpaid.
+// Only 'Unpaid Leave' type deducts from salary. Paid Leave uses leave balance — no salary impact.
 // Returns number of unpaid leave days for the given month (format "YYYY-MM")
-function isWorkFromHomeLeave(leave) {
-    return String(leave?.leaveType || '').trim().toLowerCase() === 'work from home';
-}
-
 function getUnpaidLeaveDaysForMonth(employeeId, month) {
     const [year, mon] = month.split('-').map(Number);
     const monthStart = new Date(year, mon - 1, 1);
@@ -1106,27 +1102,31 @@ function getUnpaidLeaveDaysForMonth(employeeId, month) {
     monthEnd.setHours(23, 59, 59, 999);
 
     const allLeaves = getLeaves();
-    const approvedLeaves = allLeaves.filter(l =>
+    // Only count Unpaid Leave type — Paid Leave has no salary deduction
+    const unpaidLeaves = allLeaves.filter(l =>
         l.employeeId === employeeId &&
         l.status === 'approved' &&
-        !isWorkFromHomeLeave(l)
+        l.leaveType === 'Unpaid Leave'
     );
 
-    // Count total approved leave days that fall within this month
     let totalDaysInMonth = 0;
-    for (const leave of approvedLeaves) {
-        const leaveStart = new Date(leave.startDate + 'T00:00:00');
-        const leaveEnd = new Date(leave.endDate + 'T00:00:00');
-        const overlapStart = leaveStart < monthStart ? monthStart : leaveStart;
-        const overlapEnd = leaveEnd > monthEnd ? monthEnd : leaveEnd;
-        if (overlapStart <= overlapEnd) {
-            const days = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
-            totalDaysInMonth += days;
+    for (const leave of unpaidLeaves) {
+        if (leave.halfDay === true) {
+            const leaveStart = new Date(leave.startDate + 'T00:00:00');
+            if (leaveStart >= monthStart && leaveStart <= monthEnd) totalDaysInMonth += 0.5;
+        } else {
+            const leaveStart = new Date(leave.startDate + 'T00:00:00');
+            const leaveEnd = new Date(leave.endDate + 'T00:00:00');
+            const overlapStart = leaveStart < monthStart ? monthStart : leaveStart;
+            const overlapEnd = leaveEnd > monthEnd ? monthEnd : leaveEnd;
+            if (overlapStart <= overlapEnd) {
+                const days = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+                totalDaysInMonth += days;
+            }
         }
     }
 
-    // First 1 day per month is paid; the rest are unpaid
-    return Math.max(0, totalDaysInMonth - 1);
+    return totalDaysInMonth;
 }
 
 async function getOutstandingAdvanceForEmployee(employeeId) {
@@ -1237,28 +1237,6 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
 }
 
 // ── Salary-due-tomorrow reminder banner (inside Salary Crediting tab) ──────
-function isMonthEndSalaryDay(salaryDay) {
-    if (salaryDay === null || salaryDay === undefined) return false;
-    const normalized = String(salaryDay).trim().toLowerCase();
-    return ['month_end', 'month-end', 'month end', 'monthend', 'eom'].includes(normalized);
-}
-
-function isSalaryDueOnDate(salaryDay, targetDate) {
-    if (!salaryDay || !targetDate) return false;
-    if (isMonthEndSalaryDay(salaryDay)) {
-        const lastDay = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
-        return targetDate.getDate() === lastDay;
-    }
-    const day = parseInt(salaryDay, 10);
-    return Number.isInteger(day) && day >= 1 && day <= 31 && targetDate.getDate() === day;
-}
-
-function formatSalaryDayLabel(salaryDay) {
-    if (isMonthEndSalaryDay(salaryDay)) return 'Month End';
-    const day = parseInt(salaryDay, 10);
-    return Number.isInteger(day) ? `Day ${day}` : '-';
-}
-
 async function loadSalaryDueReminders() {
     const banner = document.getElementById('salaryDueReminderBanner');
     if (!banner) return;
@@ -1267,10 +1245,11 @@ async function loadSalaryDueReminders() {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
+    const tomorrowDay = tomorrow.getDate();
     const currentMonth = document.getElementById('salaryMonthFilter')?.value || '';
 
     // Employees whose salary day is tomorrow
-    const due = allEmployees.filter(e => isSalaryDueOnDate(e.salaryDay, tomorrow));
+    const due = allEmployees.filter(e => parseInt(e.salaryDay) === tomorrowDay);
     if (!due.length) { banner.style.display = 'none'; return; }
 
     // Check which are already paid for current month using the incentive data
@@ -1303,7 +1282,7 @@ async function loadSalaryDueReminders() {
                         </div>
                         <div>
                             <div style="font-weight:600;color:#1a202c;font-size:14px;">${emp.firstName} ${emp.lastName}</div>
-                            <div style="font-size:12px;color:#718096;">${emp.department} · Salary day: <strong>${formatSalaryDayLabel(emp.salaryDay)}</strong> · Gross: <strong>${formatRupees(parseFloat(emp.salary)||0)}</strong></div>
+                            <div style="font-size:12px;color:#718096;">${emp.department} · Salary day: <strong>${emp.salaryDay}</strong> · Gross: <strong>${formatRupees(parseFloat(emp.salary)||0)}</strong></div>
                         </div>
                     </div>
                     <button onclick="markSalaryPaidFromReminder(${emp.id}, '${emp.firstName} ${emp.lastName}', '${currentMonth}')"
@@ -1331,6 +1310,15 @@ async function markSalaryPaidFromReminder(employeeId, employeeName, month) {
         banner.style.display = 'none';
     }
 }
+function toggleSalaryDetails(cardId) {
+    const details = document.getElementById(cardId);
+    const chevron = document.getElementById('chevron-' + cardId);
+    if (!details) return;
+    const isOpen = details.style.display !== 'none';
+    details.style.display = isOpen ? 'none' : 'block';
+    if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 
 async function loadSalaryCrediting() {
@@ -1402,87 +1390,93 @@ async function loadSalaryCrediting() {
         totalDeductions += totalDeductionsAmt;
         totalNet += netSalary;
         
+        const cardId = `salary-card-${emp.id}`;
         const card = document.createElement('div');
         card.className = 'employee-incentive-card';
+        card.style.cursor = 'pointer';
         card.innerHTML = `
-            <div class="employee-header">
-                <div>
-                    <div class="employee-name">${emp.firstName} ${emp.lastName}</div>
-                    <div class="employee-dept">${emp.position} - ${emp.department}</div>
+            <div class="employee-header" onclick="toggleSalaryDetails('${cardId}')" style="user-select:none;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:40px;height:40px;border-radius:50%;background:#667eea22;display:flex;align-items:center;justify-content:center;font-weight:700;color:#667eea;font-size:15px;flex-shrink:0;">
+                        ${(emp.firstName?.[0]||'').toUpperCase()}${(emp.lastName?.[0]||'').toUpperCase()}
+                    </div>
+                    <div>
+                        <div class="employee-name">${emp.firstName} ${emp.lastName}</div>
+                        <div class="employee-dept">${emp.position} · ${emp.department}</div>
+                    </div>
                 </div>
-                <div class="action-buttons">
-                    ${!paymentStatus.paid ? `<button class="btn-sm success" onclick="markSalaryPaid(${emp.id}, '${emp.firstName} ${emp.lastName}', '${month}', ${totalEarnings}, ${totalDeductionsAmt}, ${netSalary})">
-                        <i class="fas fa-check"></i> Mark Paid
-                    </button>` : '<span style="color: #38ef7d; font-weight: 600;"><i class="fas fa-check-circle"></i> Paid</span>'}
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="text-align:right;">
+                        <div style="font-size:11px;color:#718096;margin-bottom:2px;">Net Payable</div>
+                        <div style="font-size:18px;font-weight:700;color:${paymentStatus.paid ? '#38ef7d' : '#667eea'};">${formatRupees(netSalary)}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                        ${!paymentStatus.paid
+                            ? `<button class="btn-sm success" onclick="event.stopPropagation();markSalaryPaid(${emp.id}, '${emp.firstName} ${emp.lastName}', '${month}', ${totalEarnings}, ${totalDeductionsAmt}, ${netSalary})">
+                                <i class="fas fa-check"></i> Mark Paid
+                               </button>`
+                            : `<span style="color:#38ef7d;font-weight:600;font-size:13px;"><i class="fas fa-check-circle"></i> Paid</span>`
+                        }
+                        <span style="font-size:11px;color:#718096;">
+                            <i class="fas fa-chevron-down" id="chevron-${cardId}" style="transition:transform 0.2s;"></i> Details
+                        </span>
+                    </div>
                 </div>
             </div>
-            
-            <div class="incentive-summary">
-                <div class="incentive-box">
-                    <label>${joiningDays > 0 ? `Salary (${joiningDays}d of ${new Date(pyr, pmo-1, 1).toLocaleString('en-IN',{month:'short'})} × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
-                    <div class="value">${formatRupees(effectiveGross)}${joiningDays > 0 ? `<span style="font-size:11px;color:#6b7280;display:block;">Full: ${formatRupees(grossSalary)}</span>` : ''}</div>
+
+            <div id="${cardId}" style="display:none;margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+                <div class="incentive-summary">
+                    <div class="incentive-box">
+                        <label>${joiningDays > 0 ? `Salary (${joiningDays}d of ${new Date(pyr, pmo-1, 1).toLocaleString('en-IN',{month:'short'})} × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
+                        <div class="value">${formatRupees(effectiveGross)}${joiningDays > 0 ? `<span style="font-size:11px;color:#6b7280;display:block;">Full: ${formatRupees(grossSalary)}</span>` : ''}</div>
+                    </div>
+                    ${monthlyIncentive > 0 ? `
+                    <div class="incentive-box">
+                        <label>Monthly Incentive</label>
+                        <div class="value" style="color:#38ef7d;">+ ${formatRupees(monthlyIncentive)}</div>
+                    </div>` : ''}
+                    ${unpaidLeaveDeduction > 0 ? `
+                    <div class="incentive-box">
+                        <label>Unpaid Leave (${unpaidLeaveDays}d × ₹${Math.round(dailyRate)})</label>
+                        <div class="value" style="color:#f5576c;">- ${formatRupees(unpaidLeaveDeduction)}</div>
+                    </div>` : ''}
+                    ${halfDayAttDeduction > 0 ? `
+                    <div class="incentive-box">
+                        <label>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</label>
+                        <div class="value" style="color:#f5576c;">- ${formatRupees(halfDayAttDeduction)}</div>
+                    </div>` : ''}
+                    <div class="incentive-box">
+                        <label>Outstanding Advances</label>
+                        <div class="value" style="color:${outstandingAdvance > 0 ? '#f5576c' : '#718096'};">- ${formatRupees(outstandingAdvance)}</div>
+                    </div>
+                    <div class="incentive-box">
+                        <label>Net Payable</label>
+                        <div class="value" style="color:#667eea;font-size:24px;font-weight:700;">${formatRupees(netSalary)}</div>
+                    </div>
                 </div>
+                ${joiningDays > 0 ? `
+                <div style="margin-top:12px;padding:12px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;">
+                    <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> Joining month: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) × ₹${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
+                </div>` : ''}
                 ${monthlyIncentive > 0 ? `
-                <div class="incentive-box">
-                    <label>Monthly Incentive</label>
-                    <div class="value" style="color: #38ef7d;">+ ${formatRupees(monthlyIncentive)}</div>
-                </div>
-                ` : ''}
-                ${unpaidLeaveDeduction > 0 ? `
-                <div class="incentive-box">
-                    <label>Unpaid Leave (${unpaidLeaveDays}d \u00d7 \u20b9${Math.round(dailyRate)})</label>
-                    <div class="value" style="color: #f5576c;">- ${formatRupees(unpaidLeaveDeduction)}</div>
-                </div>
-                ` : ''}
+                <div style="margin-top:12px;padding:12px;background:#f0fff4;border-left:4px solid #38ef7d;border-radius:6px;">
+                    <small style="color:#22543d;font-weight:600;"><i class="fas fa-star"></i> Performance incentive included: ${formatRupees(monthlyIncentive)}</small>
+                </div>` : ''}
+                ${unpaidLeaveDays > 0 ? `
+                <div style="margin-top:12px;padding:12px;background:#fff5f5;border-left:4px solid #f5576c;border-radius:6px;">
+                    <small style="color:#c53030;font-weight:600;"><i class="fas fa-calendar-times"></i> Unpaid leave: ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day = ${formatRupees(unpaidLeaveDeduction)}</small>
+                </div>` : ''}
                 ${halfDayAttDeduction > 0 ? `
-                <div class="incentive-box">
-                    <label>Late Half Days (${halfDayAttDays}d \u00d7 \u20b9${Math.round(dailyRate)})</label>
-                    <div class="value" style="color: #f5576c;">- ${formatRupees(halfDayAttDeduction)}</div>
-                </div>
-                ` : ''}
-                <div class="incentive-box">
-                    <label>Outstanding Advances</label>
-                    <div class="value" style="color: ${outstandingAdvance > 0 ? '#f5576c' : '#718096'};">- ${formatRupees(outstandingAdvance)}</div>
-                </div>
-                <div class="incentive-box">
-                    <label>Net Payable</label>
-                    <div class="value" style="color: #667eea; font-size: 24px; font-weight: 700;">${formatRupees(netSalary)}</div>
-                </div>
+                <div style="margin-top:12px;padding:12px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:6px;">
+                    <small style="color:#92400e;font-weight:600;"><i class="fas fa-adjust"></i> Late half-day: ${halfDayAttDays} day${halfDayAttDays !== 0.5 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day = ${formatRupees(halfDayAttDeduction)}</small>
+                </div>` : ''}
+                ${outstandingAdvance > 0 ? `
+                <div style="margin-top:12px;padding:12px;background:#fff5f5;border-left:4px solid #f5576c;border-radius:6px;">
+                    <small style="color:#c53030;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> Advance deduction: ${formatRupees(outstandingAdvance)}</small>
+                </div>` : ''}
             </div>
-            ${joiningDays > 0 ? `
-            <div style="margin-top:15px;padding:12px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;">
-                <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> Joining month: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) \u00d7 \u20b9${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
-            </div>` : ''}
-            ${monthlyIncentive > 0 ? `
-            <div style="margin-top: 15px; padding: 12px; background: #f0fff4; border-left: 4px solid #38ef7d; border-radius: 6px;">
-                <small style="color: #22543d; font-weight: 600;">
-                    <i class="fas fa-star"></i> Performance incentive included: ${formatRupees(monthlyIncentive)}
-                </small>
-            </div>
-            ` : ''}
-            ${unpaidLeaveDays > 0 ? `
-            <div style="margin-top: 15px; padding: 12px; background: #fff5f5; border-left: 4px solid #f5576c; border-radius: 6px;">
-                <small style="color: #c53030; font-weight: 600;">
-                    <i class="fas fa-calendar-times"></i> Unpaid leave deduction: ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day (salary ÷ 30) = ${formatRupees(unpaidLeaveDeduction)}
-                </small>
-            </div>
-            ` : ''}
-            ${halfDayAttDeduction > 0 ? `
-            <div style="margin-top: 15px; padding: 12px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px;">
-                <small style="color: #92400e; font-weight: 600;">
-                    <i class="fas fa-adjust"></i> Late half-day deduction: ${halfDayAttDays} day${halfDayAttDays !== 0.5 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day = ${formatRupees(halfDayAttDeduction)}
-                </small>
-            </div>
-            ` : ''}
-            ${outstandingAdvance > 0 ? `
-            <div style="margin-top: 15px; padding: 12px; background: #fff5f5; border-left: 4px solid #f5576c; border-radius: 6px;">
-                <small style="color: #c53030; font-weight: 600;">
-                    <i class="fas fa-exclamation-triangle"></i> Advance salary deduction: ${formatRupees(outstandingAdvance)}
-                </small>
-            </div>
-            ` : ''}
         `;
-        
+
         container.appendChild(card);
     }
     

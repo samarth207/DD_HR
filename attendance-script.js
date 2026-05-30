@@ -174,7 +174,14 @@ function countLateInMonth(employeeId, monthStr) {
     Object.keys(attendanceData).forEach(dateKey => {
         if (!dateKey.startsWith(monthStr)) return;
         const rec = (attendanceData[dateKey] || {})[employeeId];
-        if (rec && rec.time && isLate(rec.time)) count++;
+        if (rec && rec.time && isLate(rec.time)) {
+            // Skip days where the employee has a half-day leave —
+            // the leave already accounts for the half-day; counting the
+            // late clock-in would double-deduct.
+            const halfDayLeave = getLeaveForDate(employeeId, dateKey);
+            if (halfDayLeave && halfDayLeave.halfDay === true) return;
+            count++;
+        }
     });
     return count;
 }
@@ -237,11 +244,12 @@ function renderAttendanceTable() {
 
     tbody.innerHTML = employees.map((emp, idx) => {
         const leave = getLeaveForDate(emp.id, currentDate);
+        const isHalfDayLeave = leave && leave.halfDay === true;
         const wfh = getWorkFromHomeForDate(emp.id, currentDate);
         const rec = dayRecs[emp.id] || {};
 
         let status;
-        if (leave) {
+        if (leave && !isHalfDayLeave) {
             status = 'on-leave';
         } else if (wfh) {
             status = 'wfh';
@@ -264,7 +272,13 @@ function renderAttendanceTable() {
             }
         }
 
-        // Half-day badge
+        // Half-day leave badge (from leave request, not late attendance)
+        const session = isHalfDayLeave ? (leave.halfDaySession === 'Second Half' ? 'PM' : 'AM') : '';
+        const halfDayLeaveBadge = isHalfDayLeave
+            ? `<span class="att-badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;margin-left:4px;font-size:11px;padding:2px 7px;border-radius:4px;"><i class="fas fa-adjust"></i> ½ ${session} Leave</span>`
+            : '';
+
+        // Late-accumulation half-day badge
         const hd = halfDaysAccumulated(emp.id, monthStr);
         const hdBadge = hd > 0
             ? `<span class="att-badge half-day" style="margin-left:4px;"><i class="fas fa-adjust"></i> ${hd} Half Day${hd > 1 ? 's' : ''}</span>`
@@ -279,16 +293,16 @@ function renderAttendanceTable() {
             wfh: `<i class="fas fa-house-laptop"></i> WFH`
         };
 
-        // Time cell
-        const timeCell = leave
+        // Time cell — half-day leave employees can still clock in
+        const timeCell = (leave && !isHalfDayLeave)
             ? `<span style="font-size:12px;color:#718096;">${leave.leaveType}</span>`
             : (wfh
                 ? `<span style="font-size:12px;color:#2563eb;">Work From Home</span>`
                 : (rec.time ? formatTime12h(rec.time) : '—'));
 
-        // Action cell
+        // Action cell — half-day leave employees can still mark attendance
         let actionCell;
-        if (leave) {
+        if (leave && !isHalfDayLeave) {
             actionCell = `<span style="font-size:12px;color:#718096;font-style:italic;">On Leave</span>`;
         } else if (wfh) {
             actionCell = `<span style="font-size:12px;color:#2563eb;font-style:italic;">WFH</span>`;
@@ -311,6 +325,7 @@ function renderAttendanceTable() {
             <td><span style="font-size:12px;color:#718096;">${emp.department}</span></td>
             <td>
                 <span class="att-badge ${status}">${badgeMap[status]}</span>
+                ${halfDayLeaveBadge}
                 ${hdBadge}
             </td>
             <td>${timeCell}</td>
@@ -325,7 +340,9 @@ function renderAttendanceTable() {
 function updateStats(employees, dayRecs, monthStr) {
     let present = 0, late = 0, onLeave = 0, wfh = 0, absent = 0, halfDayTotal = 0;
     employees.forEach(emp => {
-        if (getLeaveForDate(emp.id, currentDate)) { onLeave++; }
+        const leaveRec = getLeaveForDate(emp.id, currentDate);
+        const isHalfDayLeave = leaveRec && leaveRec.halfDay === true;
+        if (leaveRec && !isHalfDayLeave) { onLeave++; }
         else if (getWorkFromHomeForDate(emp.id, currentDate)) { wfh++; }
         else {
             const rec = dayRecs[emp.id] || {};
@@ -392,17 +409,21 @@ function generateMessage() {
 
     employees.forEach(emp => {
         const leaveRec = getLeaveForDate(emp.id, currentDate);
-        if (leaveRec) { onLeave.push({ emp, leaveType: leaveRec.leaveType }); return; }
+        const isHalfDayLeave = leaveRec && leaveRec.halfDay === true;
+        if (leaveRec && !isHalfDayLeave) { onLeave.push({ emp, leaveType: leaveRec.leaveType }); return; }
         const wfhRec = getWorkFromHomeForDate(emp.id, currentDate);
         if (wfhRec) { wfh.push({ emp }); return; }
 
+        const halfDayNote = isHalfDayLeave
+            ? ` [½ ${leaveRec.halfDaySession === 'Second Half' ? 'PM' : 'AM'} Leave]`
+            : '';
         const rec = dayRecs[emp.id] || {};
         if (rec.time) {
             const minsLate = minutesAfterOffice(rec.time);
-            if (isLate(rec.time)) late.push({ emp, time: rec.time, minsLate });
-            else onTime.push({ emp, time: rec.time });
+            if (isLate(rec.time)) late.push({ emp, time: rec.time, minsLate, halfDayNote });
+            else onTime.push({ emp, time: rec.time, halfDayNote });
         } else {
-            absent.push({ emp });
+            absent.push({ emp, halfDayNote });
         }
     });
 
@@ -411,12 +432,12 @@ function generateMessage() {
 
     if (onTime.length > 0) {
         msg += `✅ *On Time (${onTime.length}):*\n`;
-        onTime.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName} — ${formatTime12h(r.time)}\n`; });
+        onTime.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName} — ${formatTime12h(r.time)}${r.halfDayNote || ''}\n`; });
         msg += '\n';
     }
     if (late.length > 0) {
         msg += `⏰ *Late (${late.length}):*\n`;
-        late.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName} — ${formatTime12h(r.time)} (${r.minsLate} min late)\n`; });
+        late.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName} — ${formatTime12h(r.time)} (${r.minsLate} min late)${r.halfDayNote || ''}\n`; });
         msg += '\n';
     }
     if (onLeave.length > 0) {
@@ -431,7 +452,7 @@ function generateMessage() {
     }
     if (absent.length > 0) {
         msg += `❌ *Absent (${absent.length}):*\n`;
-        absent.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName}\n`; });
+        absent.forEach(r => { msg += `  • ${r.emp.firstName} ${r.emp.lastName}${r.halfDayNote || ''}\n`; });
         msg += '\n';
     }
 

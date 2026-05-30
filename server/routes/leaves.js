@@ -11,7 +11,8 @@ function parseDate(value) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function calculateDays(startDate, endDate) {
+function calculateDays(startDate, endDate, isHalfDay) {
+    if (isHalfDay) return 0.5;
     const start = parseDate(startDate);
     const end = parseDate(endDate);
     if (!start || !end) return 0;
@@ -132,7 +133,7 @@ router.post('/', async (req, res) => {
         }
 
         if (isApprovedPaidLeave(leave)) {
-            const days = calculateDays(leave.startDate, leave.endDate);
+            const days = calculateDays(leave.startDate, leave.endDate, leave.halfDay === true || leave.leaveType === 'Half Day');
             const balanceResult = await applyLeaveBalanceDelta(db, leave.employeeId, -days);
             if (!balanceResult.ok) {
                 return res.status(balanceResult.status || 400).json({ error: balanceResult.message });
@@ -169,8 +170,8 @@ router.put('/:id', async (req, res) => {
 
         const oldEmployeeId = parseInt(existingLeave.employeeId);
         const newEmployeeId = parseInt(nextLeave.employeeId);
-        const oldPaidApprovedDays = isApprovedPaidLeave(existingLeave) ? calculateDays(existingLeave.startDate, existingLeave.endDate) : 0;
-        const newPaidApprovedDays = isApprovedPaidLeave(nextLeave) ? calculateDays(nextLeave.startDate, nextLeave.endDate) : 0;
+        const oldPaidApprovedDays = isApprovedPaidLeave(existingLeave) ? calculateDays(existingLeave.startDate, existingLeave.endDate, existingLeave.halfDay === true || existingLeave.leaveType === 'Half Day') : 0;
+        const newPaidApprovedDays = isApprovedPaidLeave(nextLeave) ? calculateDays(nextLeave.startDate, nextLeave.endDate, nextLeave.halfDay === true || nextLeave.leaveType === 'Half Day') : 0;
 
         if (oldEmployeeId === newEmployeeId) {
             const delta = oldPaidApprovedDays - newPaidApprovedDays; // positive => refund, negative => deduct

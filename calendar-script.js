@@ -294,7 +294,7 @@ function loadUpcomingLeaves() {
         const employee = employees.find(e => e.id === leave.employeeId);
         const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
         const dept = employee?.department || 'N/A';
-        const days = calculateDays(leave.startDate, leave.endDate);
+        const days = calculateDays(leave.startDate, leave.endDate, leave.halfDay === true || leave.leaveType === 'Half Day');
         
         return `
             <div class="leave-card">
@@ -371,7 +371,8 @@ function formatDateShort(dateString) {
     });
 }
 
-function calculateDays(startDate, endDate) {
+function calculateDays(startDate, endDate, isHalfDay) {
+    if (isHalfDay) return 0.5;
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diffTime = Math.abs(end - start);

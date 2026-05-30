@@ -3,6 +3,22 @@ let currentStatusFilter = 'all';
 let deleteLeaveId = null;
 const WORK_FROM_HOME_TYPE = 'Work From Home';
 
+function toggleHalfDaySession() {
+    const isChecked = document.getElementById('halfDayCheck')?.checked || false;
+    const sessionRow = document.getElementById('halfDaySessionRow');
+    const endDateEl = document.getElementById('endDate');
+    if (sessionRow) sessionRow.style.display = isChecked ? 'block' : 'none';
+    if (endDateEl) {
+        endDateEl.disabled = isChecked;
+        if (isChecked) {
+            const startDate = document.getElementById('startDate')?.value;
+            if (startDate) endDateEl.value = startDate;
+        }
+    }
+    if (typeof calculateLeaveDays === 'function') calculateLeaveDays();
+    if (typeof showEmployeeLeaveBalance === 'function') showEmployeeLeaveBalance();
+}
+
 // Note: getLeaves() and saveLeaves() are already defined in script.js
 // No localStorage functions needed here
 
@@ -84,14 +100,15 @@ function showEmployeeLeaveBalance() {
     const isPaidType = leaveType === 'Paid Leave';
     const isWorkFromHomeType = leaveType === WORK_FROM_HOME_TYPE;
     const isApproved = status === 'approved';
-    const daysInForm = (startDate && endDate) ? calculateDays(startDate, endDate) : 0;
+    const isHalfDayChecked = document.getElementById('halfDayCheck')?.checked || false;
+    const daysInForm = (startDate && endDate) ? calculateDays(startDate, endDate, isHalfDayChecked) : 0;
 
     // For edits, get the old approved days so we don't double-count
     let oldApprovedDays = 0;
     if (leaveId && isPaidType) {
         const existing = getLeaves().find(l => l.id === parseInt(leaveId));
-        if (existing && existing.status === 'approved' && existing.leaveType === 'Paid Leave') {
-            oldApprovedDays = calculateDays(existing.startDate, existing.endDate);
+        if (existing && existing.status === 'approved' && (existing.leaveType === 'Paid Leave' || existing.leaveType === 'Half Day')) {
+            oldApprovedDays = calculateDays(existing.startDate, existing.endDate, existing.halfDay || existing.leaveType === 'Half Day');
         }
     }
 
@@ -137,23 +154,31 @@ function displayLeaves(leaves) {
     tbody.innerHTML = filtered.map(leave => {
         const employee = employees.find(e => e.id === leave.employeeId);
         const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
-        const days = calculateDays(leave.startDate, leave.endDate);
+        const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
+        const days = calculateDays(leave.startDate, leave.endDate, isHalfDay);
         
         // Determine pay type from selected leave type
         let payTypeBadge = '<span style="color:#a0aec0;font-size:12px;">-</span>';
         if (leave.leaveType === WORK_FROM_HOME_TYPE) {
             payTypeBadge = '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">WFH</span>';
         } else if (leave.status === 'approved') {
-                const isPaid = leave.leaveType === 'Paid Leave';
+                const isPaid = leave.leaveType === 'Paid Leave' || leave.leaveType === 'Half Day';
                 payTypeBadge = isPaid
                     ? '<span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Paid</span>'
                     : '<span style="background:#fed7d7;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">Unpaid</span>';
+        }
+
+        // Half-day session label
+        let halfDayBadge = '';
+        if (isHalfDay) {
+            const session = leave.halfDaySession || '';
+            halfDayBadge = `<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:6px;font-size:11px;font-weight:600;margin-left:4px;">&#189; ${session}</span>`;
         }
         
         return `
             <tr>
                 <td>${employeeName}</td>
-                <td>${leave.leaveType}</td>
+                <td>${leave.leaveType}${halfDayBadge}</td>
                 <td>${formatDateShort(leave.startDate)}</td>
                 <td>${formatDateShort(leave.endDate)}</td>
                 <td>${days} day${days !== 1 ? 's' : ''}</td>
@@ -207,7 +232,7 @@ function updateLeaveStats() {
     let totalDays = 0;
     thisMonthLeaves.forEach(leave => {
         if (leave.leaveType !== WORK_FROM_HOME_TYPE) {
-            totalDays += calculateDays(leave.startDate, leave.endDate);
+            totalDays += calculateDays(leave.startDate, leave.endDate, leave.halfDay || leave.leaveType === 'Half Day');
         }
     });
     
@@ -251,7 +276,9 @@ function filterLeaves() {
     }
     
     // Filter by leave type
-    if (typeFilter) {
+    if (typeFilter === 'Half Day') {
+        leaves = leaves.filter(l => l.halfDay === true || l.leaveType === 'Half Day');
+    } else if (typeFilter) {
         leaves = leaves.filter(l => l.leaveType === typeFilter);
     }
     
@@ -273,6 +300,12 @@ function openLeaveModal() {
     document.getElementById('leaveForm').reset();
     document.getElementById('leaveId').value = '';
     document.getElementById('leaveDuration').textContent = '0 days';
+    const halfDayCheck = document.getElementById('halfDayCheck');
+    if (halfDayCheck) halfDayCheck.checked = false;
+    const sessionRow = document.getElementById('halfDaySessionRow');
+    if (sessionRow) sessionRow.style.display = 'none';
+    const endDateEl = document.getElementById('endDate');
+    if (endDateEl) endDateEl.disabled = false;
     const balanceBox = document.getElementById('employeeLeaveBalance');
     if (balanceBox) balanceBox.style.display = 'none';
     document.getElementById('leaveModal').classList.add('show');
@@ -288,11 +321,26 @@ function editLeave(id) {
     document.getElementById('leaveId').value = leave.id;
     document.getElementById('employeeSelect').value = leave.employeeId;
     showEmployeeLeaveBalance();
-    document.getElementById('leaveType').value = leave.leaveType;
+    // For old records that stored leaveType='Half Day', map to 'Paid Leave'
+    document.getElementById('leaveType').value = (leave.leaveType === 'Half Day') ? 'Paid Leave' : leave.leaveType;
     document.getElementById('leaveStatus').value = leave.status;
     document.getElementById('startDate').value = leave.startDate;
     document.getElementById('endDate').value = leave.endDate;
     document.getElementById('leaveReason').value = leave.reason || '';
+    // Restore half-day state
+    const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
+    const halfDayCheck = document.getElementById('halfDayCheck');
+    if (halfDayCheck) {
+        halfDayCheck.checked = isHalfDay;
+        const sessionRow = document.getElementById('halfDaySessionRow');
+        if (sessionRow) sessionRow.style.display = isHalfDay ? 'block' : 'none';
+        const endDateEl = document.getElementById('endDate');
+        if (endDateEl) endDateEl.disabled = isHalfDay;
+        if (isHalfDay && leave.halfDaySession) {
+            const sessionEl = document.getElementById('halfDaySession');
+            if (sessionEl) sessionEl.value = leave.halfDaySession;
+        }
+    }
     
     calculateLeaveDays();
     document.getElementById('leaveModal').classList.add('show');
@@ -341,11 +389,21 @@ async function saveLeaveRequest(event) {
         );
         return;
     }
-    
+
+    const isHalfDay = document.getElementById('halfDayCheck')?.checked || false;
+    const halfDaySession = isHalfDay ? (document.getElementById('halfDaySession')?.value || 'First Half') : null;
+
+    if (isHalfDay && startDate !== endDate) {
+        showNotification('Half day leave must be on a single day (start and end date must match).', 'error');
+        return;
+    }
+
     const leave = {
         id: id ? parseInt(id) : Date.now(),
         employeeId: employeeId,
         leaveType: document.getElementById('leaveType').value,
+        halfDay: isHalfDay,
+        halfDaySession: halfDaySession,
         status: document.getElementById('leaveStatus').value,
         startDate: startDate,
         endDate: endDate,
@@ -412,7 +470,8 @@ async function calculateLeaveDays() {
             return;
         }
         
-        const days = calculateDays(startDate, endDate);
+        const isHalfDay = document.getElementById('halfDayCheck')?.checked || false;
+        const days = calculateDays(startDate, endDate, isHalfDay);
         document.getElementById('leaveDuration').textContent = `${days} day${days !== 1 ? 's' : ''}`;
         document.getElementById('leaveDuration').style.color = '';
     }
@@ -420,7 +479,8 @@ async function calculateLeaveDays() {
     showEmployeeLeaveBalance();
 }
 
-function calculateDays(startDate, endDate) {
+function calculateDays(startDate, endDate, isHalfDay) {
+    if (isHalfDay) return 0.5;
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diffTime = Math.abs(end - start);
@@ -437,13 +497,15 @@ function viewLeaveDetails(id) {
     const employees = getEmployees();
     const employee = employees.find(e => e.id === leave.employeeId);
     const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
-    const days = calculateDays(leave.startDate, leave.endDate);
+    const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
+    const days = calculateDays(leave.startDate, leave.endDate, isHalfDay);
+    const sessionLabel = isHalfDay ? ` — Half Day (${leave.halfDaySession || 'unspecified'})` : '';
     
     document.getElementById('detailEmployee').textContent = employeeName;
-    document.getElementById('detailType').textContent = leave.leaveType;
+    document.getElementById('detailType').textContent = leave.leaveType + sessionLabel;
     document.getElementById('detailStartDate').textContent = formatDateShort(leave.startDate);
     document.getElementById('detailEndDate').textContent = formatDateShort(leave.endDate);
-    document.getElementById('detailDuration').textContent = `${days} day${days !== 1 ? 's' : ''}`;
+    document.getElementById('detailDuration').textContent = `${days} day${days !== 1 ? 's' : ''}${isHalfDay && leave.halfDaySession ? ` (${leave.halfDaySession})` : ''}`;
     document.getElementById('detailStatus').innerHTML = `<span class="status-badge ${leave.status}">${capitalize(leave.status)}</span>`;
     document.getElementById('detailReason').textContent = leave.reason || 'No reason provided';
     document.getElementById('detailAppliedDate').textContent = formatDate(leave.appliedDate);

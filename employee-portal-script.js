@@ -6,22 +6,6 @@ requireEmployee(); // redirect to login.html if not authenticated
 const API = API_BASE_URL;
 const auth = JSON.parse(localStorage.getItem('hrPortalAuth') || '{}');
 const EMP_ID = auth.employeeId;
-const WORK_FROM_HOME_TYPE = 'Work From Home';
-let EMP_PROFILE = null;
-const DEFAULT_DOCUMENT_TYPES = [
-    { key: 'marksheet_10th', label: '10th Marksheet' },
-    { key: 'marksheet_12th', label: '12th Marksheet' },
-    { key: 'salary_slips', label: 'Salary Slips / Salary Certificate' },
-    { key: 'relieving_letter', label: 'Relieving Letter' },
-    { key: 'cv_resume', label: 'CV / Resume' },
-    { key: 'passport_photos', label: 'Passport-size Photographs' },
-    { key: 'age_proof', label: 'Proof of Age' },
-    { key: 'address_proof', label: 'Proof of Address' },
-    { key: 'pan_card', label: 'PAN Card Copy' },
-    { key: 'bank_passbook', label: 'Bank Passbook Copy' }
-];
-let documentTypes = [...DEFAULT_DOCUMENT_TYPES];
-let pendingDocType = null;
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -53,71 +37,6 @@ function statusBadge(s) {
     return `<span class="badge ${map[s] || 'badge-gray'}">${s}</span>`;
 }
 
-function normalizeLeaveType(type) {
-    return String(type || '').trim().toLowerCase();
-}
-
-function isWorkFromHomeLeave(leave) {
-    return normalizeLeaveType(leave?.leaveType) === normalizeLeaveType(WORK_FROM_HOME_TYPE);
-}
-
-function isLeaveCountedAsLeave(leave) {
-    return !!leave && !isWorkFromHomeLeave(leave);
-}
-
-function isSalesDepartment(department) {
-    return String(department || '').trim().toLowerCase() === 'sales';
-}
-
-function canViewSalesTab() {
-    return isSalesDepartment(EMP_PROFILE?.department || auth?.department);
-}
-
-function configureRoleBasedUI() {
-    const salesTab = document.getElementById('tab-sales');
-    const salesSection = document.getElementById('section-sales');
-    if (!salesTab || !salesSection) return;
-
-    const salesAllowed = canViewSalesTab();
-    salesTab.style.display = salesAllowed ? 'flex' : 'none';
-    if (!salesAllowed) {
-        salesSection.style.display = 'none';
-        salesSection.classList.remove('active');
-    }
-}
-
-function isMonthEndSalaryDay(salaryDay) {
-    if (salaryDay === null || salaryDay === undefined) return false;
-    const normalized = String(salaryDay).trim().toLowerCase();
-    return ['month_end', 'month-end', 'month end', 'monthend', 'eom'].includes(normalized);
-}
-
-function getSalaryCreditScheduleText(salaryDay) {
-    if (!salaryDay) return '';
-    if (isMonthEndSalaryDay(salaryDay)) return 'Month End (last day of month)';
-    const day = parseInt(salaryDay, 10);
-    return Number.isInteger(day) ? `Day ${day} of each month` : '';
-}
-
-function formatBytes(bytes) {
-    const n = parseFloat(bytes) || 0;
-    if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-    if (n >= 1024) return `${Math.round(n / 1024)} KB`;
-    return `${n} B`;
-}
-
-function resolveDocumentUrl(url) {
-    if (!url) return '#';
-    if (/^https?:\/\//i.test(url)) return url;
-    try {
-        const apiUrl = new URL(API, window.location.origin);
-        if (url.startsWith('/')) return `${apiUrl.origin}${url}`;
-        return `${apiUrl.origin}/${url}`;
-    } catch {
-        return url;
-    }
-}
-
 async function apiFetch(path, opts = {}) {
     opts.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
     const r = await fetch(`${API}${path}`, opts);
@@ -135,20 +54,15 @@ function notify(sectionId, msg, type = 'success') {
 // â”€â”€ Tab navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function showTab(name) {
-    if (name === 'sales' && !canViewSalesTab()) {
-        name = 'overview';
-    }
     document.querySelectorAll('.tab-section').forEach(s => { s.classList.remove('active'); s.style.display = 'none'; });
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     const section = document.getElementById('section-' + name);
     if (section) { section.classList.add('active'); section.style.display = 'block'; }
-    const tabEl = document.getElementById('tab-' + name);
-    if (tabEl) tabEl.classList.add('active');
-    if (name === 'documents')  loadMyDocuments();
+    document.getElementById('tab-' + name).classList.add('active');
     if (name === 'calendar')   renderCalendar();
     if (name === 'sales')      loadMySales();
     if (name === 'advances')   loadMyAdvances();
-    if (name === 'salary')     { loadSalaryBreakup(); loadSalaryHistory(); }
+    if (name === 'salary')     loadSalaryBreakup();
     if (name === 'attendance') loadMyAttendance();
 }
 
@@ -159,16 +73,12 @@ async function loadProfile() {
         const me = await apiFetch('/auth/me', {
             headers: { Authorization: `Bearer ${auth.token}` }
         });
-        EMP_PROFILE = me || {};
         const initials = (me.name || '').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
         document.getElementById('avatarInitials').textContent = initials;
         document.getElementById('topbarName').textContent = me.name || '';
         document.getElementById('topbarRole').textContent = `${me.position || ''} \u00B7 ${me.department || ''}`;
         return me;
-    } catch {
-        EMP_PROFILE = { department: auth?.department || '' };
-        return EMP_PROFILE;
-    }
+    } catch { return {}; }
 }
 
 // â”€â”€ Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -180,7 +90,7 @@ async function loadOverview() {
             apiFetch('/leaves')
         ]);
         const myLeaves = (leavesData.leaves || leavesData || []).filter(l => l.employeeId === EMP_ID);
-        const pending  = myLeaves.filter(l => l.status === 'pending' && isLeaveCountedAsLeave(l)).length;
+        const pending  = myLeaves.filter(l => l.status === 'pending').length;
 
         document.getElementById('kpiPending').textContent = pending;
 
@@ -196,17 +106,14 @@ async function loadOverview() {
         document.getElementById('kpiSalary').textContent = fmtRupees(net);
 
         // Recent leaves table
-        const recent = [...myLeaves]
-            .filter(isLeaveCountedAsLeave)
-            .sort((a, b) => new Date(b.startDate) - new Date(a.startDate))
-            .slice(0, 5);
+        const recent = [...myLeaves].sort((a, b) => new Date(b.startDate) - new Date(a.startDate)).slice(0, 5);
         const tbody = document.getElementById('recentLeavesBody');
         if (!recent.length) {
             tbody.innerHTML = '<tr><td colspan="5" class="no-data"><i class="fas fa-calendar"></i><br>No leave requests yet</td></tr>';
         } else {
             tbody.innerHTML = recent.map(l => `
                 <tr>
-                    <td>${l.leaveType || '-'}</td>
+                    <td>${l.leaveType || 'â€”'}</td>
                     <td>${fmt(l.startDate)}</td>
                     <td>${fmt(l.endDate)}</td>
                     <td>${calcDays(l.startDate, l.endDate)}</td>
@@ -221,17 +128,13 @@ async function loadOverview() {
 // â”€â”€ Leaves â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function calcLeaveDays() {
-    const type = document.getElementById('leaveType').value;
     const s = document.getElementById('leaveStart').value;
     const e = document.getElementById('leaveEnd').value;
     const info = document.getElementById('leaveDayInfo');
     if (s && e) {
         const d = calcDays(s, e);
         if (d <= 0) { info.textContent = 'End date must be after start date.'; return; }
-        const wfhHint = normalizeLeaveType(type) === normalizeLeaveType(WORK_FROM_HOME_TYPE)
-            ? ' <span style="color:#2563eb;">(won&apos;t be counted as leave)</span>'
-            : '';
-        info.innerHTML = `<strong>${d}</strong> day${d !== 1 ? 's' : ''} selected${wfhHint}`;
+        info.innerHTML = `<strong>${d}</strong> day${d !== 1 ? 's' : ''} selected`;
     } else {
         info.textContent = '';
     }
@@ -267,7 +170,7 @@ async function submitLeave(event) {
 
     const btn = document.getElementById('submitLeaveBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Submitting...';
+    btn.innerHTML = '<span class="spinner"></span> Submittingâ€¦';
 
     try {
         const emp = await apiFetch(`/employees/${EMP_ID}`);
@@ -311,106 +214,15 @@ async function loadLeaveHistory() {
         }
         tbody.innerHTML = myLeaves.map(l => `
             <tr>
-                <td>${l.leaveType || '-'}</td>
+                <td>${l.leaveType || 'â€”'}</td>
                 <td>${fmt(l.startDate)}</td>
                 <td>${fmt(l.endDate)}</td>
                 <td>${calcDays(l.startDate, l.endDate)}</td>
-                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.reason || '-'}</td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.reason || 'â€”'}</td>
                 <td>${statusBadge(l.status)}</td>
             </tr>`).join('');
     } catch {
         tbody.innerHTML = '<tr><td colspan="6" class="no-data">Failed to load leave history</td></tr>';
-    }
-}
-
-async function loadMyDocuments() {
-    const grid = document.getElementById('myDocsGrid');
-    const summary = document.getElementById('myDocsSummary');
-    if (!grid || !summary) return;
-
-    grid.innerHTML = '<div class="no-data" style="padding:26px 10px;"><div class="spinner"></div></div>';
-
-    try {
-        const [typesResp, docsResp] = await Promise.all([
-            apiFetch('/employees/document-types').catch(() => DEFAULT_DOCUMENT_TYPES),
-            apiFetch(`/employees/${EMP_ID}/documents`)
-        ]);
-        documentTypes = Array.isArray(typesResp) && typesResp.length ? typesResp : [...DEFAULT_DOCUMENT_TYPES];
-        const docs = docsResp?.documents || {};
-
-        const uploaded = documentTypes.filter(t => docs[t.key]).length;
-        summary.textContent = `${uploaded}/${documentTypes.length} documents uploaded`;
-
-        grid.innerHTML = documentTypes.map(dt => {
-            const doc = docs[dt.key];
-            const uploadedText = doc
-                ? `Uploaded: ${fmt(doc.uploadedAt)} • ${formatBytes(doc.size)}`
-                : 'Not uploaded yet';
-            const uploadLabel = doc ? 'Replace' : 'Upload';
-            const docUrl = doc ? resolveDocumentUrl(doc.url).replace(/'/g, "\\'") : '';
-            return `
-                <div class="doc-item">
-                    <h4>${dt.label}</h4>
-                    <div class="doc-meta">${uploadedText}</div>
-                    <div class="doc-actions">
-                        ${doc ? `<button class="btn-doc" onclick="viewMyDocument('${docUrl}')"><i class="fas fa-eye"></i> View</button>` : ''}
-                        <button class="btn-doc primary" onclick="chooseMyDocument('${dt.key}')"><i class="fas fa-upload"></i> ${uploadLabel}</button>
-                        ${doc ? `<button class="btn-doc danger" onclick="removeMyDocument('${dt.key}')"><i class="fas fa-trash"></i> Remove</button>` : ''}
-                    </div>
-                </div>`;
-        }).join('');
-    } catch (e) {
-        console.error('Documents load error:', e);
-        summary.textContent = '';
-        grid.innerHTML = '<div class="no-data">Failed to load documents</div>';
-    }
-}
-
-function viewMyDocument(url) {
-    window.open(url, '_blank', 'noopener');
-}
-
-function chooseMyDocument(docType) {
-    pendingDocType = docType;
-    const input = document.getElementById('myDocFileInput');
-    if (!input) return;
-    input.value = '';
-    input.click();
-}
-
-async function uploadMyDocument(file) {
-    if (!file || !pendingDocType) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('docType', pendingDocType);
-
-    try {
-        const resp = await fetch(`${API}/employees/${EMP_ID}/documents`, {
-            method: 'POST',
-            body: formData
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(data.error || 'Upload failed');
-        notify('documentsNotify', 'Document uploaded successfully!');
-        await loadMyDocuments();
-    } catch (e) {
-        notify('documentsNotify', e.message || 'Failed to upload document.', 'error');
-    } finally {
-        pendingDocType = null;
-    }
-}
-
-async function removeMyDocument(docType) {
-    if (!confirm('Remove this document?')) return;
-    try {
-        const resp = await fetch(`${API}/employees/${EMP_ID}/documents/${docType}`, { method: 'DELETE' });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(data.error || 'Delete failed');
-        notify('documentsNotify', 'Document removed successfully!');
-        await loadMyDocuments();
-    } catch (e) {
-        notify('documentsNotify', e.message || 'Failed to remove document.', 'error');
     }
 }
 
@@ -428,11 +240,7 @@ async function loadCalendarData() {
     } catch { holidays = []; }
     try {
         const lRes = await apiFetch('/leaves');
-        myLeaves = (lRes.leaves || lRes || []).filter(l =>
-            l.employeeId === EMP_ID &&
-            l.status !== 'rejected' &&
-            isLeaveCountedAsLeave(l)
-        );
+        myLeaves = (lRes.leaves || lRes || []).filter(l => l.employeeId === EMP_ID && l.status !== 'rejected');
     } catch { myLeaves = []; }
 }
 
@@ -523,7 +331,6 @@ function initSalesMonths() {
 }
 
 async function loadMySales() {
-    if (!canViewSalesTab()) return;
     const month = document.getElementById('salesMonthFilter').value;
     const tbody = document.getElementById('salesHistoryBody');
     const kpiDiv = document.getElementById('salesKPIs');
@@ -627,7 +434,7 @@ async function loadMySales() {
                                 <tbody>${slabRows || '<tr><td colspan="2" style="color:var(--muted);text-align:center;">No slabs configured</td></tr>'}</tbody>
                             </table>
                         </div>
-                        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><i class="fas fa-info-circle"></i> Incentive % is applied on monthly revenue achieved. Eligible when >= 100% of target is met.</div>
+                        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><i class="fas fa-info-circle"></i> Incentive % is applied on monthly revenue achieved. Eligible when â‰¥ 100% of target is met.</div>
                     </div>
                     ${monthlyIncAmount > 0 ? `
                     <div class="info-block">
@@ -658,10 +465,10 @@ async function loadMySales() {
             .sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate))
             .map(a => `<tr>
                 <td>${fmt(a.admissionDate)}</td>
-                <td style="font-weight:600;">${a.customerName || '-'}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.customerPhone || '-'}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.customerEmail || '-'}</td>
-                <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || '-'}</span></td>
+                <td style="font-weight:600;">${a.customerName || 'â€”'}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.customerPhone || 'â€”'}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.customerEmail || 'â€”'}</td>
+                <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || 'â€”'}</span></td>
                 <td style="color:var(--green);font-weight:700;">${fmtRupees(a.revenue || 0)}</td>
             </tr>`).join('');
     } catch (e) {
@@ -706,9 +513,9 @@ async function loadMyAdvances() {
             <tr>
                 <td>${fmt(a.date)}</td>
                 <td style="font-weight:700;">${fmtRupees(a.amount)}</td>
-                <td>${a.reason || '-'}</td>
+                <td>${a.reason || 'â€”'}</td>
                 <td><span class="badge ${a.repaid ? 'badge-green' : 'badge-red'}">${a.repaid ? 'Repaid' : 'Outstanding'}</span></td>
-                <td>${a.repaid ? fmt(a.repaidDate) : '-'}</td>
+                <td>${a.repaid ? fmt(a.repaidDate) : 'â€”'}</td>
             </tr>`).join('');
     } catch {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">Failed to load advance data</td></tr>';
@@ -721,16 +528,9 @@ function initSalaryMonths() {
     const sel = document.getElementById('salaryMonthFilter');
     sel.innerHTML = '';
     const now = new Date();
-    const hd = (EMP_PROFILE && EMP_PROFILE.hireDate)
-        ? new Date(EMP_PROFILE.hireDate + 'T00:00:00')
-        : null;
-    const earliestKey = hd
-        ? `${hd.getFullYear()}-${String(hd.getMonth() + 1).padStart(2, '0')}`
-        : null;
     for (let i = 0; i < 12; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const key = monthKey(d);
-        if (earliestKey && key < earliestKey) break;
         const opt = document.createElement('option');
         opt.value = key;
         opt.textContent = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
@@ -769,21 +569,27 @@ async function loadSalaryBreakup() {
                 effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
             }
         }
-        const myLeaves   = (leavesRaw.leaves || leavesRaw || [])
+        // Only 'Unpaid Leave' type deducts from salary. Paid Leave uses leave balance — no salary impact.
+        const myUnpaidLeaves = (leavesRaw.leaves || leavesRaw || [])
             .filter(l =>
                 (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID)) &&
                 l.status === 'approved' &&
-                isLeaveCountedAsLeave(l)
+                l.leaveType === 'Unpaid Leave'
             );
         let totalLeaveDays = 0;
-        for (const leave of myLeaves) {
-            const ls = new Date(leave.startDate + 'T00:00:00');
-            const le = new Date(leave.endDate   + 'T00:00:00');
-            const os = ls < monthStart ? monthStart : ls;
-            const oe = le > monthEnd   ? monthEnd   : le;
-            if (os <= oe) totalLeaveDays += Math.round((oe - os) / 86400000) + 1;
+        for (const leave of myUnpaidLeaves) {
+            if (leave.halfDay === true) {
+                const ls = new Date(leave.startDate + 'T00:00:00');
+                if (ls >= monthStart && ls <= monthEnd) totalLeaveDays += 0.5;
+            } else {
+                const ls = new Date(leave.startDate + 'T00:00:00');
+                const le = new Date(leave.endDate   + 'T00:00:00');
+                const os = ls < monthStart ? monthStart : ls;
+                const oe = le > monthEnd   ? monthEnd   : le;
+                if (os <= oe) totalLeaveDays += Math.round((oe - os) / 86400000) + 1;
+            }
         }
-        const unpaidLeaveDays      = Math.max(0, totalLeaveDays - 1);
+        const unpaidLeaveDays      = totalLeaveDays;
         const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
 
         // â”€â”€ Late half-day attendance deduction â”€â”€
@@ -820,9 +626,8 @@ async function loadSalaryBreakup() {
         const payKey = `${month}_${EMP_ID}`;
         const isPaid = (incData.salaryPayments || {})[payKey]?.paid || false;
 
-        const salaryScheduleText = getSalaryCreditScheduleText(empData.salaryDay);
-        const salaryDayInfo = salaryScheduleText
-            ? `<div style="font-size:12px;color:var(--muted);margin-bottom:18px;"><i class="fas fa-calendar-check"></i> Salary credit day: <strong>${salaryScheduleText}</strong></div>`
+        const salaryDayInfo = empData.salaryDay
+            ? `<div style="font-size:12px;color:var(--muted);margin-bottom:18px;"><i class="fas fa-calendar-check"></i> Salary credit day: <strong>${empData.salaryDay}</strong> of each month</div>`
             : '';
 
         const paidBadge = isPaid
@@ -873,65 +678,11 @@ async function loadSalaryBreakup() {
             ${unpaidLeaveDays > 0 || halfDayAttDays > 0 ? `
             <div style="margin-top:14px;padding:12px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:12px;color:#c2410c;line-height:1.7;">
                 <i class="fas fa-info-circle"></i>
-                ${unpaidLeaveDays > 0 ? `<strong>Unpaid leave:</strong> ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} above the 1-day paid allowance × ₹${Math.round(dailyRate)}/day<br>` : ''}
+                ${unpaidLeaveDays > 0 ? `<strong>Unpaid leave:</strong> ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} × ₹${Math.round(dailyRate)}/day<br>` : ''}
                 ${halfDayAttDays > 0 ? `<strong>Late attendance:</strong> ${lateCount} late day${lateCount !== 1 ? 's' : ''} \u2192 ${halfDayAttDays} half-day deduction${halfDayAttDays !== 0.5 ? 's' : ''} \u00d7 \u20b9${Math.round(dailyRate)}/day` : ''}
             </div>` : ''}`;
     } catch (e) {
         content.innerHTML = `<div class="no-data">Failed to load salary breakup</div>`;
-    }
-}
-
-async function loadSalaryHistory() {
-    const content = document.getElementById('salaryHistoryContent');
-    if (!content) return;
-    try {
-        const incData = await apiFetch('/incentives/data');
-        const payments = incData.salaryPayments || {};
-        const myHistory = Object.entries(payments)
-            .filter(([key]) => key.endsWith('_' + EMP_ID))
-            .map(([key, data]) => ({
-                month: key.slice(0, key.lastIndexOf('_')),
-                ...data
-            }))
-            .filter(p => p.paid)
-            .sort((a, b) => b.month.localeCompare(a.month));
-
-        if (myHistory.length === 0) {
-            content.innerHTML = '<div class="no-data" style="padding:20px 0;">No salary payments on record yet.</div>';
-            return;
-        }
-
-        const rows = myHistory.map(p => {
-            const [yr, mo] = p.month.split('-').map(Number);
-            const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-            const paidDate = p.paidDate ? new Date(p.paidDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
-            return `
-            <tr>
-                <td style="padding:10px 12px;">${monthLabel}</td>
-                <td style="padding:10px 12px;text-align:right;">${fmtRupees(p.grossSalary || 0)}</td>
-                <td style="padding:10px 12px;text-align:right;color:var(--red);">- ${fmtRupees(p.deductions || 0)}</td>
-                <td style="padding:10px 12px;text-align:right;color:var(--green);font-weight:700;">${fmtRupees(p.netSalary || 0)}</td>
-                <td style="padding:10px 12px;text-align:center;font-size:12px;color:var(--muted);">${paidDate}</td>
-            </tr>`;
-        }).join('');
-
-        content.innerHTML = `
-        <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                <thead>
-                    <tr style="border-bottom:2px solid var(--border);">
-                        <th style="padding:8px 12px;text-align:left;color:var(--muted);font-weight:600;">Month</th>
-                        <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:600;">Gross</th>
-                        <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:600;">Deductions</th>
-                        <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:600;">Net Paid</th>
-                        <th style="padding:8px 12px;text-align:center;color:var(--muted);font-weight:600;">Credited On</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>`;
-    } catch (e) {
-        content.innerHTML = '<div class="no-data">Failed to load salary history.</div>';
     }
 }
 
@@ -945,7 +696,7 @@ function loadAttSettings() {
 }
 
 function fmt12h(t) {
-    if (!t) return '-';
+    if (!t) return 'â€”';
     const [h, m] = t.split(':').map(Number);
     return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
@@ -999,16 +750,8 @@ async function loadMyAttendance() {
             if (rec) attMap[doc.date] = rec;
         });
 
-        const approvedRequests = (leavesData.leaves || leavesData || [])
-            .filter(l =>
-                (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID)) &&
-                l.status === 'approved'
-            );
-        const myLeaves = approvedRequests
-            .filter(l =>
-                isLeaveCountedAsLeave(l)
-            );
-        const myWfhRequests = approvedRequests.filter(isWorkFromHomeLeave);
+        const myLeaves = (leavesData.leaves || leavesData || [])
+            .filter(l => (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID)) && l.status === 'approved');
 
         const [yr, mo] = month.split('-').map(Number);
         const daysInMonth = new Date(yr, mo, 0).getDate();
@@ -1026,15 +769,11 @@ async function loadMyAttendance() {
             const dayLabel = thisDate.toLocaleDateString('en-IN', { weekday: 'short' });
             const rec      = attMap[dateStr];
             const onLeave  = myLeaves.find(l => dateStr >= l.startDate && dateStr <= l.endDate);
-            const onWfh    = myWfhRequests.find(l => dateStr >= l.startDate && dateStr <= l.endDate);
 
             let statusHtml, entryTime = '\u2014', lateBy = '\u2014';
 
             if (onLeave) {
                 statusHtml = '<span class="badge badge-purple">On Leave</span>';
-            } else if (onWfh) {
-                statusHtml = '<span class="badge badge-blue">WFH</span>';
-                entryTime = 'WFH';
             } else if (rec && rec.time) {
                 const late = isLateEntry(rec.time);
                 entryTime  = fmt12h(rec.time);
@@ -1138,21 +877,10 @@ async function changeEmployeePassword() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfile();
-    configureRoleBasedUI();
-    if (canViewSalesTab()) initSalesMonths();
+    initSalesMonths();
     initSalaryMonths();
     initAttendanceMonths();
     await loadCalendarData();
-    const leaveTypeEl = document.getElementById('leaveType');
-    if (leaveTypeEl) leaveTypeEl.addEventListener('change', calcLeaveDays);
-    const docFileInput = document.getElementById('myDocFileInput');
-    if (docFileInput) {
-        docFileInput.addEventListener('change', () => {
-            if (docFileInput.files && docFileInput.files[0]) {
-                uploadMyDocument(docFileInput.files[0]);
-            }
-        });
-    }
     loadOverview();
     loadLeaveHistory();
 });

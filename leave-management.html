@@ -120,6 +120,7 @@
                     <select id="leaveTypeFilter" onchange="filterLeaves()">
                         <option value="">All Leave Types</option>
                         <option value="Paid Leave">Paid Leave</option>
+                        <option value="Half Day">Half Day</option>
                         <option value="Unpaid Leave">Unpaid Leave</option>
                         <option value="Work From Home">Work From Home</option>
                     </select>
@@ -207,6 +208,19 @@
                     <div class="form-group">
                         <label for="endDate">End Date *</label>
                         <input type="date" id="endDate" required onchange="calculateLeaveDays()">
+                    </div>
+                    <div class="form-group full-width">
+                        <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;">
+                            <input type="checkbox" id="halfDayCheck" onchange="toggleHalfDaySession()" style="width:16px;height:16px;accent-color:#4338ca;cursor:pointer;">
+                            Half Day
+                        </label>
+                        <div id="halfDaySessionRow" style="display:none;margin-top:10px;">
+                            <label for="halfDaySession" style="font-size:13px;color:#4a5568;margin-bottom:4px;display:block;">Which Half? *</label>
+                            <select id="halfDaySession" style="max-width:260px;">
+                                <option value="First Half">First Half (Morning)</option>
+                                <option value="Second Half">Second Half (Afternoon)</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group full-width">
                         <label for="leaveReason">Reason</label>

@@ -249,7 +249,7 @@ function handleApproveLeave(command) {
     pendingLeave.status = 'approved';
     
     // Deduct leave balance from paidLeave
-    const days = calculateLeaveDays(pendingLeave.startDate, pendingLeave.endDate);
+    const days = calculateLeaveDays(pendingLeave.startDate, pendingLeave.endDate, pendingLeave.halfDay === true || pendingLeave.leaveType === 'Half Day');
     if (!employee.leaveBalance) employee.leaveBalance = { paidLeave: 0 };
     if (employee.leaveBalance.paidLeave === undefined) {
         employee.leaveBalance.paidLeave = (employee.leaveBalance.annualLeave || 0) + (employee.leaveBalance.sickLeave || 0) + (employee.leaveBalance.personalLeave || 0);
@@ -317,7 +317,7 @@ function handleShowPendingLeaves() {
     pending.forEach((leave, index) => {
         const employee = employees.find(e => e.id === leave.employeeId);
         const empName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
-        const days = calculateLeaveDays(leave.startDate, leave.endDate);
+        const days = calculateLeaveDays(leave.startDate, leave.endDate, leave.halfDay === true || leave.leaveType === 'Half Day');
         
         response += `${index + 1}. <strong>${empName}</strong><br>`;
         response += `   Type: ${leave.leaveType}<br>`;
@@ -443,7 +443,8 @@ function handleShowLeaveBalance(command) {
     addMessage(response, 'bot');
 }
 
-function calculateLeaveDays(startDate, endDate) {
+function calculateLeaveDays(startDate, endDate, isHalfDay) {
+    if (isHalfDay) return 0.5;
     const start = new Date(startDate);
     const end = new Date(endDate);
     const diffTime = Math.abs(end - start);
