@@ -544,7 +544,7 @@ async function loadSalaryBreakup() {
     content.innerHTML = '<div class="no-data"><div class="spinner"></div></div>';
 
     try {
-        loadAttSettings();
+        await loadAttSettings();
         const [empData, incData, leavesRaw, attDocs] = await Promise.all([
             apiFetch(`/employees/${EMP_ID}`),
             apiFetch('/incentives/data'),
@@ -690,11 +690,17 @@ async function loadSalaryBreakup() {
 
 let attSettings = { officeStartTime: '09:00', lateThresholdMins: 10, lateDaysHalfDay: 3 };
 
-function loadAttSettings() {
-    const saved = localStorage.getItem('attendanceSettings');
-    if (saved) { try { attSettings = { ...attSettings, ...JSON.parse(saved) }; } catch(e) {} }
+async function loadAttSettings() {
+    // Fetch from server so employee portal always uses the admin-configured office time
+    try {
+        const data = await apiFetch('/attendance/settings');
+        attSettings = { ...attSettings, ...data };
+        localStorage.setItem('attendanceSettings', JSON.stringify(attSettings));
+    } catch (e) {
+        const saved = localStorage.getItem('attendanceSettings');
+        if (saved) { try { attSettings = { ...attSettings, ...JSON.parse(saved) }; } catch(_) {} }
+    }
 }
-
 function fmt12h(t) {
     if (!t) return 'â€”';
     const [h, m] = t.split(':').map(Number);
@@ -729,7 +735,7 @@ function initAttendanceMonths() {
 }
 
 async function loadMyAttendance() {
-    loadAttSettings();
+    await loadAttSettings();
     const month     = document.getElementById('attendanceMonthFilter').value;
     const tbody     = document.getElementById('attendanceBody');
     const statsDiv  = document.getElementById('attendanceStats');

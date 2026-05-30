@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('attendanceDate').value = today;
     currentDate = today;
 
-    loadAttendanceSettings();
+    await loadAttendanceSettings();
     updateSettingsSummary();
 
     await Promise.all([loadEmployees(), loadLeaves()]);
@@ -61,21 +61,41 @@ function isWorkFromHomeLeave(leave) {
 
 // ─── Settings ──────────────────────────────────────────────────────────────
 
-function loadAttendanceSettings() {
+async function loadAttendanceSettings() {
+    // Admin: localStorage is the source of truth (admin sets it here).
+    // Server is only a fallback if localStorage is empty (e.g. first ever load).
     const saved = localStorage.getItem('attendanceSettings');
     if (saved) {
-        try { attendanceSettings = { ...attendanceSettings, ...JSON.parse(saved) }; } catch (e) {}
+        try { attendanceSettings = { ...attendanceSettings, ...JSON.parse(saved) }; }
+        catch (_) {}
+    } else {
+        // No local settings yet — try to pull from server
+        try {
+            const res = await fetch(`${API_BASE_URL}/attendance/settings`);
+            if (res.ok) {
+                const data = await res.json();
+                attendanceSettings = { ...attendanceSettings, ...data };
+            }
+        } catch (e) { /* keep defaults */ }
     }
     document.getElementById('officeStartTime').value   = attendanceSettings.officeStartTime;
     document.getElementById('lateThresholdMins').value = attendanceSettings.lateThresholdMins;
     document.getElementById('lateDaysHalfDay').value   = attendanceSettings.lateDaysHalfDay;
 }
 
-function saveAttendanceSettings() {
+async function saveAttendanceSettings() {
     attendanceSettings.officeStartTime   = document.getElementById('officeStartTime').value;
     attendanceSettings.lateThresholdMins = parseInt(document.getElementById('lateThresholdMins').value) || 10;
     attendanceSettings.lateDaysHalfDay   = parseInt(document.getElementById('lateDaysHalfDay').value) || 3;
     localStorage.setItem('attendanceSettings', JSON.stringify(attendanceSettings));
+    // Persist to server so all portals (including employee) pick up the change
+    try {
+        await fetch(`${API_BASE_URL}/attendance/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(attendanceSettings)
+        });
+    } catch (e) { console.warn('Could not save attendance settings to server:', e); }
     updateSettingsSummary();
     renderAttendanceTable();
 }
