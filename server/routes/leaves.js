@@ -11,6 +11,10 @@ function parseDate(value) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function toDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function calculateDays(startDate, endDate, isHalfDay) {
     if (isHalfDay) return 0.5;
     const start = parseDate(startDate);
@@ -18,6 +22,68 @@ function calculateDays(startDate, endDate, isHalfDay) {
     if (!start || !end) return 0;
     const diffTime = end.getTime() - start.getTime();
     return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+}
+
+// Returns sandwich Sunday info for a leave being submitted or updated.
+// Attribution rule: sandwich Sundays are ONLY owned by the MONDAY leave, never by Saturday.
+// For each Monday within the new leave's date range, if Saturday 2 days before is a leave day
+// and Sunday 1 day before is NOT a leave day → that Sunday is a sandwich day.
+// Returns { total, paidSandwich } where paidSandwich counts Sundays whose Monday is a paid type.
+async function getSandwichInfo(db, employeeId, newStartStr, newEndStr, newLeaveType, excludeLeaveId) {
+    const ns = parseDate(newStartStr), ne = parseDate(newEndStr);
+    if (!ns || !ne) return { total: 0, paidSandwich: 0 };
+
+    const query = { employeeId, status: { $ne: 'rejected' } };
+    if (excludeLeaveId) query.id = { $ne: excludeLeaveId };
+    const otherLeaves = await db.collection('leaves').find(query).toArray();
+
+    // Build dateStr -> leaveType map from existing leaves
+    const existingMap = {};
+    for (const l of otherLeaves) {
+        const ls = parseDate(l.startDate), le = parseDate(l.endDate);
+        if (!ls || !le) continue;
+        for (let d = new Date(ls); d <= le; d.setDate(d.getDate() + 1)) {
+            existingMap[toDateStr(d)] = l.leaveType;
+        }
+    }
+
+    // Build map for the new leave dates
+    const newDatesMap = {};
+    for (let d = new Date(ns); d <= ne; d.setDate(d.getDate() + 1)) {
+        newDatesMap[toDateStr(d)] = newLeaveType;
+    }
+
+    // Combined map for checking whether Sunday is already a leave day
+    const combinedMap = { ...existingMap, ...newDatesMap };
+
+    // Only Mondays within the NEW leave's range can trigger a sandwich.
+    // Saturday can never own sandwich days — this prevents double-counting.
+    let total = 0, paidSandwich = 0;
+    for (const dateStr of Object.keys(newDatesMap)) {
+        const d = new Date(dateStr + 'T00:00:00');
+        if (d.getDay() === 1) { // Monday
+            const sat = new Date(d); sat.setDate(sat.getDate() - 2);
+            const sun = new Date(d); sun.setDate(sun.getDate() - 1);
+            const satStr = toDateStr(sat), sunStr = toDateStr(sun);
+            // Saturday must be a leave day, Sunday must NOT be a leave day
+            if (combinedMap[satStr] && !combinedMap[sunStr]) {
+                total++;
+                // Sandwich Sunday type follows Monday's leave type
+                if (!UNPAID_LEAVE_TYPES.has(newLeaveType)) {
+                    paidSandwich++;
+                }
+            }
+        }
+    }
+
+    return { total, paidSandwich };
+}
+
+// Returns true if the employee is currently marked as on probation
+async function checkProbation(db, employeeId) {
+    const emp = await db.collection('employees').findOne({ id: employeeId });
+    if (!emp) return false;
+    return emp.isOnProbation === true;
 }
 
 function isApprovedPaidLeave(leave) {
@@ -132,9 +198,29 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: holidayCheck.message });
         }
 
+        // Probation check — paid leave not allowed during probation
+        const isPaidType = !UNPAID_LEAVE_TYPES.has(leave.leaveType);
+        if (isPaidType && leave.leaveType !== 'Work From Home') {
+            const onProbation = await checkProbation(db, leave.employeeId);
+            if (onProbation) {
+                return res.status(400).json({
+                    error: 'Employee is currently on probation. Paid leave is not allowed during the probation period.',
+                    probation: true
+                });
+            }
+        }
+
+        // Sandwich leave rule: if Sat+Mon leaves exist, Sunday is counted
+        // sandwichDays = total (for display); paidSandwichDays = only those whose Monday is paid (for balance)
+        const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
+        const sandwichInfo = isHalfDay ? { total: 0, paidSandwich: 0 } : await getSandwichInfo(db, leave.employeeId, leave.startDate, leave.endDate, leave.leaveType, null);
+        leave.sandwichDays = sandwichInfo.total;
+        leave.paidSandwichDays = sandwichInfo.paidSandwich;
+
         if (isApprovedPaidLeave(leave)) {
-            const days = calculateDays(leave.startDate, leave.endDate, leave.halfDay === true || leave.leaveType === 'Half Day');
-            const balanceResult = await applyLeaveBalanceDelta(db, leave.employeeId, -days);
+            const rawDays = calculateDays(leave.startDate, leave.endDate, isHalfDay);
+            const totalDays = rawDays + sandwichInfo.paidSandwich;
+            const balanceResult = await applyLeaveBalanceDelta(db, leave.employeeId, -totalDays);
             if (!balanceResult.ok) {
                 return res.status(balanceResult.status || 400).json({ error: balanceResult.message });
             }
@@ -168,10 +254,34 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ error: holidayCheck.message });
         }
 
+        // Probation check when changing to paid leave or approving
+        const newIsPaidType = !UNPAID_LEAVE_TYPES.has(nextLeave.leaveType);
+        if (newIsPaidType && nextLeave.leaveType !== 'Work From Home' && isApprovedPaidLeave(nextLeave) && !isApprovedPaidLeave(existingLeave)) {
+            const onProbation = await checkProbation(db, parseInt(nextLeave.employeeId));
+            if (onProbation) {
+                return res.status(400).json({
+                    error: 'Employee is currently on probation. Paid leave is not allowed during the probation period.',
+                    probation: true
+                });
+            }
+        }
+
         const oldEmployeeId = parseInt(existingLeave.employeeId);
         const newEmployeeId = parseInt(nextLeave.employeeId);
-        const oldPaidApprovedDays = isApprovedPaidLeave(existingLeave) ? calculateDays(existingLeave.startDate, existingLeave.endDate, existingLeave.halfDay === true || existingLeave.leaveType === 'Half Day') : 0;
-        const newPaidApprovedDays = isApprovedPaidLeave(nextLeave) ? calculateDays(nextLeave.startDate, nextLeave.endDate, nextLeave.halfDay === true || nextLeave.leaveType === 'Half Day') : 0;
+
+        // Recalculate sandwich days for the updated leave
+        const newIsHalfDay = nextLeave.halfDay === true || nextLeave.leaveType === 'Half Day';
+        const newSandwichInfo = newIsHalfDay ? { total: 0, paidSandwich: 0 } : await getSandwichInfo(db, newEmployeeId, nextLeave.startDate, nextLeave.endDate, nextLeave.leaveType, leaveId);
+        nextLeave.sandwichDays = newSandwichInfo.total;
+        nextLeave.paidSandwichDays = newSandwichInfo.paidSandwich;
+
+        const oldIsHalfDay = existingLeave.halfDay === true || existingLeave.leaveType === 'Half Day';
+        const oldPaidApprovedDays = isApprovedPaidLeave(existingLeave)
+            ? calculateDays(existingLeave.startDate, existingLeave.endDate, oldIsHalfDay) + (existingLeave.paidSandwichDays ?? existingLeave.sandwichDays ?? 0)
+            : 0;
+        const newPaidApprovedDays = isApprovedPaidLeave(nextLeave)
+            ? calculateDays(nextLeave.startDate, nextLeave.endDate, newIsHalfDay) + newSandwichInfo.paidSandwich
+            : 0;
 
         if (oldEmployeeId === newEmployeeId) {
             const delta = oldPaidApprovedDays - newPaidApprovedDays; // positive => refund, negative => deduct
@@ -215,7 +325,10 @@ router.delete('/:id', async (req, res) => {
         }
 
         if (isApprovedPaidLeave(leave)) {
-            const days = calculateDays(leave.startDate, leave.endDate);
+            const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
+            // Use paidSandwichDays if available; fall back to sandwichDays for old records
+            const sandwichDeducted = leave.paidSandwichDays ?? leave.sandwichDays ?? 0;
+            const days = calculateDays(leave.startDate, leave.endDate, isHalfDay) + sandwichDeducted;
             await applyLeaveBalanceDelta(db, parseInt(leave.employeeId), days);
         }
 

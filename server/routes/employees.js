@@ -94,6 +94,105 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// GET /api/employees/:id/salary-till-date
+// Calculates the pro-rated salary from the start of the current month (or joining date
+// if the employee joined this month) up to today, including bonus/incentive adjustments.
+router.get('/:id/salary-till-date', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const employeeId = parseInt(req.params.id);
+        const employee = await db.collection('employees').findOne({ id: employeeId });
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const year = today.getFullYear();
+        const month = today.getMonth();
+        const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const monthStart = new Date(year, month, 1);
+        const monthEnd = new Date(year, month + 1, 0); monthEnd.setHours(23, 59, 59, 999);
+
+        const gross = parseFloat(employee.salary) || 0;
+        const dailyRate = gross / daysInMonth;
+
+        // Determine effective start: joining date if hired this month, else 1st
+        let effectiveStart = monthStart;
+        let joiningNote = null;
+        if (employee.hireDate) {
+            const hd = new Date(employee.hireDate + 'T00:00:00');
+            if (hd.getFullYear() === year && hd.getMonth() === month) {
+                effectiveStart = hd;
+                joiningNote = employee.hireDate;
+            }
+        }
+
+        const daysWorked = Math.floor((today - effectiveStart) / 86400000) + 1;
+        const proRatedGross = Math.round(dailyRate * daysWorked * 100) / 100;
+
+        // Unpaid leaves in the period
+        const unpaidLeaveTypes = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternity Leave']);
+        const leaves = await db.collection('leaves').find({
+            employeeId,
+            status: 'approved',
+            leaveType: { $in: [...unpaidLeaveTypes] }
+        }).toArray();
+
+        let unpaidDays = 0;
+        for (const leave of leaves) {
+            const ls = new Date(leave.startDate + 'T00:00:00');
+            const le = new Date(leave.endDate + 'T00:00:00');
+            const os = ls < effectiveStart ? effectiveStart : ls;
+            const oe = le > today ? today : le;
+            if (os <= oe) {
+                if (leave.halfDay) unpaidDays += 0.5;
+                else {
+                    unpaidDays += Math.floor((oe - os) / 86400000) + 1;
+                    // Sandwich Sundays on this leave are also unpaid (they follow Monday's type)
+                    unpaidDays += leave.sandwichDays || 0;
+                }
+            }
+        }
+        const unpaidDeduction = Math.round(unpaidDays * dailyRate * 100) / 100;
+
+        // Monthly incentive (if paid)
+        let incentive = 0;
+        const monthKey = `${monthStr}_${employeeId}`;
+        const incData = await db.collection('monthly_incentives').findOne({ key: monthKey });
+        if (incData && incData.paid) incentive = parseFloat(incData.amount) || 0;
+
+        // Daily bonuses this month up to today
+        const bonuses = await db.collection('daily_bonuses').find({
+            employeeId,
+            date: { $gte: `${monthStr}-01`, $lte: today.toISOString().split('T')[0] }
+        }).toArray();
+        const bonusTotal = bonuses.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
+
+        const netPayable = Math.max(0, proRatedGross - unpaidDeduction + incentive + bonusTotal);
+
+        res.json({
+            employeeId,
+            employeeName: `${employee.firstName} ${employee.lastName}`,
+            grossSalary: gross,
+            dailyRate: Math.round(dailyRate * 100) / 100,
+            daysInMonth,
+            daysWorked,
+            joiningDate: joiningNote,
+            proRatedGross,
+            unpaidDays,
+            unpaidDeduction,
+            incentive,
+            bonusTotal,
+            netPayable,
+            asOfDate: today.toISOString().split('T')[0],
+            month: monthStr
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Get documents for an employee
 router.get('/:id/documents', async (req, res) => {
     try {

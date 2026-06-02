@@ -275,6 +275,20 @@
                         </select>
                     </div>
                 </div>
+                <div class="form-section-title">Probation Period</div>
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;">
+                            <input type="checkbox" id="isOnProbation" style="width:16px;height:16px;accent-color:#f59e0b;cursor:pointer;">
+                            <span>Employee is currently on Probation</span>
+                            <span style="font-size:11px;color:#718096;font-weight:400;">(Paid leave will be blocked during probation)</span>
+                        </label>
+                        <div style="margin-top:10px;padding:10px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:8px;">
+                            <i class="fas fa-info-circle"></i>
+                            When probation is active, the employee cannot apply for paid leave. Only unpaid leave and WFH will be allowed.
+                        </div>
+                    </div>
+                </div>
                 <input type="hidden" id="employeeId">
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -346,6 +360,22 @@
                 <button onclick="closeDocViewer()" style="background:none;border:none;color:#aaa;font-size:1.4rem;cursor:pointer">&times;</button>
             </div>
             <iframe id="docViewerFrame" style="flex:1;border:none;width:100%"></iframe>
+        </div>
+    </div>
+
+    <!-- Salary Till Date Modal -->
+    <div id="salaryTillDateModal" class="modal">
+        <div class="modal-content small" style="max-width:540px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-calculator" style="color:#059669;margin-right:8px;"></i>Salary Till Today</h2>
+                <button class="close-btn" onclick="closeSalaryTillDateModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="salaryTillDateContent">
+                <div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeSalaryTillDateModal()">Close</button>
+            </div>
         </div>
     </div>
 
@@ -474,11 +504,14 @@
                 const ds = getDocStats(emp);
                 const docBadgeClass = ds.missing === 0 ? 'doc-badge-complete' : ds.missing <= 4 ? 'doc-badge-partial' : 'doc-badge-missing';
                 const docBadgeIcon  = ds.missing === 0 ? 'fa-check-circle' : 'fa-exclamation-triangle';
+                const probationBadge = emp.isOnProbation
+                    ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:12px;font-size:10px;font-weight:700;padding:2px 8px;margin-left:6px;"><i class="fas fa-user-clock"></i>PROBATION</span>`
+                    : '';
                 
                 return `
                 <tr>
                     <td>${emp.id}</td>
-                    <td>${emp.firstName} ${emp.lastName}</td>
+                    <td>${emp.firstName} ${emp.lastName}${probationBadge}</td>
                     <td>${emp.email}</td>
                     <td>${emp.companyEmail || '-'}</td>
                     <td>${emp.department}</td>
@@ -499,6 +532,9 @@
                         </button>
                         <button class="icon-btn" style="color:#a78bfa" onclick="openDocsModal(${emp.id})" title="Manage Documents">
                             <i class="fas fa-folder-open"></i>
+                        </button>
+                        <button class="icon-btn" style="color:#059669;background:#d1fae5;" onclick="showSalaryTillDate(${emp.id})" title="Salary Till Today">
+                            <i class="fas fa-calculator"></i>
                         </button>
                         <button class="icon-btn delete" onclick="deleteEmployee(${emp.id})" title="Delete">
                             <i class="fas fa-trash"></i>
@@ -544,6 +580,8 @@
             // Set up currency formatting listener
             salaryInput.removeEventListener('input', handleSalaryInput);
             salaryInput.addEventListener('input', handleSalaryInput);
+            // Reset probation
+            document.getElementById('isOnProbation').checked = false;
             document.getElementById('employeeModal').classList.add('show');
         }
         
@@ -598,6 +636,9 @@
 
             // Payroll
             document.getElementById('salaryDay').value = getSalaryDayValueForForm(employee.salaryDay);
+
+            // Probation
+            document.getElementById('isOnProbation').checked = employee.isOnProbation === true;
             
             document.getElementById('employeeModal').classList.add('show');
         }
@@ -636,7 +677,8 @@
                 },
                 salaryDay: salaryDayRaw === MONTH_END_SALARY_DAY
                     ? MONTH_END_SALARY_DAY
-                    : (parseInt(salaryDayRaw, 10) || null)
+                    : (parseInt(salaryDayRaw, 10) || null),
+                isOnProbation: document.getElementById('isOnProbation').checked
             };
             
             // If editing, preserve the _id field from MongoDB
@@ -747,6 +789,68 @@
 
         function closeModal() {
             document.getElementById('employeeModal').classList.remove('show');
+        }
+
+        // ── Salary Till Date ─────────────────────────────────────────────
+        async function showSalaryTillDate(empId) {
+            const modal = document.getElementById('salaryTillDateModal');
+            const content = document.getElementById('salaryTillDateContent');
+            content.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;color:#667eea;"></i><br><small style="color:#718096;margin-top:8px;display:block;">Calculating…</small></div>';
+            modal.classList.add('show');
+
+            try {
+                const data = await apiCall(`/employees/${empId}/salary-till-date`);
+                const fmtINR = n => '₹' + (parseFloat(n)||0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+                content.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                        <div style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;">${(data.employeeName||'?').split(' ').map(w=>w[0]).join('').toUpperCase()}</div>
+                        <div>
+                            <div style="font-weight:700;font-size:16px;">${data.employeeName}</div>
+                            <div style="font-size:12px;color:#718096;">As of <strong>${data.asOfDate}</strong> (${data.daysWorked} of ${data.daysInMonth} days)</div>
+                        </div>
+                    </div>
+                    ${data.joiningDate ? `<div style="padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;margin-bottom:14px;"><i class="fas fa-user-plus"></i> Joined this month on <strong>${data.joiningDate}</strong></div>` : ''}
+                    <div style="background:#f8fafc;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;">
+                        <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;">
+                            <span style="color:#718096;">Gross Salary / month</span>
+                            <strong>${fmtINR(data.grossSalary)}</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;">
+                            <span style="color:#718096;">Daily Rate (÷ ${data.daysInMonth} days)</span>
+                            <strong>${fmtINR(data.dailyRate)}</strong>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
+                            <span style="color:#065f46;"><i class="fas fa-calendar-check" style="margin-right:6px;"></i>Days worked × daily rate (${data.daysWorked}d)</span>
+                            <strong style="color:#065f46;">${fmtINR(data.proRatedGross)}</strong>
+                        </div>
+                        ${data.incentive > 0 ? `<div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
+                            <span style="color:#065f46;"><i class="fas fa-star" style="margin-right:6px;"></i>Monthly Incentive (paid)</span>
+                            <strong style="color:#065f46;">+ ${fmtINR(data.incentive)}</strong>
+                        </div>` : ''}
+                        ${data.bonusTotal > 0 ? `<div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
+                            <span style="color:#065f46;"><i class="fas fa-gift" style="margin-right:6px;"></i>Daily Bonuses (this month)</span>
+                            <strong style="color:#065f46;">+ ${fmtINR(data.bonusTotal)}</strong>
+                        </div>` : ''}
+                        ${data.unpaidDeduction > 0 ? `<div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#fff5f5;">
+                            <span style="color:#991b1b;"><i class="fas fa-calendar-times" style="margin-right:6px;"></i>Unpaid Leave (${data.unpaidDays}d)</span>
+                            <strong style="color:#991b1b;">- ${fmtINR(data.unpaidDeduction)}</strong>
+                        </div>` : ''}
+                        <div style="display:flex;justify-content:space-between;padding:14px 16px;font-size:17px;background:#f5f3ff;">
+                            <span style="font-weight:700;color:#1a202c;"><i class="fas fa-wallet" style="margin-right:6px;color:#667eea;"></i>Net Payable Till Today</span>
+                            <strong style="color:#4f46e5;font-size:20px;">${fmtINR(data.netPayable)}</strong>
+                        </div>
+                    </div>
+                    <div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:flex-start;gap:8px;">
+                        <i class="fas fa-info-circle" style="margin-top:2px;flex-shrink:0;"></i>
+                        <span>This is a pro-rated calculation based on days worked from ${data.joiningDate ? data.joiningDate : '1st of month'} to today. Late attendance deductions are not included here — refer to the incentives page for full salary processing.</span>
+                    </div>`;
+            } catch (e) {
+                content.innerHTML = `<div style="color:#e53e3e;padding:20px;text-align:center;"><i class="fas fa-exclamation-triangle"></i> Failed to calculate: ${e.message}</div>`;
+            }
+        }
+
+        function closeSalaryTillDateModal() {
+            document.getElementById('salaryTillDateModal').classList.remove('show');
         }
 
         function closeDeleteModal() {

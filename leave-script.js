@@ -27,7 +27,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Load data from DB first, then render
     await Promise.all([loadEmployees(), loadLeaves()]);
     loadEmployeeOptions();
-    renderLeaves();
+    // Default month filter to current month
+    const monthFilterEl = document.getElementById('monthFilter');
+    if (monthFilterEl) monthFilterEl.value = String(new Date().getMonth());
+    filterLeaves();
     updateLeaveStats();
     
     // Add Escape key listener for closing modals
@@ -121,6 +124,11 @@ function showEmployeeLeaveBalance() {
     const projectedColor = projectedLeave < 0 ? '#c53030' : (projectedLeave < 3 ? '#c05621' : '#065f46');
     const projectedBg = projectedLeave < 0 ? '#fed7d7' : (projectedLeave < 3 ? '#feebc8' : '#d1fae5');
 
+    // Probation notice
+    const probationNotice = emp.isOnProbation
+        ? `<div style="width:100%;margin-top:8px;padding:8px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:8px;"><i class="fas fa-user-clock"></i><strong>On Probation</strong> — Paid leave is blocked for this employee. Only unpaid leave / WFH is allowed.</div>`
+        : '';
+
     balanceBox.style.display = 'flex';
     balanceBox.innerHTML = `
         <span style="font-size:12px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.5px;margin-right:8px;">Leave Balance:</span>
@@ -128,12 +136,12 @@ function showEmployeeLeaveBalance() {
         <span class="bal-chip unpaid">Unpaid Leave: <strong>Unlimited</strong></span>
         ${isWorkFromHomeType ? '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">WFH does not deduct leave</span>' : ''}
         ${projectedLeave < 0 ? '<span style="color:#c53030;font-size:11px;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> Insufficient balance</span>' : ''}
+        ${probationNotice}
     `;
 }
 
 function renderLeaves() {
-    const leaves = getLeaves();
-    displayLeaves(leaves);
+    filterLeaves();
 }
 
 function displayLeaves(leaves) {
@@ -155,7 +163,15 @@ function displayLeaves(leaves) {
         const employee = employees.find(e => e.id === leave.employeeId);
         const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
         const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
-        const days = calculateDays(leave.startDate, leave.endDate, isHalfDay);
+        const rawDays = calculateDays(leave.startDate, leave.endDate, isHalfDay);
+        const sandwichDays = leave.sandwichDays || 0;
+        const totalDays = rawDays + sandwichDays;
+
+        // Probation badge — only show on pending leaves (approved/rejected were already
+        // processed at the time they were submitted, before probation may have been set)
+        const probationBadge = (employee?.isOnProbation && leave.status === 'pending')
+            ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:10px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:5px;"><i class="fas fa-user-clock"></i>PROB.</span>`
+            : '';
         
         // Determine pay type from selected leave type
         let payTypeBadge = '<span style="color:#a0aec0;font-size:12px;">-</span>';
@@ -174,14 +190,19 @@ function displayLeaves(leaves) {
             const session = leave.halfDaySession || '';
             halfDayBadge = `<span style="background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:6px;font-size:11px;font-weight:600;margin-left:4px;">&#189; ${session}</span>`;
         }
+
+        // Sandwich badge
+        const sandwichBadge = sandwichDays > 0
+            ? `<span style="background:#fde8ff;color:#7c3aed;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:600;margin-left:4px;" title="Sandwich rule: Sunday between Sat &amp; Mon leave counted"><i class="fas fa-sandwich"></i>+${sandwichDays}d sandwich</span>`
+            : '';
         
         return `
             <tr>
-                <td>${employeeName}</td>
+                <td>${employeeName}${probationBadge}</td>
                 <td>${leave.leaveType}${halfDayBadge}</td>
                 <td>${formatDateShort(leave.startDate)}</td>
                 <td>${formatDateShort(leave.endDate)}</td>
-                <td>${days} day${days !== 1 ? 's' : ''}</td>
+                <td>${totalDays} day${totalDays !== 1 ? 's' : ''}${sandwichBadge}</td>
                 <td>${truncateText(leave.reason || 'N/A', 30)}</td>
                 <td><span class="status-badge ${leave.status}">${capitalize(leave.status)}</span></td>
                 <td>${payTypeBadge}</td>
@@ -422,7 +443,11 @@ async function saveLeaveRequest(event) {
             showNotification('Leave request created successfully!', 'success');
         }
     } catch (err) {
-        showNotification('Failed to save leave request. Please try again.', 'error');
+        if (err && err.probation) {
+            showNotification('This employee is on probation. Only Unpaid Leave or Work From Home is allowed.', 'error');
+        } else {
+            showNotification('Failed to save leave request. Please try again.', 'error');
+        }
         return;
     }
 

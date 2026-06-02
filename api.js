@@ -18,7 +18,10 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'API request failed');
+            const err = new Error(error.error || 'API request failed');
+            // Preserve all fields from the error response (e.g. probation: true)
+            Object.assign(err, error);
+            throw err;
         }
         
         return await response.json();

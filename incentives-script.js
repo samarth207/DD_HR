@@ -1122,6 +1122,8 @@ function getUnpaidLeaveDaysForMonth(employeeId, month) {
             if (overlapStart <= overlapEnd) {
                 const days = Math.round((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
                 totalDaysInMonth += days;
+                // Sandwich Sundays on this leave are also unpaid (they follow Monday's type)
+                totalDaysInMonth += leave.sandwichDays || 0;
             }
         }
     }
@@ -1129,12 +1131,28 @@ function getUnpaidLeaveDaysForMonth(employeeId, month) {
     return totalDaysInMonth;
 }
 
-async function getOutstandingAdvanceForEmployee(employeeId) {
+async function getOutstandingAdvanceForEmployee(employeeId, month) {
     const incentiveData = await getIncentiveData();
-    const advances = (incentiveData.salaryAdvances || []).filter(a => 
-        a.employeeId === employeeId && a.status === 'Outstanding'
-    );
-    
+    const payments = incentiveData.salaryPayments || {};
+    const advances = (incentiveData.salaryAdvances || []).filter(a => {
+        if (a.employeeId !== employeeId) return false;
+        if (a.status === 'Repaid' || a.repaid) return false;
+        if (a.status !== 'Outstanding') return false;
+        // Exclude if this advance was already deducted in a salary paid before `month`
+        if (a.date && month) {
+            const advMonth = a.date.substring(0, 7); // YYYY-MM
+            const alreadyDeducted = Object.entries(payments).some(([key, val]) => {
+                if (!val.paid) return false;
+                const payMonth = key.substring(0, 7);
+                const payEmp   = key.substring(8);
+                if (parseInt(payEmp) !== employeeId) return false;
+                // Settled if a paid salary exists in [advMonth, month)
+                return payMonth >= advMonth && payMonth < month;
+            });
+            if (alreadyDeducted) return false;
+        }
+        return true;
+    });
     return advances.reduce((total, advance) => total + advance.amount, 0);
 }
 
@@ -1181,6 +1199,23 @@ async function markSalaryPaid(employeeId, employeeName, month, grossSalary, dedu
                 });
             }
         } catch (_) { /* non-critical */ }
+
+        // Auto-mark all outstanding advances for this employee as repaid
+        // (they were included in the deductions for this salary payment)
+        try {
+            const allData = await fetch(`${API_BASE_URL}/incentives/data`).then(r => r.json());
+            const outstandingAdvances = (allData.salaryAdvances || []).filter(a =>
+                (a.employeeId === employeeId || a.employeeId === String(employeeId)) &&
+                a.status !== 'Repaid' && !a.repaid
+            );
+            for (const adv of outstandingAdvances) {
+                await fetch(`${API_BASE_URL}/incentives/advance/${adv.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'Repaid', repaid: true, repaidDate: new Date().toISOString(), adjustedInSalary: true, adjustedMonth: month })
+                });
+            }
+        } catch (_) { /* non-critical — advance marking failed but salary is still paid */ }
         
         // Clear cache to force reload
         cachedIncentiveData = null;
@@ -1360,7 +1395,7 @@ async function loadSalaryCrediting() {
             }
         }
 
-        const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id);
+        const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id, month);
 
         // Unpaid leave deduction: daily rate × unpaid leave days (1 paid leave/month policy, 30-day basis)
         const unpaidLeaveDays = getUnpaidLeaveDaysForMonth(emp.id, month);

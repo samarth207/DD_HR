@@ -40,7 +40,12 @@ function statusBadge(s) {
 async function apiFetch(path, opts = {}) {
     opts.headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
     const r = await fetch(`${API}${path}`, opts);
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    if (!r.ok) {
+        const errBody = await r.json().catch(() => ({}));
+        const err = new Error(errBody.error || r.statusText);
+        Object.assign(err, errBody);
+        throw err;
+    }
     return r.json();
 }
 
@@ -62,8 +67,9 @@ function showTab(name) {
     if (name === 'calendar')   renderCalendar();
     if (name === 'sales')      loadMySales();
     if (name === 'advances')   loadMyAdvances();
-    if (name === 'salary')     loadSalaryBreakup();
+    if (name === 'salary')     { loadSalaryBreakup(); loadSalaryTillDate(); loadSalaryHistory(); }
     if (name === 'attendance') loadMyAttendance();
+    if (name === 'leaves')     loadProbationStatus();
 }
 
 // â”€â”€ Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -193,11 +199,25 @@ async function submitLeave(event) {
         loadLeaveHistory();
         loadOverview();
     } catch (e) {
-        notify('leaveNotify', e.message || 'Failed to submit leave request.', 'error');
+        if (e && e.probation) {
+            notify('leaveNotify', 'You are currently on probation. Only Unpaid Leave or Work From Home is allowed.', 'error');
+        } else {
+            notify('leaveNotify', e.message || 'Failed to submit leave request.', 'error');
+        }
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Request';
     }
+}
+
+async function loadProbationStatus() {
+    try {
+        const emp = await apiFetch(`/employees/${EMP_ID}`);
+        const notice = document.getElementById('probationNotice');
+        if (notice) {
+            notice.style.display = emp.isOnProbation ? 'flex' : 'none';
+        }
+    } catch { /* non-critical */ }
 }
 
 async function loadLeaveHistory() {
@@ -212,15 +232,24 @@ async function loadLeaveHistory() {
             tbody.innerHTML = '<tr><td colspan="6" class="no-data"><i class="fas fa-calendar"></i><br>No leave requests yet</td></tr>';
             return;
         }
-        tbody.innerHTML = myLeaves.map(l => `
+        tbody.innerHTML = myLeaves.map(l => {
+            const isHalfDay = l.halfDay === true || l.leaveType === 'Half Day';
+            const rawDays = calcDays(l.startDate, l.endDate, isHalfDay);
+            const sandwichDays = l.sandwichDays || 0;
+            const totalDays = rawDays + sandwichDays;
+            const sandwichBadge = sandwichDays > 0
+                ? `<span style="background:#fde8ff;color:#7c3aed;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:600;margin-left:4px;" title="Includes ${sandwichDays} sandwich day(s)">+${sandwichDays}d sandwich</span>`
+                : '';
+            return `
             <tr>
-                <td>${l.leaveType || 'â€”'}</td>
+                <td>${l.leaveType || '—'}</td>
                 <td>${fmt(l.startDate)}</td>
                 <td>${fmt(l.endDate)}</td>
-                <td>${calcDays(l.startDate, l.endDate)}</td>
-                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.reason || 'â€”'}</td>
+                <td>${totalDays}${sandwichBadge}</td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.reason || '—'}</td>
                 <td>${statusBadge(l.status)}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
     } catch {
         tbody.innerHTML = '<tr><td colspan="6" class="no-data">Failed to load leave history</td></tr>';
     }
@@ -509,14 +538,29 @@ async function loadMyAdvances() {
             return;
         }
 
-        tbody.innerHTML = advances.map(a => `
+        tbody.innerHTML = advances.map(a => {
+            let statusBadge, statusDetail;
+            if (a.adjustedInSalary) {
+                const [yr, mo] = (a.adjustedMonth || '').split('-');
+                const monthLabel = yr && mo ? new Date(parseInt(yr), parseInt(mo) - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : '';
+                statusBadge = `<span class="badge badge-green">Adjusted in Salary${monthLabel ? ' — ' + monthLabel : ''}</span>`;
+                statusDetail = a.repaidDate ? fmt(a.repaidDate) : 'â€"';
+            } else if (a.repaid) {
+                statusBadge = '<span class="badge badge-green">Repaid</span>';
+                statusDetail = a.repaidDate ? fmt(a.repaidDate) : 'â€"';
+            } else {
+                statusBadge = '<span class="badge badge-red">Outstanding</span>';
+                statusDetail = 'â€"';
+            }
+            return `
             <tr>
                 <td>${fmt(a.date)}</td>
                 <td style="font-weight:700;">${fmtRupees(a.amount)}</td>
-                <td>${a.reason || 'â€”'}</td>
-                <td><span class="badge ${a.repaid ? 'badge-green' : 'badge-red'}">${a.repaid ? 'Repaid' : 'Outstanding'}</span></td>
-                <td>${a.repaid ? fmt(a.repaidDate) : 'â€”'}</td>
-            </tr>`).join('');
+                <td>${a.reason || 'â€"'}</td>
+                <td>${statusBadge}</td>
+                <td>${statusDetail}</td>
+            </tr>`;
+        }).join('');
     } catch {
         tbody.innerHTML = '<tr><td colspan="5" class="no-data">Failed to load advance data</td></tr>';
     }
@@ -552,7 +596,14 @@ async function loadSalaryBreakup() {
             apiFetch(`/attendance/month/${month}`).catch(() => [])
         ]);
 
-        const gross     = parseFloat(empData.salary) || 0;
+        const payKey = `${month}_${EMP_ID}`;
+        const payRecord = (incData.salaryPayments || {})[payKey];
+
+        // Use the salary that was snapshotted at payment time (if available), so a salary
+        // hike does NOT retroactively change previous months' breakup display.
+        const gross     = (payRecord?.paid && payRecord?.grossSalary)
+            ? parseFloat(payRecord.grossSalary)
+            : parseFloat(empData.salary) || 0;
         const dailyRate = gross / 30;
 
         // â"€â"€ Pro-rate if joining month â"€â"€
@@ -586,7 +637,11 @@ async function loadSalaryBreakup() {
                 const le = new Date(leave.endDate   + 'T00:00:00');
                 const os = ls < monthStart ? monthStart : ls;
                 const oe = le > monthEnd   ? monthEnd   : le;
-                if (os <= oe) totalLeaveDays += Math.round((oe - os) / 86400000) + 1;
+                if (os <= oe) {
+                    totalLeaveDays += Math.round((oe - os) / 86400000) + 1;
+                    // Sandwich Sundays on this leave are also unpaid (they follow Monday's type)
+                    totalLeaveDays += leave.sandwichDays || 0;
+                }
             }
         }
         const unpaidLeaveDays      = totalLeaveDays;
@@ -601,11 +656,34 @@ async function loadSalaryBreakup() {
         const halfDayAttDays      = Math.floor(lateCount / attSettings.lateDaysHalfDay) * 0.5;
         const halfDayAttDeduction = Math.round(halfDayAttDays * dailyRate * 100) / 100;
 
-        // â”€â”€ Outstanding salary advances â”€â”€
-        const advances = (incData.salaryAdvances || []).filter(a =>
-            (a.employeeId === EMP_ID || a.employeeId === String(EMP_ID)) &&
-            (a.status === 'Outstanding' || (!a.repaid && a.status !== 'Repaid'))
-        );
+        // ── Outstanding salary advances ──
+        // Show an advance in month X only if it has NOT already been deducted in an
+        // earlier paid salary. Specifically: if a salary payment exists for any month M
+        // where advanceMonth <= M < currentViewingMonth, the advance was already settled.
+        // This means:
+        //   • May breakup  (month="2026-05"): advance taken in May → no paid salary in
+        //     range ["2026-05","2026-05") → empty range → advance IS included ✓
+        //   • June breakup (month="2026-06"): advance taken in May → paid salary exists
+        //     for "2026-05" which is in range ["2026-05","2026-06") → excluded ✓
+        const payments = incData.salaryPayments || {};
+        const advances = (incData.salaryAdvances || []).filter(a => {
+            if (!(a.employeeId === EMP_ID || a.employeeId === String(EMP_ID))) return false;
+            if (a.status === 'Repaid' || a.repaid) return false;
+            if (a.date) {
+                const advMonth = a.date.substring(0, 7); // YYYY-MM
+                // Was the advance already deducted in a salary paid before this month?
+                const alreadyDeducted = Object.entries(payments).some(([key, val]) => {
+                    if (!val.paid) return false;
+                    const payMonth = key.substring(0, 7);           // YYYY-MM
+                    const payEmp   = key.substring(8);              // employeeId part
+                    if (String(payEmp) !== String(EMP_ID)) return false;
+                    // Paid salary M falls in [advMonth, currentMonth) → advance was settled
+                    return payMonth >= advMonth && payMonth < month;
+                });
+                if (alreadyDeducted) return false;
+            }
+            return true;
+        });
         const advanceDeduction = advances.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
 
         // â”€â”€ Monthly incentive (Sales dept) â”€â”€
@@ -623,8 +701,7 @@ async function loadSalaryBreakup() {
         const totalDeductions = advanceDeduction + unpaidLeaveDeduction + halfDayAttDeduction;
         const net = Math.max(0, totalEarnings - totalDeductions);
 
-        const payKey = `${month}_${EMP_ID}`;
-        const isPaid = (incData.salaryPayments || {})[payKey]?.paid || false;
+        const isPaid = payRecord?.paid || false;
 
         const salaryDayInfo = empData.salaryDay
             ? `<div style="font-size:12px;color:var(--muted);margin-bottom:18px;"><i class="fas fa-calendar-check"></i> Salary credit day: <strong>${empData.salaryDay}</strong> of each month</div>`
@@ -683,6 +760,82 @@ async function loadSalaryBreakup() {
             </div>` : ''}`;
     } catch (e) {
         content.innerHTML = `<div class="no-data">Failed to load salary breakup</div>`;
+    }
+}
+
+async function loadSalaryHistory() {
+    const container = document.getElementById('salaryHistoryContent');
+    if (!container) return;
+    try {
+        const incData = await apiFetch('/incentives/data');
+        const payments = incData.salaryPayments || {};
+        const empIdStr = String(EMP_ID);
+        const history = Object.entries(payments)
+            .filter(([key, val]) => {
+                if (!val.paid) return false;
+                // key format: YYYY-MM_empId
+                const empPart = key.substring(key.indexOf('_') + 1);
+                return empPart === empIdStr;
+            })
+            .map(([key, val]) => ({ month: key.substring(0, 7), ...val }))
+            .sort((a, b) => b.month.localeCompare(a.month));
+
+        if (!history.length) {
+            container.innerHTML = '<div class="no-data" style="padding:20px 0;"><i class="fas fa-history"></i><br>No salary payments recorded yet</div>';
+            return;
+        }
+        const fmt2 = v => `\u20b9${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        container.innerHTML = `
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <th style="text-align:left;padding:8px 6px;color:var(--muted);font-weight:600;">Month</th>
+                        <th style="text-align:right;padding:8px 6px;color:var(--muted);font-weight:600;">Gross</th>
+                        <th style="text-align:right;padding:8px 6px;color:var(--muted);font-weight:600;">Deductions</th>
+                        <th style="text-align:right;padding:8px 6px;color:var(--muted);font-weight:600;">Net Paid</th>
+                        <th style="text-align:center;padding:8px 6px;color:var(--muted);font-weight:600;">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${history.map(h => {
+                        const [yr, mo] = h.month.split('-').map(Number);
+                        const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                        const paidDate = h.paidDate ? new Date(h.paidDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
+                        return `<tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:10px 6px;font-weight:600;">${monthLabel}</td>
+                            <td style="padding:10px 6px;text-align:right;">${h.grossSalary ? fmt2(h.grossSalary) : '\u2014'}</td>
+                            <td style="padding:10px 6px;text-align:right;color:var(--red);">${h.deductions ? '\u2212\u00a0' + fmt2(h.deductions) : '\u2014'}</td>
+                            <td style="padding:10px 6px;text-align:right;font-weight:700;color:var(--green);">${h.netSalary ? fmt2(h.netSalary) : '\u2014'}</td>
+                            <td style="padding:10px 6px;text-align:center;font-size:12px;color:var(--muted);">${paidDate}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>`;
+    } catch {
+        container.innerHTML = '<div class="no-data">Failed to load salary history</div>';
+    }
+}
+
+async function loadSalaryTillDate() {
+    const container = document.getElementById('salaryTillDateContent');
+    if (!container) return;
+    container.innerHTML = '<div class="no-data"><div class="spinner"></div></div>';
+    try {
+        const d = await apiFetch(`/employees/${EMP_ID}/salary-till-date`);
+        const fmt2 = v => `\u20b9${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        container.innerHTML = `
+            <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">As of <strong>${d.asOfDate}</strong> \u2014 ${d.daysWorked} of ${d.daysInMonth} days worked this month</div>
+            <div class="salary-row"><span class="label">Gross Salary</span><span class="amount">${fmt2(d.grossSalary)}</span></div>
+            <div class="salary-row"><span class="label">Daily Rate</span><span class="amount">${fmt2(d.dailyRate)} / day</span></div>
+            ${d.joiningDate ? `<div class="salary-row"><span class="label" style="color:var(--muted);">Joining Date (this month)</span><span class="amount">${d.joiningDate}</span></div>` : ''}
+            <div class="salary-row"><span class="label">Pro-rated Gross</span><span class="amount">${fmt2(d.proRatedGross)}</span></div>
+            ${d.unpaidDays > 0 ? `<div class="salary-row deduction"><span class="label"><i class="fas fa-minus-circle" style="color:var(--red);margin-right:5px;"></i>Unpaid Leave (${d.unpaidDays} days)</span><span class="amount">- ${fmt2(d.unpaidDeduction)}</span></div>` : ''}
+            ${d.incentive > 0 ? `<div class="salary-row"><span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:5px;"></i>Monthly Incentive</span><span class="amount">+ ${fmt2(d.incentive)}</span></div>` : ''}
+            ${d.bonusTotal > 0 ? `<div class="salary-row"><span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:5px;"></i>Daily Bonuses</span><span class="amount">+ ${fmt2(d.bonusTotal)}</span></div>` : ''}
+            <div style="border-top:2px solid var(--border);margin:10px 0;"></div>
+            <div class="salary-row net"><span class="label" style="font-weight:700;">Net Payable Till Today</span><span class="amount" style="color:var(--green);font-size:18px;font-weight:800;">${fmt2(d.netPayable)}</span></div>`;
+    } catch {
+        container.innerHTML = '<div class="no-data">Failed to load salary till date</div>';
     }
 }
 
@@ -889,4 +1042,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadCalendarData();
     loadOverview();
     loadLeaveHistory();
+    loadProbationStatus();
+    loadSalaryTillDate();
+    loadSalaryHistory();
 });
