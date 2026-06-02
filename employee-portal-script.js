@@ -387,11 +387,30 @@ async function loadMySales() {
         const revTarget     = empSales.revenueTarget  || 0;
         const revAchieved   = empSales.revenueAchieved || 0;
 
-        // Monthly incentive for this employee
-        const monthlyKey       = `${month}_${EMP_ID}`;
-        const monthlyInc       = (data.monthlyIncentives || {})[monthlyKey];
-        const monthlyIncAmount = monthlyInc ? (parseFloat(monthlyInc.amount) || 0) : 0;
-        const monthlyIncPaid   = monthlyInc?.paid || false;
+        // Monthly incentive — if already PAID use locked DB amount, else always recalculate live
+        const monthlyKey     = `${month}_${EMP_ID}`;
+        const monthlyInc     = (data.monthlyIncentives || {})[monthlyKey];
+        const monthlyIncPaid = monthlyInc?.paid || false;
+        let monthlyIncAmount  = 0;
+        if (monthlyIncPaid) {
+            // Already paid — use the locked stored amount
+            monthlyIncAmount = parseFloat(monthlyInc.amount) || 0;
+        } else {
+            // Not paid — recalculate live from slabs so deletions/changes are reflected
+            let achievementRate = 0;
+            if (salesTarget > 0)       achievementRate = salesAchieved / salesTarget * 100;
+            else if (revTarget > 0)    achievementRate = revAchieved   / revTarget   * 100;
+            if (achievementRate >= 100) {
+                const slabs = (config && config.slabs) ? config.slabs : {};
+                const pct = achievementRate >= 200 ? (slabs[200] || 0)
+                          : achievementRate >= 150 ? (slabs[150] || 0)
+                          :                          (slabs[100] || 0);
+                monthlyIncAmount = Math.round(revAchieved * pct / 100);
+            }
+        }
+
+        // Refresh navbar piggy bank whenever sales tab loads
+        updatePiggyBank(monthlyIncAmount, monthlyIncPaid);
 
         kpiDiv.innerHTML = `
             <div class="kpi"><div class="kpi-label">This Month Bonus</div><div class="kpi-value" style="color:var(--green);">${fmtRupees(totalBonuses)}</div><div class="kpi-sub">Daily bonuses earned</div></div>
@@ -442,6 +461,7 @@ async function loadMySales() {
                         <div class="info-block-title"><i class="fas fa-coins" style="margin-right:5px;color:var(--primary);"></i>Revenue This Month</div>
                         <div style="font-size:22px;font-weight:800;color:var(--primary);margin-bottom:4px;">${fmtRupees(revAchieved)}</div>
                     </div>` : ''}
+                    ${(courseRewards.onetime || courseRewards.annual || courseRewards.semester) ? `
                     <div class="info-block">
                         <div class="info-block-title"><i class="fas fa-graduation-cap" style="margin-right:5px;color:var(--primary);"></i>Today's Per Admission Earnings</div>
                         <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
@@ -449,7 +469,7 @@ async function loadMySales() {
                             <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Annual Course</span>   <strong style="color:#16a34a;">${fmtRupees(courseRewards.annual   || 0)}</strong></div>
                             <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Semester Course</span> <strong style="color:#16a34a;">${fmtRupees(courseRewards.semester || 0)}</strong></div>
                         </div>
-                    </div>
+                    </div>` : ''}
                     <div class="info-block info-block-wide">
                         <div class="info-block-title"><i class="fas fa-trophy" style="margin-right:5px;color:var(--primary);"></i>Monthly Incentive Slabs</div>
                         <div style="overflow-x:auto;">
@@ -504,10 +524,11 @@ async function loadMySales() {
                 <td style="color:var(--muted);font-size:12px;">${a.customerPhone || 'â€”'}</td>
                 <td style="color:var(--muted);font-size:12px;">${a.customerEmail || 'â€”'}</td>
                 <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || 'â€”'}</span></td>
+                <td style="color:var(--muted);font-size:12px;">${a.universityName || 'â€“'}</td>
                 <td style="color:var(--green);font-weight:700;">${fmtRupees(a.revenue || 0)}</td>
             </tr>`).join('');
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="6" class="no-data">Failed to load sales data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="no-data">Failed to load sales data</td></tr>';
     }
 }
 // â”€â”€ Advances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1051,11 +1072,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadProbationStatus();
     loadSalaryTillDate();
     loadSalaryHistory();
+    loadNavIncentive();  // piggy bank widget
 });
 
 // ══════════════════════════════════════════════
 //  CONGRATULATIONS OVERLAY
 // ══════════════════════════════════════════════
+
+// ── Piggy Bank Navbar Widget ──────────────────
+async function loadNavIncentive() {
+    try {
+        const now   = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        const [data, config, salesData] = await Promise.all([
+            apiFetch('/incentives/data').catch(() => null),
+            apiFetch('/incentives/config').catch(() => ({})),
+            apiFetch('/sales').catch(() => ({}))
+        ]);
+        if (!data) return;
+
+        const monthlyKey = `${month}_${EMP_ID}`;
+        const rec        = (data.monthlyIncentives || {})[monthlyKey];
+        const paid       = rec?.paid || false;
+        let amount       = 0;
+
+        if (paid) {
+            // Already paid — use locked stored amount
+            amount = parseFloat(rec.amount) || 0;
+        } else {
+            // Not paid — recalculate live from slabs so deletions are reflected
+            const empSales      = (salesData[month] || {})[EMP_ID] || (salesData[month] || {})[String(EMP_ID)] || {};
+            const salesTarget   = empSales.salesTarget   || 0;
+            const salesAchieved = empSales.salesAchieved || 0;
+            const revTarget     = empSales.revenueTarget || 0;
+            const revAchieved   = empSales.revenueAchieved || 0;
+            let achievementRate = 0;
+            if (salesTarget > 0)    achievementRate = salesAchieved / salesTarget * 100;
+            else if (revTarget > 0) achievementRate = revAchieved   / revTarget   * 100;
+            if (achievementRate >= 100) {
+                const slabs = (config && config.slabs) ? config.slabs : {};
+                const pct = achievementRate >= 200 ? (slabs[200] || 0)
+                          : achievementRate >= 150 ? (slabs[150] || 0)
+                          :                          (slabs[100] || 0);
+                amount = Math.round(revAchieved * pct / 100);
+            }
+        }
+
+        updatePiggyBank(amount, paid);
+    } catch (e) { /* silent — widget just stays in loading state */ }
+}
+
+let _piggyCoinsTimer = null;
+
+function updatePiggyBank(amount, paid) {
+    const widget = document.getElementById('piggyWidget');
+    const amtEl  = document.getElementById('piggyAmt');
+    const statEl = document.getElementById('piggyStatus');
+    if (!widget || !amtEl) return;
+
+    if (amount > 0) {
+        widget.classList.add('piggy-has-amount');
+        widget.classList.remove('piggy-zero');
+        amtEl.textContent = fmtRupees(amount);
+        statEl.innerHTML  = paid
+            ? '<span class="piggy-paid-tag" style="background:#dcfce7;color:#16a34a;">&#10003; Paid</span>'
+            : '<span class="piggy-paid-tag" style="background:#fef3c7;color:#d97706;">Pending</span>';
+        // Coins rain for a few seconds
+        if (!_piggyCoinsTimer) {
+            let drops = 0;
+            _piggyCoinsTimer = setInterval(() => {
+                const coin = document.createElement('span');
+                coin.className = 'piggy-coin';
+                coin.textContent = ['\uD83E\uDE99','\u2728','\uD83D\uDCB0'][Math.floor(Math.random()*3)];
+                coin.style.left = (Math.random() * 75 + 8) + '%';
+                coin.style.animationDuration = (1 + Math.random() * .8) + 's';
+                widget.appendChild(coin);
+                setTimeout(() => coin.remove(), 1800);
+                if (++drops >= 10) {
+                    clearInterval(_piggyCoinsTimer);
+                    _piggyCoinsTimer = null;
+                }
+            }, 300);
+        }
+    } else {
+        widget.classList.remove('piggy-has-amount');
+        widget.classList.add('piggy-zero');
+        amtEl.textContent = 'Keep going!';
+        statEl.innerHTML  = '';
+    }
+}
 
 let _congratsConfettiTimer = null;
 

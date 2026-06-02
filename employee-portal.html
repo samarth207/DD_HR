@@ -318,6 +318,75 @@
             .nav-bar { padding: 0 12px; }
             .main { padding: 16px 12px; }
         }
+
+        /* ── Piggy Bank Incentive Widget ── */
+        .piggy-widget {
+            display: flex; align-items: center; gap: 8px;
+            background: linear-gradient(135deg,#fff7ed,#fef3c7);
+            border: 1.5px solid #fde68a;
+            border-radius: 30px;
+            padding: 6px 14px 6px 8px;
+            position: relative; overflow: hidden;
+            cursor: default;
+            box-shadow: 0 2px 10px rgba(251,191,36,.25);
+            transition: transform .2s, box-shadow .2s;
+        }
+        .piggy-widget:hover { transform: scale(1.04); box-shadow: 0 4px 18px rgba(251,191,36,.4); }
+        .piggy-widget.piggy-zero {
+            background: var(--surface2); border-color: var(--border);
+            box-shadow: none; opacity: .65;
+        }
+        .piggy-emoji {
+            font-size: 22px; line-height: 1;
+            animation: piggyWobble 3s ease-in-out infinite;
+            display: inline-block;
+        }
+        .piggy-widget.piggy-has-amount .piggy-emoji {
+            animation: piggyBounce 1.4s ease-in-out infinite;
+        }
+        @keyframes piggyWobble {
+            0%,100% { transform: rotate(0); }
+            30% { transform: rotate(-10deg); }
+            70% { transform: rotate(10deg); }
+        }
+        @keyframes piggyBounce {
+            0%,100% { transform: translateY(0) scale(1); }
+            35% { transform: translateY(-5px) scale(1.15); }
+            65% { transform: translateY(1px) scale(.95); }
+        }
+        .piggy-text { line-height: 1.25; }
+        .piggy-lbl  { font-size: 10px; font-weight: 700; color: #d97706; text-transform: uppercase; letter-spacing: .5px; }
+        .piggy-amt  { font-size: 14px; font-weight: 800; color: #92400e; white-space: nowrap; }
+        .piggy-widget.piggy-zero .piggy-lbl { color: var(--muted); }
+        .piggy-widget.piggy-zero .piggy-amt { color: var(--muted); font-size: 12px; }
+        .piggy-status { margin-left: 2px; }
+        .piggy-paid-tag {
+            display: inline-block;
+            border-radius: 20px; font-size: 10px; font-weight: 700;
+            padding: 2px 8px;
+        }
+        /* Falling coins */
+        .piggy-coin {
+            position: absolute; top: -18px;
+            font-size: 13px; pointer-events: none;
+            animation: coinFall linear forwards;
+        }
+        @keyframes coinFall {
+            0%   { transform: translateY(0) rotate(0); opacity: 1; }
+            80%  { opacity: 1; }
+            100% { transform: translateY(60px) rotate(180deg); opacity: 0; }
+        }
+        /* shimmer sweep on the pill */
+        .piggy-widget.piggy-has-amount::after {
+            content: ''; position: absolute;
+            top: 0; left: -60%; width: 40%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+            animation: piggyShimmer 2.4s ease-in-out infinite;
+        }
+        @keyframes piggyShimmer {
+            0%   { left: -60%; }
+            100% { left: 130%; }
+        }
     </style>
 </head>
 <body>
@@ -329,6 +398,15 @@
         <span>Employee Portal</span>
     </div>
     <div class="topbar-right">
+        <!-- Piggy Bank Incentive Widget -->
+        <div class="piggy-widget piggy-zero" id="piggyWidget" title="Your incentive earned this month">
+            <span class="piggy-emoji">🐷</span>
+            <div class="piggy-text">
+                <div class="piggy-lbl">Incentive</div>
+                <div class="piggy-amt" id="piggyAmt">Loading…</div>
+            </div>
+            <div class="piggy-status" id="piggyStatus"></div>
+        </div>
         <div class="user-chip">
             <div class="user-avatar" id="avatarInitials">?</div>
             <div>
@@ -561,7 +639,7 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Date</th><th>Customer Name</th><th>Phone</th><th>Email</th><th>Type</th><th>Revenue</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Customer Name</th><th>Phone</th><th>Email</th><th>Type</th><th>University</th><th>Revenue</th></tr></thead>
                     <tbody id="salesHistoryBody">
                         <tr><td colspan="6" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
                     </tbody>

@@ -525,15 +525,9 @@
                     <label>Employee</label>
                     <input type="text" id="targetEmployeeName" readonly>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="salesTarget">Number of Sales Target *</label>
-                        <input type="number" id="salesTarget" min="0" required placeholder="e.g., 50">
-                    </div>
-                    <div class="form-group">
-                        <label for="revenueTarget">Revenue Target (₹) *</label>
-                        <input type="text" id="revenueTarget" inputmode="numeric" required placeholder="e.g., ₹1,00,000">
-                    </div>
+                <div class="form-group">
+                    <label for="salesTarget">Number of Sales Target *</label>
+                    <input type="number" id="salesTarget" min="0" required placeholder="e.g., 50">
                 </div>
                 <input type="hidden" id="targetEmployeeId">
                 <input type="hidden" id="targetMonth">
@@ -592,6 +586,10 @@
                         <input type="text" id="admRevenue" inputmode="numeric" required placeholder="e.g., ₹25,000">
                     </div>
                 </div>
+                <div class="form-group">
+                    <label for="admUniversity">University / Institute Name</label>
+                    <input type="text" id="admUniversity" placeholder="e.g., Delhi University">
+                </div>
                 <input type="hidden" id="salesEmployeeId">
                 <input type="hidden" id="salesMonth">
                 <div class="modal-footer">
@@ -622,6 +620,7 @@
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Customer Name</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Contact</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Type</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">University</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Revenue</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Action</th>
                             </tr>

@@ -51,16 +51,13 @@ const upload = multer({
 
 async function allocateNextEmployeeId(db) {
     const rows = await db.collection('employees').find({}, { projection: { id: 1 } }).toArray();
-    const used = new Set(
-        rows
-            .map(r => parseInt(r.id, 10))
-            .filter(id => Number.isInteger(id) && id >= 1 && id <= MAX_SHORT_EMPLOYEE_ID)
-    );
-
-    for (let id = 1; id <= MAX_SHORT_EMPLOYEE_ID; id++) {
-        if (!used.has(id)) return id;
-    }
-    return null;
+    const ids = rows
+        .map(r => parseInt(r.id, 10))
+        .filter(id => Number.isInteger(id) && id >= 1);
+    // Always use max + 1 — never reuse a deleted employee's ID
+    const nextId = ids.length > 0 ? Math.max(...ids) + 1 : 1;
+    if (nextId > MAX_SHORT_EMPLOYEE_ID) return null;
+    return nextId;
 }
 
 // Get all employees
@@ -378,6 +375,10 @@ router.delete('/:id', async (req, res) => {
             db.collection('salary_payments').deleteMany({
                 key: { $regex: `_${employeeId}$` }
             }),
+            // Admission records
+            db.collection('admissions').deleteMany({ employeeId }),
+            // Sales aggregates
+            db.collection('sales').deleteMany({ employeeId }),
         ]);
 
         // Remove uploaded documents folder

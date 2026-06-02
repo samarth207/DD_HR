@@ -222,18 +222,6 @@ async function openTargetModal(employeeId, month) {
     document.getElementById('targetEmployeeId').value = employeeId;
     document.getElementById('targetMonth').value = month;
     document.getElementById('salesTarget').value = empData.salesTarget || '';
-    
-    // Format revenue target with Indian currency
-    const revenueInput = document.getElementById('revenueTarget');
-    if (empData.revenueTarget) {
-        revenueInput.value = formatRupees(empData.revenueTarget);
-    } else {
-        revenueInput.value = '';
-    }
-    revenueInput.addEventListener('input', function() {
-        formatCurrencyInput(this);
-    });
-    
     document.getElementById('targetModal').style.display = 'flex';
 }
 
@@ -250,7 +238,6 @@ async function saveTarget(event) {
     const employeeId = parseInt(document.getElementById('targetEmployeeId').value);
     const month = document.getElementById('targetMonth').value;
     const salesTarget = parseInt(document.getElementById('salesTarget').value);
-    const revenueTarget = getRawCurrencyValue(document.getElementById('revenueTarget'));
     
     const salesData = await getSalesData();
     
@@ -266,13 +253,12 @@ async function saveTarget(event) {
     }
     
     salesData[month][employeeId].salesTarget = salesTarget;
-    salesData[month][employeeId].revenueTarget = revenueTarget;
     
     await saveSalesData(salesData);
     
     const employees = await window.loadEmployees();
     const employee = employees.find(e => e.id === employeeId);
-    addLog('sales', `Set sales target for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesTarget} sales, ${formatRupees(revenueTarget)} revenue`);
+    addLog('sales', `Set sales target for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${salesTarget} sales`);
     
     showNotification('Sales target set successfully!', 'success');
     closeTargetModal();
@@ -292,6 +278,7 @@ async function openSalesModal(employeeId, month) {
     document.getElementById('admCustomerName').value = '';
     document.getElementById('admCustomerPhone').value = '';
     document.getElementById('admCustomerEmail').value = '';
+    document.getElementById('admUniversity').value = '';
     document.getElementById('admDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('admType').value = '';
     
@@ -317,17 +304,18 @@ async function recordSales(event) {
     
     const employeeId = parseInt(document.getElementById('salesEmployeeId').value);
     const month = document.getElementById('salesMonth').value;
-    const customerName  = document.getElementById('admCustomerName').value.trim();
-    const customerPhone = document.getElementById('admCustomerPhone').value.trim();
-    const customerEmail = document.getElementById('admCustomerEmail').value.trim();
-    const admissionDate = document.getElementById('admDate').value;
-    const admissionType = document.getElementById('admType').value;
-    const revenue       = getRawCurrencyValue(document.getElementById('admRevenue'));
+    const customerName    = document.getElementById('admCustomerName').value.trim();
+    const customerPhone   = document.getElementById('admCustomerPhone').value.trim();
+    const customerEmail   = document.getElementById('admCustomerEmail').value.trim();
+    const universityName  = document.getElementById('admUniversity').value.trim();
+    const admissionDate   = document.getElementById('admDate').value;
+    const admissionType   = document.getElementById('admType').value;
+    const revenue         = getRawCurrencyValue(document.getElementById('admRevenue'));
     
     const response = await fetch(`${API_BASE_URL}/admissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, admissionDate, admissionType, revenue })
+        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, universityName, admissionDate, admissionType, revenue })
     });
     
     if (!response.ok) {
@@ -394,6 +382,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
                     <td style="padding:10px 12px;font-size:13px;font-weight:600;">${r.customerName || '\u2014'}</td>
                     <td style="padding:10px 12px;font-size:12px;color:#718096;">${r.customerPhone || '\u2014'}<br><span style="color:#a0aec0;">${r.customerEmail || ''}</span></td>
                     <td style="padding:10px 12px;"><span style="background:${bg};color:${clr};font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;">${typeLbl}</span></td>
+                    <td style="padding:10px 12px;font-size:12px;color:#4a5568;">${r.universityName || '\u2014'}</td>
                     <td style="padding:10px 12px;font-weight:700;color:#059669;">${rev}</td>
                     <td style="padding:10px 12px;">
                         <button onclick="deleteAdmission('${rid}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">

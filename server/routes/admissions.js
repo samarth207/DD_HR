@@ -32,7 +32,8 @@ router.post('/', async (req, res) => {
             customerEmail,
             admissionDate,
             admissionType,
-            revenue
+            revenue,
+            universityName
         } = req.body;
 
         if (!employeeId || !month || !customerName || !admissionDate || !admissionType) {
@@ -46,6 +47,7 @@ router.post('/', async (req, res) => {
             customerName: String(customerName).trim(),
             customerPhone: customerPhone ? String(customerPhone).trim() : '',
             customerEmail: customerEmail ? String(customerEmail).trim() : '',
+            universityName: universityName ? String(universityName).trim() : '',
             admissionDate,
             admissionType,
             revenue: parseFloat(revenue) || 0,
