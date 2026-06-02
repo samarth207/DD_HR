@@ -141,16 +141,12 @@ async function loadSalesData() {
         
         totalSalesTarget += empData.salesTarget || 0;
         totalSalesAchieved += empData.salesAchieved || 0;
-        totalRevenueTarget += empData.revenueTarget || 0;
         totalRevenueAchieved += empData.revenueAchieved || 0;
         
         const salesPercentage = empData.salesTarget > 0 ? 
             Math.round((empData.salesAchieved / empData.salesTarget) * 100) : 0;
-        const revenuePercentage = empData.revenueTarget > 0 ? 
-            Math.round((empData.revenueAchieved / empData.revenueTarget) * 100) : 0;
         
         const salesProgressClass = salesPercentage >= 100 ? 'high' : salesPercentage >= 50 ? '' : 'low';
-        const revenueProgressClass = revenuePercentage >= 100 ? 'high' : revenuePercentage >= 50 ? '' : 'low';
         
         const row = document.createElement('tr');
         row.style.borderTop = '1px solid #f0f4f8';
@@ -168,14 +164,9 @@ async function loadSalesData() {
                     <div class="progress-fill ${salesProgressClass}" style="width:${Math.min(salesPercentage, 100)}%;height:100%;"></div>
                 </div>
             </td>
-            <td style="padding:10px 14px;vertical-align:middle;min-width:200px;">
-                <div style="font-size:12px;color:#4a5568;margin-bottom:4px;">
-                    <strong>${formatRupees(empData.revenueAchieved || 0)}</strong> / ${formatRupees(empData.revenueTarget || 0)}
-                    <span style="color:${revenuePercentage >= 100 ? '#059669' : revenuePercentage >= 50 ? '#2563eb' : '#dc2626'};font-size:11px;margin-left:6px;">${revenuePercentage}%</span>
-                </div>
-                <div class="progress-bar" style="height:6px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
-                    <div class="progress-fill ${revenueProgressClass}" style="width:${Math.min(revenuePercentage, 100)}%;height:100%;"></div>
-                </div>
+            <td style="padding:10px 14px;vertical-align:middle;min-width:140px;">
+                <div style="font-size:14px;font-weight:700;color:#059669;">${formatRupees(empData.revenueAchieved || 0)}</div>
+                <div style="font-size:11px;color:#718096;margin-top:2px;">Achieved</div>
             </td>
             <td style="padding:10px 14px;vertical-align:middle;">
                 <div style="display:flex;gap:6px;">
@@ -206,17 +197,13 @@ async function loadSalesData() {
 
 // Update overall statistics
 function updateOverallStats(stats) {
-    document.getElementById('totalRevenueTarget').textContent = formatRupees(stats.totalRevenueTarget || 0);
     document.getElementById('totalRevenueAchieved').textContent = formatRupees(stats.totalRevenueAchieved || 0);
     document.getElementById('totalSalesTarget').textContent = formatIndianNumber(stats.totalSalesTarget || 0);
     document.getElementById('totalSalesAchieved').textContent = formatIndianNumber(stats.totalSalesAchieved || 0);
     
-    const revenuePercentage = stats.totalRevenueTarget > 0 ? 
-        Math.round((stats.totalRevenueAchieved / stats.totalRevenueTarget) * 100) : 0;
     const salesPercentage = stats.totalSalesTarget > 0 ? 
         Math.round((stats.totalSalesAchieved / stats.totalSalesTarget) * 100) : 0;
     
-    document.getElementById('revenuePercentage').textContent = `${revenuePercentage}% of target`;
     document.getElementById('salesPercentage').textContent = `${salesPercentage}% of target`;
 }
 
@@ -362,13 +349,21 @@ async function recordSales(event) {
 }
 
 // View admissions for an employee
+let _admCurrentEmployeeId = null;
+let _admCurrentEmployeeName = null;
+let _admCurrentMonth = null;
+
 async function viewAdmissions(employeeId, employeeName, month) {
+    _admCurrentEmployeeId = employeeId;
+    _admCurrentEmployeeName = employeeName;
+    _admCurrentMonth = month;
+
     const modal = document.getElementById('admissionsListModal');
     const title = document.getElementById('admListEmployeeName');
     const tbody = document.getElementById('admListBody');
 
     title.textContent = `${employeeName} \u2014 ${formatMonth(month)}`;
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#718096;">Loading\u2026</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#718096;">Loading\u2026</td></tr>';
     modal.style.display = 'flex';
 
     try {
@@ -376,7 +371,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
         const records = await res.json();
 
         if (!records.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
             return;
         }
 
@@ -392,6 +387,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
                 const bg      = typeBg[r.admissionType]    || '#f3f4f6';
                 const clr     = typeColor[r.admissionType]  || '#374151';
                 const rev     = '\u20B9' + (parseFloat(r.revenue) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+                const rid     = String(r._id);
                 return `<tr style="border-top:1px solid #f0f4f8;">
                     <td style="padding:10px 12px;font-size:13px;color:#6b7280;">${i + 1}</td>
                     <td style="padding:10px 12px;font-size:13px;">${dt}</td>
@@ -399,10 +395,33 @@ async function viewAdmissions(employeeId, employeeName, month) {
                     <td style="padding:10px 12px;font-size:12px;color:#718096;">${r.customerPhone || '\u2014'}<br><span style="color:#a0aec0;">${r.customerEmail || ''}</span></td>
                     <td style="padding:10px 12px;"><span style="background:${bg};color:${clr};font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;">${typeLbl}</span></td>
                     <td style="padding:10px 12px;font-weight:700;color:#059669;">${rev}</td>
+                    <td style="padding:10px 12px;">
+                        <button onclick="deleteAdmission('${rid}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
+                            <i class=\"fas fa-trash-alt\"></i> Delete
+                        </button>
+                    </td>
                 </tr>`;
             }).join('');
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+    }
+}
+
+async function deleteAdmission(id) {
+    if (!confirm('Delete this admission? This will also reduce the employee\'s sales count and revenue.')) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/admissions/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showNotification(err.error || 'Failed to delete admission', 'error');
+            return;
+        }
+        cachedSalesData = null;
+        showNotification('Admission deleted', 'success');
+        await viewAdmissions(_admCurrentEmployeeId, _admCurrentEmployeeName, _admCurrentMonth);
+        await loadSalesData();
+    } catch (e) {
+        showNotification('Failed to delete admission', 'error');
     }
 }
 
@@ -487,4 +506,5 @@ window.closeSalesModal = closeSalesModal;
 window.recordSales = recordSales;
 window.loadSalesData = loadSalesData;
 window.viewAdmissions = viewAdmissions;
+window.deleteAdmission = deleteAdmission;
 window.closeAdmissionsListModal = closeAdmissionsListModal;

@@ -681,5 +681,270 @@
 <script src="config.js"></script>
 <script src="auth-guard.js"></script>
 <script src="employee-portal-script.js"></script>
+
+<!-- ══════════════════════════════════════════════
+     CONGRATULATIONS OVERLAY
+══════════════════════════════════════════════ -->
+<style>
+@keyframes congratsSlideUp {
+    0%   { opacity:0; transform:translateY(80px) scale(.85); }
+    60%  { transform:translateY(-12px) scale(1.03); }
+    100% { opacity:1; transform:translateY(0) scale(1); }
+}
+@keyframes congratsGlow {
+    0%,100% { text-shadow:0 0 20px #ffd700,0 0 40px #ffd700,0 0 80px #ff8c00; }
+    50%      { text-shadow:0 0 40px #fff,0 0 80px #ffd700,0 0 120px #ff8c00; }
+}
+@keyframes congratsTrophy {
+    0%,100% { transform:translateY(0) rotate(-5deg) scale(1); }
+    25%      { transform:translateY(-18px) rotate(5deg) scale(1.1); }
+    50%      { transform:translateY(-8px) rotate(-3deg) scale(1.05); }
+    75%      { transform:translateY(-14px) rotate(4deg) scale(1.08); }
+}
+@keyframes congratsStar {
+    0%,100% { opacity:1; transform:scale(1) rotate(0deg); }
+    50%      { opacity:.4; transform:scale(.5) rotate(180deg); }
+}
+@keyframes congratsBarFill {
+    0%   { width:0; }
+    100% { width:100%; }
+}
+@keyframes congratsRipple {
+    0%   { transform:scale(0); opacity:.8; }
+    100% { transform:scale(4); opacity:0; }
+}
+@keyframes congratsFloat {
+    0%,100% { transform:translateY(0); }
+    50%      { transform:translateY(-10px); }
+}
+@keyframes congratsFadeIn {
+    from { opacity:0; }
+    to   { opacity:1; }
+}
+@keyframes congratsCountUp {
+    from { opacity:0; transform:scale(.5); }
+    to   { opacity:1; transform:scale(1); }
+}
+@keyframes congratsShimmer {
+    0%   { background-position:-200% center; }
+    100% { background-position:200% center; }
+}
+@keyframes firework {
+    0%   { transform:translate(0,0); opacity:1; }
+    100% { transform:translate(var(--fx),var(--fy)); opacity:0; }
+}
+
+#congratsOverlay {
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    background:radial-gradient(ellipse at center, rgba(0,0,20,.92) 0%, rgba(0,0,0,.97) 100%);
+    overflow:hidden;
+    animation:congratsFadeIn .4s ease;
+    /* centre the card */
+    align-items:center;
+    justify-content:center;
+}
+#congratsCanvas {
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+}
+.congrats-stars-bg {
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+}
+.congrats-star-dot {
+    position:absolute;
+    border-radius:50%;
+    background:#fff;
+    animation:congratsStar linear infinite;
+}
+#congratsCard {
+    position:relative;
+    z-index:10;
+    width:min(520px,92vw);
+    max-height:90vh;
+    overflow-y:auto;
+    width:min(520px,92vw);
+    background:linear-gradient(160deg,#0d1b2a 0%,#1b2838 40%,#0d1b2a 100%);
+    border:1px solid rgba(255,215,0,.3);
+    border-radius:24px;
+    padding:38px 36px 32px;
+    box-shadow:0 0 60px rgba(255,215,0,.25),0 0 120px rgba(255,140,0,.15),0 30px 80px rgba(0,0,0,.7);
+    text-align:center;
+    animation:congratsSlideUp .7s cubic-bezier(.34,1.56,.64,1) both;
+}
+.congrats-ribbon {
+    position:absolute;
+    top:-1px; left:50%; transform:translateX(-50%);
+    background:linear-gradient(90deg,#b8860b,#ffd700,#ffec8b,#ffd700,#b8860b);
+    background-size:200% auto;
+    animation:congratsShimmer 2s linear infinite;
+    color:#000;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:5px 28px;
+    border-radius:0 0 12px 12px;
+}
+.congrats-trophy {
+    font-size:72px;
+    display:block;
+    animation:congratsTrophy 2s ease-in-out infinite;
+    filter:drop-shadow(0 0 24px rgba(255,215,0,.8));
+    margin:10px 0 4px;
+}
+.congrats-headline {
+    font-size:clamp(22px,5vw,34px);
+    font-weight:900;
+    letter-spacing:2px;
+    color:#ffd700;
+    animation:congratsGlow 2s ease-in-out infinite;
+    margin-bottom:6px;
+    line-height:1.1;
+}
+.congrats-subline {
+    font-size:15px;
+    color:#94a3b8;
+    margin-bottom:18px;
+}
+.congrats-name {
+    font-size:clamp(18px,4vw,26px);
+    font-weight:800;
+    color:#fff;
+    margin-bottom:6px;
+    animation:congratsFloat 3s ease-in-out infinite;
+}
+.congrats-pct-wrap {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    margin-bottom:18px;
+}
+.congrats-pct {
+    font-size:clamp(42px,10vw,64px);
+    font-weight:900;
+    background:linear-gradient(135deg,#ffd700,#ff8c00,#ffd700);
+    background-size:200% auto;
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+    animation:congratsShimmer 1.5s linear infinite, congratsCountUp .8s .5s both;
+    line-height:1;
+}
+.congrats-pct-label {
+    font-size:14px;
+    color:#94a3b8;
+    text-align:left;
+    line-height:1.3;
+}
+.congrats-bar-wrap {
+    background:rgba(255,255,255,.08);
+    border-radius:50px;
+    height:12px;
+    overflow:hidden;
+    margin-bottom:10px;
+    position:relative;
+}
+.congrats-bar-fill {
+    height:100%;
+    border-radius:50px;
+    background:linear-gradient(90deg,#f59e0b,#fbbf24,#fcd34d,#fbbf24);
+    background-size:200% auto;
+    animation:congratsBarFill 1.2s .6s ease-out both, congratsShimmer 2s 1.8s linear infinite;
+    position:relative;
+}
+.congrats-bar-fill::after {
+    content:'';
+    position:absolute;
+    right:0; top:0; bottom:0;
+    width:6px;
+    border-radius:50px;
+    background:#fff;
+    box-shadow:0 0 10px #fff, 0 0 20px #ffd700;
+}
+.congrats-incentive-box {
+    background:linear-gradient(135deg,rgba(255,215,0,.12),rgba(255,140,0,.08));
+    border:1px solid rgba(255,215,0,.25);
+    border-radius:14px;
+    padding:14px 20px;
+    margin:14px 0;
+    animation:congratsFloat 4s 1s ease-in-out infinite;
+}
+.congrats-incentive-label {
+    font-size:12px;
+    color:#94a3b8;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    margin-bottom:4px;
+}
+.congrats-incentive-amount {
+    font-size:28px;
+    font-weight:900;
+    color:#fbbf24;
+    text-shadow:0 0 20px rgba(255,191,36,.5);
+}
+.congrats-message {
+    font-size:14px;
+    color:#64748b;
+    margin:12px 0 20px;
+    line-height:1.5;
+}
+.congrats-btn {
+    display:inline-block;
+    padding:14px 36px;
+    background:linear-gradient(135deg,#f59e0b,#d97706);
+    color:#000;
+    font-size:16px;
+    font-weight:800;
+    border:none;
+    border-radius:50px;
+    cursor:pointer;
+    letter-spacing:.5px;
+    box-shadow:0 4px 24px rgba(245,158,11,.4),0 0 0 0 rgba(245,158,11,.4);
+    transition:transform .2s, box-shadow .2s;
+    animation:congratsFloat 3s 1.5s ease-in-out infinite;
+}
+.congrats-btn:hover {
+    transform:scale(1.06);
+    box-shadow:0 8px 32px rgba(245,158,11,.6);
+}
+.congrats-firework-dot {
+    position:absolute;
+    width:6px; height:6px;
+    border-radius:50%;
+    animation:firework .8s ease-out forwards;
+}
+</style>
+
+<div id="congratsOverlay">
+    <canvas id="congratsCanvas"></canvas>
+    <div class="congrats-stars-bg" id="congratsStarsBg"></div>
+    <div id="congratsCard">
+        <div class="congrats-ribbon">🌟 TARGET ACHIEVED 🌟</div>
+        <span class="congrats-trophy">🏆</span>
+        <div class="congrats-headline">CONGRATULATIONS!</div>
+        <div class="congrats-subline">You crushed it this month!</div>
+        <div class="congrats-name" id="congratsName"></div>
+        <div class="congrats-pct-wrap">
+            <div class="congrats-pct" id="congratsPct">0%</div>
+            <div class="congrats-pct-label">of your<br>target met</div>
+        </div>
+        <div class="congrats-bar-wrap">
+            <div class="congrats-bar-fill" id="congratsBarFill"></div>
+        </div>
+        <div id="congratsIncentiveBox" class="congrats-incentive-box" style="display:none;">
+            <div class="congrats-incentive-label">🎁 Incentive Earned This Month</div>
+            <div class="congrats-incentive-amount" id="congratsIncentiveAmt"></div>
+        </div>
+        <div class="congrats-message" id="congratsMsg"></div>
+        <button class="congrats-btn" onclick="closeCongratsOverlay()">Keep Crushing It! 🎊</button>
+    </div>
+</div>
 </body>
 </html>

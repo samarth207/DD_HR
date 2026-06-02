@@ -396,25 +396,20 @@ async function loadMySales() {
         kpiDiv.innerHTML = `
             <div class="kpi"><div class="kpi-label">This Month Bonus</div><div class="kpi-value" style="color:var(--green);">${fmtRupees(totalBonuses)}</div><div class="kpi-sub">Daily bonuses earned</div></div>
             <div class="kpi"><div class="kpi-label">Total Admissions</div><div class="kpi-value">${totalAdmissions}</div><div class="kpi-sub">This month</div></div>
-            ${revAchieved > 0 ? `<div class="kpi"><div class="kpi-label">Revenue This Month</div><div class="kpi-value" style="color:var(--primary);">${fmtRupees(revAchieved)}</div><div class="kpi-sub">${revTarget > 0 ? `of ${fmtRupees(revTarget)} target` : 'Achieved'}</div></div>` : ''}
+            ${revAchieved > 0 ? `<div class="kpi"><div class="kpi-label">Revenue This Month</div><div class="kpi-value" style="color:var(--primary);">${fmtRupees(revAchieved)}</div><div class="kpi-sub">Achieved</div></div>` : ''}
             ${monthlyIncAmount > 0 ? `<div class="kpi"><div class="kpi-label">Monthly Incentive</div><div class="kpi-value" style="color:var(--amber);">${fmtRupees(monthlyIncAmount)}</div><div class="kpi-sub">${monthlyIncPaid ? '<span class="badge badge-green" style="font-size:10px;">Paid</span>' : '<span class="badge badge-amber" style="font-size:10px;">Pending</span>'}</div></div>` : ''}`;
 
         // Build target card
         const courseRewards = config.courseRewards || {};
         const slabs         = config.slabs         || {};
 
-        // Achievement % for target bar
+        // Achievement % for target bar (admissions only; revenue target removed)
         let achievePct = 0, targetLabel = '', targetValue = '', achievedValue = '';
         if (salesTarget > 0) {
             achievePct    = Math.min(Math.round((salesAchieved / salesTarget) * 100), 200);
             targetLabel   = 'Admissions Target';
             targetValue   = `${salesTarget} admissions`;
             achievedValue = `${salesAchieved} achieved`;
-        } else if (revTarget > 0) {
-            achievePct    = Math.min(Math.round((revAchieved / revTarget) * 100), 200);
-            targetLabel   = 'Revenue Target';
-            targetValue   = fmtRupees(revTarget);
-            achievedValue = `${fmtRupees(revAchieved)} achieved`;
         }
         const barColor = achievePct >= 200 ? '#16a34a' : achievePct >= 150 ? '#059669' : achievePct >= 100 ? '#2563eb' : achievePct >= 50 ? '#d97706' : '#dc2626';
 
@@ -442,11 +437,11 @@ async function loadMySales() {
                         <div style="font-size:12px;font-weight:700;color:${barColor};">${achievePct}% achieved</div>
                         ` : `<div style="font-size:13px;color:var(--muted);">No target set for this month</div>`}
                     </div>
+                    ${revAchieved > 0 ? `
                     <div class="info-block">
                         <div class="info-block-title"><i class="fas fa-coins" style="margin-right:5px;color:var(--primary);"></i>Revenue This Month</div>
                         <div style="font-size:22px;font-weight:800;color:var(--primary);margin-bottom:4px;">${fmtRupees(revAchieved)}</div>
-                        ${revTarget > 0 ? `<div style="font-size:12px;color:var(--muted);">Target: ${fmtRupees(revTarget)}</div>` : '<div style="font-size:12px;color:var(--muted);">No revenue target set</div>'}
-                    </div>
+                    </div>` : ''}
                     <div class="info-block">
                         <div class="info-block-title"><i class="fas fa-graduation-cap" style="margin-right:5px;color:var(--primary);"></i>Today's Per Admission Earnings</div>
                         <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
@@ -479,6 +474,17 @@ async function loadMySales() {
                         </div>
                     </div>
                 </div>`;
+        }
+
+        // 🎉 Show congratulations after every new admission that keeps/pushes target at/above 100%
+        if (achievePct >= 100 && salesTarget > 0) {
+            const countKey = `congrats_count_${month}_${EMP_ID}`;
+            const lastSeen = parseInt(sessionStorage.getItem(countKey) || '0', 10);
+            if (totalAdmissions > lastSeen) {
+                sessionStorage.setItem(countKey, String(totalAdmissions));
+                const empName = document.getElementById('empName')?.textContent?.trim() || 'Superstar';
+                setTimeout(() => showCongratsOverlay(empName, achievePct, monthlyIncAmount), 800);
+            }
         }
 
         // Render admission records table
@@ -1045,4 +1051,166 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadProbationStatus();
     loadSalaryTillDate();
     loadSalaryHistory();
+});
+
+// ══════════════════════════════════════════════
+//  CONGRATULATIONS OVERLAY
+// ══════════════════════════════════════════════
+
+let _congratsConfettiTimer = null;
+
+function showCongratsOverlay(empName, achievePct, incentiveAmount) {
+    const overlay = document.getElementById('congratsOverlay');
+    if (!overlay) return;
+
+    // Populate content
+    document.getElementById('congratsName').textContent = empName;
+    document.getElementById('congratsPct').textContent  = achievePct + '%';
+
+    const msgEl = document.getElementById('congratsMsg');
+    if (achievePct >= 200)
+        msgEl.textContent = 'INCREDIBLE! You\'ve doubled your target — you are unstoppable! 🚀';
+    else if (achievePct >= 150)
+        msgEl.textContent = 'Outstanding! You\'ve gone 50% beyond the target. Pure excellence! 🌟';
+    else
+        msgEl.textContent = 'You\'ve hit 100% and earned your incentive this month. Keep this energy going!';
+
+    const incBox = document.getElementById('congratsIncentiveBox');
+    if (incentiveAmount > 0) {
+        document.getElementById('congratsIncentiveAmt').textContent = fmtRupees(incentiveAmount);
+        incBox.style.display = '';
+    } else {
+        incBox.style.display = 'none';
+    }
+
+    // Stars background
+    const starsBg = document.getElementById('congratsStarsBg');
+    starsBg.innerHTML = '';
+    for (let i = 0; i < 80; i++) {
+        const s = document.createElement('div');
+        s.className = 'congrats-star-dot';
+        const size = Math.random() * 3 + 1;
+        s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;opacity:${Math.random()*.8+.2};animation-duration:${Math.random()*3+1}s;animation-delay:${Math.random()*2}s;`;
+        starsBg.appendChild(s);
+    }
+
+    overlay.style.display = 'flex';
+
+    // Canvas confetti
+    const canvas = document.getElementById('congratsCanvas');
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+
+    const colors = ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#5f27cd','#00d2d3','#ff9f43','#ffd700','#c0392b','#1abc9c'];
+    const shapes = ['rect','circle','triangle'];
+    const particles = [];
+
+    for (let i = 0; i < 200; i++) {
+        particles.push({
+            x:   Math.random() * canvas.width,
+            y:   Math.random() * canvas.height - canvas.height,
+            w:   Math.random() * 12 + 6,
+            h:   Math.random() * 7 + 4,
+            color:    colors[Math.floor(Math.random() * colors.length)],
+            shape:    shapes[Math.floor(Math.random() * shapes.length)],
+            vx:  (Math.random() - .5) * 4,
+            vy:  Math.random() * 4 + 2,
+            rot: Math.random() * 360,
+            rotSpeed: (Math.random() - .5) * 12,
+            wobble: Math.random() * 2,
+            wobbleSpeed: Math.random() * .08 + .04,
+            wobbleAngle: Math.random() * Math.PI * 2,
+        });
+    }
+
+    function drawParticle(p) {
+        ctx.save();
+        ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+        ctx.rotate(p.rot * Math.PI / 180);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, Math.min(1, 1 - (p.y / canvas.height) * .3));
+        if (p.shape === 'circle') {
+            ctx.beginPath();
+            ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (p.shape === 'triangle') {
+            ctx.beginPath();
+            ctx.moveTo(0, -p.h / 2);
+            ctx.lineTo(p.w / 2, p.h / 2);
+            ctx.lineTo(-p.w / 2, p.h / 2);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        }
+        ctx.restore();
+    }
+
+    if (_congratsConfettiTimer) clearInterval(_congratsConfettiTimer);
+    _congratsConfettiTimer = setInterval(() => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const p of particles) {
+            p.wobbleAngle += p.wobbleSpeed;
+            p.x += p.vx + Math.sin(p.wobbleAngle) * p.wobble;
+            p.y += p.vy;
+            p.rot += p.rotSpeed;
+            if (p.y > canvas.height + 20) {
+                p.y = -20;
+                p.x = Math.random() * canvas.width;
+            }
+            drawParticle(p);
+        }
+    }, 16);
+
+    // Fireworks bursts from card corners
+    _launchFireworks(overlay);
+
+    // Auto-close after 12 seconds
+    setTimeout(() => closeCongratsOverlay(), 12000);
+}
+
+function _launchFireworks(container) {
+    const bursts = [
+        { left: '15%', top: '20%' }, { left: '80%', top: '15%' },
+        { left: '10%', top: '70%' }, { left: '85%', top: '75%' },
+        { left: '50%', top: '10%' },
+    ];
+    const fwColors = ['#ffd700','#ff6b6b','#48dbfb','#ff9ff3','#54a0ff','#feca57'];
+
+    bursts.forEach((pos, bi) => {
+        setTimeout(() => {
+            const burst = document.createElement('div');
+            burst.style.cssText = `position:absolute;left:${pos.left};top:${pos.top};pointer-events:none;`;
+            container.appendChild(burst);
+
+            for (let i = 0; i < 16; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'congrats-firework-dot';
+                const angle = (i / 16) * Math.PI * 2;
+                const dist  = 60 + Math.random() * 60;
+                const fx = Math.cos(angle) * dist + 'px';
+                const fy = Math.sin(angle) * dist + 'px';
+                dot.style.cssText = `background:${fwColors[Math.floor(Math.random()*fwColors.length)]};--fx:${fx};--fy:${fy};animation-duration:${.6+Math.random()*.4}s;animation-delay:${Math.random()*.2}s;`;
+                burst.appendChild(dot);
+            }
+
+            setTimeout(() => burst.remove(), 1200);
+        }, bi * 400 + 300);
+    });
+}
+
+function closeCongratsOverlay() {
+    const overlay = document.getElementById('congratsOverlay');
+    if (overlay) {
+        overlay.style.animation = 'congratsFadeIn .3s ease reverse forwards';
+        setTimeout(() => { overlay.style.display = 'none'; overlay.style.animation = ''; }, 300);
+    }
+    if (_congratsConfettiTimer) { clearInterval(_congratsConfettiTimer); _congratsConfettiTimer = null; }
+}
+
+// Close on backdrop click
+document.addEventListener('click', e => {
+    const overlay = document.getElementById('congratsOverlay');
+    if (e.target === overlay) closeCongratsOverlay();
 });

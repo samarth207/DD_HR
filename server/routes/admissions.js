@@ -83,4 +83,36 @@ router.post('/', async (req, res) => {
     }
 });
 
+// DELETE /api/admissions/:id
+router.delete('/:id', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const { ObjectId } = require('mongodb');
+        const db = getDB();
+        const id = req.params.id;
+        if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid admission ID' });
+
+        const admission = await db.collection('admissions').findOne({ _id: new ObjectId(id) });
+        if (!admission) return res.status(404).json({ error: 'Admission not found' });
+
+        await db.collection('admissions').deleteOne({ _id: new ObjectId(id) });
+
+        // Decrement the sales aggregate
+        await db.collection('sales').updateOne(
+            { month: admission.month, employeeId: admission.employeeId },
+            {
+                $inc: {
+                    salesAchieved: -1,
+                    revenueAchieved: -(parseFloat(admission.revenue) || 0)
+                },
+                $set: { updatedAt: new Date() }
+            }
+        );
+
+        res.json({ success: true, message: 'Admission deleted' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

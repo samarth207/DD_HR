@@ -389,10 +389,6 @@ async function loadMonthlyIncentives() {
             <div class="incentive-summary">
                 ${incentive.achievementBasis === 'revenue' ? `
                 <div class="incentive-box">
-                    <label>Revenue Target</label>
-                    <div class="value">${formatRupees(incentive.revenueTarget)}</div>
-                </div>
-                <div class="incentive-box">
                     <label>Revenue Achieved</label>
                     <div class="value">${formatRupees(incentive.revenueAchieved)}</div>
                 </div>
