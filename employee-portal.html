@@ -319,6 +319,104 @@
             .main { padding: 16px 12px; }
         }
 
+        @media(max-width:600px){
+            body { background: #eef2ff; }
+            .topbar {
+                height: auto;
+                padding: 12px 12px 10px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            .topbar-brand { justify-content: space-between; }
+            .topbar-right {
+                width: 100%;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 8px 10px;
+                align-items: center;
+            }
+            .piggy-widget { grid-column: 1 / -1; width: 100%; justify-content: center; padding: 8px 12px; }
+            .piggy-text { min-width: 0; }
+            .piggy-amt { font-size: 13px; }
+            .user-chip {
+                width: 100%;
+                min-width: 0;
+                justify-content: flex-start;
+                padding: 6px 10px 6px 8px;
+            }
+            .user-chip .user-name { font-size: 12px; }
+            .user-chip .user-role { display: none; }
+            .btn-logout {
+                width: auto;
+                min-width: 92px;
+                justify-content: center;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            .nav-bar {
+                padding: 0 10px;
+                gap: 8px;
+                position: sticky;
+                top: 0;
+                z-index: 95;
+                background: var(--surface);
+            }
+            .nav-tab {
+                padding: 12px 14px;
+                font-size: 12px;
+                border-radius: 10px 10px 0 0;
+            }
+            .main { padding: 12px 10px 24px; }
+            .card {
+                padding: 16px;
+                margin-bottom: 14px;
+                border-radius: 16px;
+            }
+            .card-title { margin-bottom: 14px; font-size: 14px; }
+            .kpi-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+            .kpi { padding: 14px; }
+            .kpi-value { font-size: 22px; }
+            .table-wrap { border-radius: 12px; }
+            table { font-size: 12px; }
+            th, td { padding: 10px 8px; }
+            .form-group input,
+            .form-group select,
+            .form-group textarea {
+                font-size: 16px;
+                padding: 12px 12px;
+            }
+            .form-grid { gap: 12px; }
+            .salary-row { font-size: 13px; }
+            .salary-row:last-child { font-size: 14px; }
+            .cal-grid { gap: 4px; }
+            .cal-day { border-radius: 7px; font-size: 12px; }
+            .legend { gap: 10px; }
+            .docs-grid { grid-template-columns: 1fr; }
+            .doc-actions { flex-direction: column; }
+            .doc-actions .btn-doc { width: 100%; justify-content: center; }
+            #leaveForm .btn-primary,
+            #mySalesForm .btn-primary {
+                width: 100%;
+                justify-content: center;
+            }
+            #leaveForm > div:last-child,
+            #mySalesForm > div:last-child {
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+            #salaryMonthFilter {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            #salaryVisibilityBtn,
+            #salaryHistoryVisibilityBtn,
+            #toggleLeavePolicyBtn {
+                width: 100%;
+                margin-left: 0 !important;
+            }
+        }
+
         /* ── Piggy Bank Incentive Widget ── */
         .piggy-widget {
             display: flex; align-items: center; gap: 8px;
@@ -340,6 +438,11 @@
             font-size: 22px; line-height: 1;
             animation: piggyWobble 3s ease-in-out infinite;
             display: inline-block;
+        }
+        .piggy-emoji i {
+            font-size: 20px;
+            color: #b45309;
+            line-height: 1;
         }
         .piggy-widget.piggy-has-amount .piggy-emoji {
             animation: piggyBounce 1.4s ease-in-out infinite;
@@ -400,7 +503,7 @@
     <div class="topbar-right">
         <!-- Piggy Bank Incentive Widget -->
         <div class="piggy-widget piggy-zero" id="piggyWidget" title="Your incentive earned this month">
-            <span class="piggy-emoji">🐷</span>
+            <span class="piggy-emoji"><i class="fas fa-piggy-bank" aria-hidden="true"></i></span>
             <div class="piggy-text">
                 <div class="piggy-lbl">Incentive</div>
                 <div class="piggy-amt" id="piggyAmt">Loading…</div>
@@ -428,14 +531,14 @@
     <button class="nav-tab" onclick="showTab('leaves')" id="tab-leaves">
         <i class="fas fa-calendar-check"></i> My Leaves
     </button>
+    <button class="nav-tab" onclick="showTab('sales')" id="tab-sales">
+        <i class="fas fa-chart-line"></i> My Sales
+    </button>
     <button class="nav-tab" onclick="showTab('documents')" id="tab-documents">
         <i class="fas fa-folder-open"></i> Documents
     </button>
     <button class="nav-tab" onclick="showTab('calendar')" id="tab-calendar">
         <i class="fas fa-calendar-alt"></i> Holiday Calendar
-    </button>
-    <button class="nav-tab" onclick="showTab('sales')" id="tab-sales">
-        <i class="fas fa-chart-line"></i> My Sales
     </button>
     <button class="nav-tab" onclick="showTab('advances')" id="tab-advances">
         <i class="fas fa-hand-holding-usd"></i> Salary Advances
@@ -735,10 +838,12 @@
 
     <!-- ── SALARY BREAKUP ─────────────────────────────────── -->
     <div class="tab-section" id="section-salary">
-        <!-- Salary Till Today Card -->
-        <div class="card" style="display:none;max-width:520px;margin:0 auto 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;">
-            <div class="card-title" style="color:#065f46;"><i class="fas fa-calculator"></i> Salary Till Today</div>
-            <div id="salaryTillDateContent">
+        <div class="card" style="max-width:520px;margin:0 auto 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;color:#065f46;">
+                <span><i class="fas fa-calculator"></i> Salary Till Today</span>
+                <button type="button" id="salaryTillDateVisibilityBtn" class="btn-doc primary" onclick="toggleSalaryTillDateVisibility()">Show Salary</button>
+            </div>
+            <div id="salaryTillDateContent" style="display:none;">
                 <div class="no-data"><div class="spinner"></div></div>
             </div>
         </div>
@@ -754,8 +859,11 @@
             </div>
         </div>
         <div class="card" style="max-width:520px;margin:16px auto 0;">
-            <div class="card-title"><i class="fas fa-history"></i> Salary History</div>
-            <div id="salaryHistoryContent">
+            <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <span><i class="fas fa-history"></i> Salary History</span>
+                <button type="button" id="salaryHistoryVisibilityBtn" class="btn-doc primary" onclick="toggleSalaryHistoryVisibility()">Show History</button>
+            </div>
+            <div id="salaryHistoryContent" style="display:none;">
                 <div class="no-data"><div class="spinner"></div></div>
             </div>
         </div>

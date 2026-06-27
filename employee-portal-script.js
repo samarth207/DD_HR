@@ -94,6 +94,52 @@ function statusBadge(s) {
     return `<span class="badge ${map[s] || 'badge-gray'}">${s}</span>`;
 }
 
+function getCurrentIncentiveSlab(achievementRate) {
+    if (achievementRate >= 200) return 200;
+    if (achievementRate >= 150) return 150;
+    if (achievementRate >= 100) return 100;
+    return 0;
+}
+
+function getMonthEndMotivationData(month, salesTarget, salesAchieved) {
+    if (!salesTarget || salesAchieved >= salesTarget) return null;
+    const today = new Date();
+    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    if (month !== currentMonth) return null;
+
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysRemaining = daysInMonth - today.getDate();
+    if (daysRemaining < 0 || daysRemaining > 5) return null;
+
+    const quotes = [
+        'A strong finish can still change the whole month.',
+        'You are closer than it feels. One more push this week.',
+        'Targets are not over until the month is over. Keep going.',
+        'A focused final stretch can make the difference.'
+    ];
+    const quote = quotes[today.getDate() % quotes.length];
+    const remainingTarget = Math.max(0, salesTarget - salesAchieved);
+    return {
+        daysRemaining,
+        remainingTarget,
+        quote,
+        todayKey: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    };
+}
+
+function maybeShowMonthEndMotivationOverlay(month, empName, achievementPct, salesTarget, salesAchieved) {
+    const motivation = getMonthEndMotivationData(month, salesTarget, salesAchieved);
+    if (!motivation) return;
+
+    const storageKey = `month_end_motivation_${EMP_ID}_${month}_${motivation.todayKey}`;
+    if (localStorage.getItem(storageKey) === 'shown') return;
+
+    localStorage.setItem(storageKey, 'shown');
+    setTimeout(() => {
+        showMonthEndMotivationOverlay(empName, achievementPct, motivation.remainingTarget, motivation.daysRemaining, motivation.quote);
+    }, 800);
+}
+
 function admissionReviewMeta(admission) {
     const parts = [];
     if (Array.isArray(admission.editSummary) && admission.editSummary.length) {
@@ -641,10 +687,18 @@ async function loadMySales() {
 
         // Build slab rows
         const slabThresholds = [100, 150, 200];
+        const currentSlab = getCurrentIncentiveSlab(achievePct);
         const slabRows = slabThresholds
             .filter(t => slabs[t] !== undefined)
-            .map(t => `<tr><td><span class="badge badge-${t >= 200 ? 'green' : t >= 150 ? 'amber' : 'blue'}">${t}%+</span></td><td style="font-weight:700;">${slabs[t]}% of revenue</td></tr>`)
+            .map(t => {
+                const isCurrent = currentSlab === t;
+                return `<tr style="${isCurrent ? 'background:#ecfeff;' : ''}"><td><span class="badge badge-${t >= 200 ? 'green' : t >= 150 ? 'amber' : 'blue'}">${t}%+</span>${isCurrent ? ' <span style="font-size:10px;color:#0f766e;font-weight:700;">Current</span>' : ''}</td><td style="font-weight:700;">${slabs[t]}% of revenue</td></tr>`;
+            })
             .join('');
+        const slabStatusLabel = currentSlab
+            ? `${currentSlab}% slab`
+            : (salesTarget > 0 || revTarget > 0 ? 'Below 100% slab' : 'No active slab');
+        const monthEndMotivation = '';
 
         const targetCard = document.getElementById('salesTargetCard');
         const targetInfo = document.getElementById('salesTargetInfo');
@@ -679,6 +733,7 @@ async function loadMySales() {
                     </div>` : ''}
                     <div class="info-block info-block-wide">
                         <div class="info-block-title"><i class="fas fa-trophy" style="margin-right:5px;color:var(--primary);"></i>Monthly Incentive Slabs</div>
+                        <div style="font-size:12px;font-weight:700;color:${currentSlab ? '#0f766e' : '#b45309'};margin-bottom:10px;">Current position: ${slabStatusLabel}</div>
                         <div style="overflow-x:auto;">
                             <table class="mini-table">
                                 <thead><tr><th>Achievement</th><th>Incentive</th></tr></thead>
@@ -686,6 +741,7 @@ async function loadMySales() {
                             </table>
                         </div>
                         <div style="font-size:11px;color:var(--muted);margin-top:8px;"><i class="fas fa-info-circle"></i> Incentive % is applied on monthly revenue achieved. Eligible when â‰¥ 100% of target is met.</div>
+                        ${monthEndMotivation}
                     </div>
                     ${monthlyIncAmount > 0 ? `
                     <div class="info-block">
@@ -712,6 +768,9 @@ async function loadMySales() {
                 const empName = document.getElementById('empName')?.textContent?.trim() || 'Superstar';
                 setTimeout(() => showCongratsOverlay(empName, achievePct, monthlyIncAmount), 800);
             }
+        } else if (salesTarget > 0) {
+            const empName = document.getElementById('empName')?.textContent?.trim() || 'Superstar';
+            maybeShowMonthEndMotivationOverlay(month, empName, achievePct, salesTarget, salesAchieved);
         }
 
         // Render admission records table
@@ -854,6 +913,8 @@ async function loadMyAdvances() {
 // â”€â”€ Salary Breakup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let isSalaryBreakupVisible = false;
+let isSalaryHistoryVisible = false;
+let isSalaryTillDateVisible = false;
 
 function salaryDisplay(amount) {
     return isSalaryBreakupVisible ? fmtRupees(amount) : '••••';
@@ -864,6 +925,22 @@ function toggleSalaryBreakupVisibility() {
     const btn = document.getElementById('salaryVisibilityBtn');
     if (btn) btn.textContent = isSalaryBreakupVisible ? 'Hide Salary' : 'Show Salary';
     loadSalaryBreakup();
+}
+
+function toggleSalaryHistoryVisibility() {
+    isSalaryHistoryVisible = !isSalaryHistoryVisible;
+    const btn = document.getElementById('salaryHistoryVisibilityBtn');
+    const content = document.getElementById('salaryHistoryContent');
+    if (btn) btn.textContent = isSalaryHistoryVisible ? 'Hide History' : 'Show History';
+    if (content) content.style.display = isSalaryHistoryVisible ? 'block' : 'none';
+}
+
+function toggleSalaryTillDateVisibility() {
+    isSalaryTillDateVisible = !isSalaryTillDateVisible;
+    const btn = document.getElementById('salaryTillDateVisibilityBtn');
+    const content = document.getElementById('salaryTillDateContent');
+    if (btn) btn.textContent = isSalaryTillDateVisible ? 'Hide Salary' : 'Show Salary';
+    if (content) content.style.display = isSalaryTillDateVisible ? 'block' : 'none';
 }
 
 function initSalaryMonths() {
@@ -1381,6 +1458,7 @@ window.submitMySalesRecord = submitMySalesRecord;
 window.toggleLeavePolicy = toggleLeavePolicy;
 window.toggleHalfDaySessionEmp = toggleHalfDaySessionEmp;
 window.toggleSalaryBreakupVisibility = toggleSalaryBreakupVisibility;
+window.toggleSalaryHistoryVisibility = toggleSalaryHistoryVisibility;
 window.openMyDocPicker = openMyDocPicker;
 window.deleteMyDocument = deleteMyDocument;
 
@@ -1476,31 +1554,42 @@ function updatePiggyBank(amount, paid) {
 
 let _congratsConfettiTimer = null;
 
-function showCongratsOverlay(empName, achievePct, incentiveAmount) {
-    const overlay = document.getElementById('congratsOverlay');
-    if (!overlay) return;
-
-    // Populate content
-    document.getElementById('congratsName').textContent = empName;
-    document.getElementById('congratsPct').textContent  = achievePct + '%';
-
-    const msgEl = document.getElementById('congratsMsg');
-    if (achievePct >= 200)
-        msgEl.textContent = 'INCREDIBLE! You\'ve doubled your target — you are unstoppable! 🚀';
-    else if (achievePct >= 150)
-        msgEl.textContent = 'Outstanding! You\'ve gone 50% beyond the target. Pure excellence! 🌟';
-    else
-        msgEl.textContent = 'You\'ve hit 100% and earned your incentive this month. Keep this energy going!';
+function setCongratsOverlayState({
+    ribbon,
+    trophy,
+    headline,
+    subline,
+    name,
+    pct,
+    pctLabelHtml,
+    message,
+    buttonText,
+    barWidth,
+    incentiveAmount = 0,
+    incentiveLabel = '🎁 Incentive Earned This Month'
+}) {
+    document.querySelector('#congratsCard .congrats-ribbon').textContent = ribbon;
+    document.querySelector('#congratsCard .congrats-trophy').textContent = trophy;
+    document.querySelector('#congratsCard .congrats-headline').textContent = headline;
+    document.querySelector('#congratsCard .congrats-subline').textContent = subline;
+    document.getElementById('congratsName').textContent = name;
+    document.getElementById('congratsPct').textContent = pct;
+    document.querySelector('#congratsCard .congrats-pct-label').innerHTML = pctLabelHtml;
+    document.getElementById('congratsMsg').textContent = message;
+    document.querySelector('#congratsCard .congrats-btn').textContent = buttonText;
+    document.getElementById('congratsBarFill').style.width = `${Math.max(0, Math.min(barWidth, 100))}%`;
 
     const incBox = document.getElementById('congratsIncentiveBox');
     if (incentiveAmount > 0) {
+        document.querySelector('#congratsIncentiveBox .congrats-incentive-label').textContent = incentiveLabel;
         document.getElementById('congratsIncentiveAmt').textContent = fmtRupees(incentiveAmount);
         incBox.style.display = '';
     } else {
         incBox.style.display = 'none';
     }
+}
 
-    // Stars background
+function buildCongratsStars() {
     const starsBg = document.getElementById('congratsStarsBg');
     starsBg.innerHTML = '';
     for (let i = 0; i < 80; i++) {
@@ -1510,15 +1599,26 @@ function showCongratsOverlay(empName, achievePct, incentiveAmount) {
         s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;opacity:${Math.random()*.8+.2};animation-duration:${Math.random()*3+1}s;animation-delay:${Math.random()*2}s;`;
         starsBg.appendChild(s);
     }
+}
 
+function openCongratsOverlay({ festive = true } = {}) {
+    const overlay = document.getElementById('congratsOverlay');
+    if (!overlay) return null;
+    buildCongratsStars();
     overlay.style.display = 'flex';
 
-    // Canvas confetti
     const canvas = document.getElementById('congratsCanvas');
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-    const ctx = canvas.getContext('2d');
 
+    if (!festive) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (_congratsConfettiTimer) { clearInterval(_congratsConfettiTimer); _congratsConfettiTimer = null; }
+        return overlay;
+    }
+
+    const ctx = canvas.getContext('2d');
     const colors = ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#5f27cd','#00d2d3','#ff9f43','#ffd700','#c0392b','#1abc9c'];
     const shapes = ['rect','circle','triangle'];
     const particles = [];
@@ -1580,11 +1680,57 @@ function showCongratsOverlay(empName, achievePct, incentiveAmount) {
         }
     }, 16);
 
-    // Fireworks bursts from card corners
     _launchFireworks(overlay);
+    return overlay;
+}
+
+function showCongratsOverlay(empName, achievePct, incentiveAmount) {
+    const overlay = openCongratsOverlay({ festive: true });
+    if (!overlay) return;
+
+    let message;
+    if (achievePct >= 200)
+        message = 'INCREDIBLE! You\'ve doubled your target — you are unstoppable! 🚀';
+    else if (achievePct >= 150)
+        message = 'Outstanding! You\'ve gone 50% beyond the target. Pure excellence! 🌟';
+    else
+        message = 'You\'ve hit 100% and earned your incentive this month. Keep this energy going!';
+
+    setCongratsOverlayState({
+        ribbon: '🌟 TARGET ACHIEVED 🌟',
+        trophy: '🏆',
+        headline: 'CONGRATULATIONS!',
+        subline: 'You crushed it this month!',
+        name: empName,
+        pct: achievePct + '%',
+        pctLabelHtml: 'of your<br>target met',
+        message,
+        buttonText: 'Keep Crushing It! 🎊',
+        barWidth: achievePct,
+        incentiveAmount
+    });
 
     // Auto-close after 12 seconds
     setTimeout(() => closeCongratsOverlay(), 12000);
+}
+
+function showMonthEndMotivationOverlay(empName, achievePct, remainingTarget, daysRemaining, quote) {
+    const overlay = openCongratsOverlay({ festive: false });
+    if (!overlay) return;
+
+    setCongratsOverlayState({
+        ribbon: '⚡ FINAL STRETCH ⚡',
+        trophy: '💪',
+        headline: 'YOU\'RE CLOSE!',
+        subline: `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} left this month`,
+        name: empName,
+        pct: `${Math.max(0, Math.min(Math.round(achievePct), 99))}%`,
+        pctLabelHtml: 'of your<br>target done',
+        message: `You need ${remainingTarget} more admission${remainingTarget !== 1 ? 's' : ''} to hit target. “${quote}”`,
+        buttonText: 'I Got This',
+        barWidth: achievePct,
+        incentiveAmount: 0
+    });
 }
 
 function _launchFireworks(container) {

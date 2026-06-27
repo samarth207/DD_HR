@@ -2,6 +2,7 @@
 let cachedIncentiveConfig = null;
 let cachedIncentiveData = null;
 let cachedSalesData = null;
+let cachedAdmissionsByMonth = {};
 let dbUnavailable = false;
 
 // Check DB status once on load
@@ -44,6 +45,25 @@ async function getSalesData() {
     } catch (error) {
         console.error('Error fetching sales data:', error);
         return cachedSalesData || {};
+    }
+}
+
+async function getApprovedAdmissionsByMonth(month) {
+    if (cachedAdmissionsByMonth[month]) return cachedAdmissionsByMonth[month];
+    try {
+        const response = await fetch(`${API_BASE_URL}/admissions?month=${month}`);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            if (err.dbUnavailable) dbUnavailable = true;
+            throw new Error('Failed to fetch admissions data');
+        }
+        const records = await response.json();
+        const approved = (Array.isArray(records) ? records : []).filter(record => (record.status || 'approved').toLowerCase() === 'approved');
+        cachedAdmissionsByMonth[month] = approved;
+        return approved;
+    } catch (error) {
+        console.error('Error fetching admissions data:', error);
+        return cachedAdmissionsByMonth[month] || [];
     }
 }
 
@@ -225,6 +245,7 @@ async function saveConfiguration(event) {
 async function calculateMonthlyIncentive(employeeId, month) {
     const salesData = await getSalesData();
     const config = await getIncentiveConfig();
+    const approvedAdmissions = await getApprovedAdmissionsByMonth(month);
         
     if (!salesData[month] || !salesData[month][employeeId]) {
         return { eligible: false, amount: 0, percentage: 0, achievementRate: 0 };
@@ -233,9 +254,10 @@ async function calculateMonthlyIncentive(employeeId, month) {
     const empSales = salesData[month][employeeId];
     
     const salesTarget = empSales.salesTarget || 0;
-    const salesAchieved = empSales.salesAchieved || 0;
+    const employeeApprovedAdmissions = approvedAdmissions.filter(admission => admission.employeeId === employeeId || admission.employeeId === String(employeeId));
+    const salesAchieved = employeeApprovedAdmissions.length;
     const revenueTarget = empSales.revenueTarget || 0;
-    const revenueAchieved = empSales.revenueAchieved || 0;
+    const revenueAchieved = employeeApprovedAdmissions.reduce((sum, admission) => sum + (parseFloat(admission.revenue) || 0), 0);
     
     // Determine achievement rate:
     // - If salesTarget is set (>0), use sales count achievement
@@ -346,6 +368,7 @@ async function loadEmployeeFilters() {
 async function loadMonthlyIncentives() {
     const month = document.getElementById('monthlyMonthFilter').value;
     const employeeFilter = document.getElementById('monthlyEmployeeFilter').value;
+    delete cachedAdmissionsByMonth[month];
     const allEmployees = await loadEmployees();
     const employees = allEmployees.filter(e => e.department === 'Sales');
     const container = document.getElementById('monthlyIncentivesContainer');
