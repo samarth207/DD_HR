@@ -123,7 +123,17 @@ router.post('/daily', async (req, res) => {
 router.post('/advance', async (req, res) => {
     try {
         const db = getDB();
-        const advance = req.body;
+        const input = req.body || {};
+        const advance = {
+            ...input,
+            status: 'Outstanding',
+            // Advances are always settled by salary adjustment in this system.
+            repaid: false,
+            repaidDate: null,
+            adjustedInSalary: false,
+            adjustedMonth: null,
+            updatedAt: new Date()
+        };
         
         await db.collection('salary_advances').insertOne(advance);
         res.status(201).json({ success: true, advance });
@@ -137,7 +147,18 @@ router.put('/advance/:id', async (req, res) => {
     try {
         const db = getDB();
         const advanceId = parseInt(req.params.id);
-        const updates = req.body;
+        const updates = { ...(req.body || {}) };
+
+        // Enforce salary-adjustment-only lifecycle for advances.
+        if (updates.adjustedInSalary === true) {
+            updates.status = 'Adjusted in Salary';
+            updates.repaid = true;
+            if (!updates.repaidDate) updates.repaidDate = new Date().toISOString();
+        }
+        if (updates.status && String(updates.status).toLowerCase() === 'repaid') {
+            delete updates.status;
+        }
+        updates.updatedAt = new Date();
         
         const result = await db.collection('salary_advances').updateOne(
             { id: advanceId },

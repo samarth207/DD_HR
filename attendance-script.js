@@ -55,6 +55,11 @@ function isLate(entryTime) {
 
 function getMonthStr(dateStr) { return dateStr.substring(0, 7); }
 
+function isJoinedByDate(employee, dateStr) {
+    if (!employee?.hireDate) return true;
+    return dateStr >= employee.hireDate;
+}
+
 function isWorkFromHomeLeave(leave) {
     return String(leave?.leaveType || '').trim().toLowerCase() === 'work from home';
 }
@@ -190,9 +195,11 @@ function getWorkFromHomeForDate(employeeId, dateStr) {
 // ─── Late / Half-day accounting ────────────────────────────────────────────
 
 function countLateInMonth(employeeId, monthStr) {
+    const employee = getEmployees().find(e => e.id === employeeId);
     let count = 0;
     Object.keys(attendanceData).forEach(dateKey => {
         if (!dateKey.startsWith(monthStr)) return;
+        if (employee && !isJoinedByDate(employee, dateKey)) return;
         const rec = (attendanceData[dateKey] || {})[employeeId];
         if (rec && rec.time && isLate(rec.time)) {
             // Skip days where the employee has a half-day leave —
@@ -252,7 +259,7 @@ async function applyHalfDayDeductions(employeeId, monthStr) {
 
 function renderAttendanceTable() {
     const tbody = document.getElementById('attendanceTableBody');
-    const employees = getEmployees().filter(e => e.status === 'Active');
+    const employees = getEmployees().filter(e => e.status === 'Active' && isJoinedByDate(e, currentDate));
     const monthStr = getMonthStr(currentDate);
     const dayRecs = attendanceData[currentDate] || {};
 
@@ -416,7 +423,7 @@ function setEntryTime(employeeId, time) {
 // ─── Message generation ────────────────────────────────────────────────────
 
 function generateMessage() {
-    const employees = getEmployees().filter(e => e.status === 'Active');
+    const employees = getEmployees().filter(e => e.status === 'Active' && isJoinedByDate(e, currentDate));
     const dayRecs = attendanceData[currentDate] || {};
     const monthStr = getMonthStr(currentDate);
 

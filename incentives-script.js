@@ -926,6 +926,8 @@ async function saveAdvance(event) {
         amount: amount,
         reason: document.getElementById('advanceReason').value,
         status: 'Outstanding',
+        adjustedInSalary: false,
+        adjustedMonth: null,
         addedDate: new Date().toISOString()
     };
     
@@ -950,29 +952,6 @@ async function saveAdvance(event) {
     }
 }
 
-async function markAdvanceRepaid(advanceId, employeeName, amount) {
-    try {
-        // Update in database
-        await fetch(`${API_BASE_URL}/incentives/advance/${advanceId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                status: 'Repaid',
-                repaidDate: new Date().toISOString()
-            })
-        });
-        
-        // Clear cache to force reload
-        cachedIncentiveData = null;
-        
-        showNotification('Advance marked as repaid!', 'success');
-        await loadSalaryAdvances();
-    } catch (error) {
-        console.error('Error marking advance as repaid:', error);
-        showNotification('Failed to mark advance as repaid', 'error');
-    }
-}
-
 async function loadSalaryAdvances() {
     const incentiveData = await getIncentiveData();
     const container = document.getElementById('advancesContainer');
@@ -989,7 +968,7 @@ async function loadSalaryAdvances() {
     
     advances.forEach(advance => {
         totalAdvances += advance.amount;
-        if (advance.status === 'Outstanding') {
+        if (!advance.adjustedInSalary) {
             outstandingAdvances += advance.amount;
         }
         
@@ -1013,8 +992,8 @@ async function loadSalaryAdvances() {
                     <div style="font-size: 13px; color: #2d3748;">${advance.reason}</div>
                 </div>
                 <div style="text-align: center;">
-                    <span class="status-badge ${advance.status.toLowerCase()}">${advance.status}</span>
-                    <div style="font-size: 10px; color: #a0aec0; margin-top: 4px;">Will be deducted</div>
+                    <span class="status-badge ${advance.adjustedInSalary ? 'paid' : 'pending'}">${advance.adjustedInSalary ? 'Adjusted' : 'Pending Adjustment'}</span>
+                    <div style="font-size: 10px; color: #a0aec0; margin-top: 4px;">${advance.adjustedInSalary ? (advance.adjustedMonth ? `Adjusted in ${advance.adjustedMonth}` : 'Adjusted in salary') : 'Will be deducted in salary'}</div>
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 11px; color: #718096; margin-bottom: 2px;">Amount</div>
@@ -1089,13 +1068,36 @@ async function loadSalaryEmployeeFilters() {
     });
 }
 
+function getCycleDayFromHireDate(hireDate) {
+    if (!hireDate) return null;
+    const d = new Date(hireDate + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return null;
+    // Keep cycles stable across months; payroll UI supports 1-28 as safe day range.
+    return Math.min(d.getDate(), 28);
+}
+
+function getSalaryCycleRange(month, hireDate) {
+    const [year, mon] = month.split('-').map(Number);
+    const cycleDay = getCycleDayFromHireDate(hireDate);
+    if (!cycleDay) {
+        const start = new Date(year, mon - 1, 1);
+        const end = new Date(year, mon, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start, end, cycleDay: null };
+    }
+
+    const start = new Date(year, mon - 2, cycleDay);
+    const end = new Date(year, mon - 1, cycleDay - 1);
+    end.setHours(23, 59, 59, 999);
+    return { start, end, cycleDay };
+}
+
 // Only 'Unpaid Leave' type deducts from salary. Paid Leave uses leave balance — no salary impact.
 // Returns number of unpaid leave days for the given month (format "YYYY-MM")
-function getUnpaidLeaveDaysForMonth(employeeId, month) {
-    const [year, mon] = month.split('-').map(Number);
-    const monthStart = new Date(year, mon - 1, 1);
-    const monthEnd = new Date(year, mon, 0); // last day of month
-    monthEnd.setHours(23, 59, 59, 999);
+function getUnpaidLeaveDaysForMonth(employeeId, month, hireDate = null) {
+    const cycle = getSalaryCycleRange(month, hireDate);
+    const monthStart = cycle.start;
+    const monthEnd = cycle.end;
 
     const allLeaves = getLeaves();
     // Only count Unpaid Leave type — Paid Leave has no salary deduction
@@ -1226,7 +1228,7 @@ async function markSalaryPaid(employeeId, employeeName, month, grossSalary, dedu
 }
 
 // Returns number of half-day-equivalent leave days accumulated from late attendance this month
-async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
+async function getHalfDayAttendanceDaysForMonth(employeeId, month, hireDate = null) {
     // Read settings saved by attendance page
     let settings = { officeStartTime: '09:00', lateThresholdMins: 10, lateDaysHalfDay: 3 };
     try {
@@ -1234,11 +1236,23 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
         if (saved) settings = { ...settings, ...JSON.parse(saved) };
     } catch (e) {}
 
-    // Fetch attendance records for the month
+    // Fetch attendance records for the month (and previous month for shifted cycles)
     let docs = [];
     try {
         const res = await fetch(`${API_BASE_URL}/attendance/month/${month}`);
         if (res.ok) docs = await res.json();
+    } catch (e) {}
+
+    const [y, m] = month.split('-').map(Number);
+    const prevMonthKey = m === 1
+        ? `${y - 1}-12`
+        : `${y}-${String(m - 1).padStart(2, '0')}`;
+    try {
+        const prevRes = await fetch(`${API_BASE_URL}/attendance/month/${prevMonthKey}`);
+        if (prevRes.ok) {
+            const prevDocs = await prevRes.json();
+            docs = docs.concat(prevDocs || []);
+        }
     } catch (e) {}
 
     // Also check localStorage
@@ -1250,11 +1264,23 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month) {
                 try { docs.push({ date, records: JSON.parse(localStorage.getItem(k)) }); } catch (e) {}
             }
         });
+    Object.keys(localStorage)
+        .filter(k => k.startsWith(`attendance_${prevMonthKey}`))
+        .forEach(k => {
+            const date = k.replace('attendance_', '');
+            if (!docs.find(d => d.date === date)) {
+                try { docs.push({ date, records: JSON.parse(localStorage.getItem(k)) }); } catch (e) {}
+            }
+        });
+
+    const cycle = getSalaryCycleRange(month, hireDate);
 
     // Count late days for this employee
     const [oh, om] = settings.officeStartTime.split(':').map(Number);
     let lateDays = 0;
     docs.forEach(doc => {
+        const docDate = new Date((doc.date || '') + 'T00:00:00');
+        if (Number.isNaN(docDate.getTime()) || docDate < cycle.start || docDate > cycle.end) return;
         const rec = (doc.records || {})[employeeId];
         if (rec && rec.time) {
             const [eh, em] = rec.time.split(':').map(Number);
@@ -1376,17 +1402,15 @@ async function loadSalaryCrediting() {
         
         const grossSalary = parseFloat(emp.salary) || 0;
         const dailyRate = grossSalary / 30;
+        const cycle = getSalaryCycleRange(month, emp.hireDate);
 
         // Pro-rate salary if employee joined during this month
-        const [pyr, pmo] = month.split('-').map(Number);
-        const monthEndDate = new Date(pyr, pmo, 0); // last day of month
         let effectiveGross = grossSalary;
         let joiningDays = 0;
         if (emp.hireDate) {
             const hireDate = new Date(emp.hireDate + 'T00:00:00');
-            const hireMon = `${hireDate.getFullYear()}-${String(hireDate.getMonth()+1).padStart(2,'0')}`;
-            if (hireMon === month) {
-                joiningDays = Math.floor((monthEndDate - hireDate) / 86400000) + 1;
+            if (hireDate > cycle.start && hireDate <= cycle.end) {
+                joiningDays = Math.floor((cycle.end - hireDate) / 86400000) + 1;
                 effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
             }
         }
@@ -1394,11 +1418,11 @@ async function loadSalaryCrediting() {
         const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id, month);
 
         // Unpaid leave deduction: daily rate × unpaid leave days (1 paid leave/month policy, 30-day basis)
-        const unpaidLeaveDays = getUnpaidLeaveDaysForMonth(emp.id, month);
+        const unpaidLeaveDays = getUnpaidLeaveDaysForMonth(emp.id, month, emp.hireDate);
         const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
 
         // Half-day attendance deduction: each accumulated half-day = 0.5 day × daily rate
-        const halfDayAttDays = await getHalfDayAttendanceDaysForMonth(emp.id, month);
+        const halfDayAttDays = await getHalfDayAttendanceDaysForMonth(emp.id, month, emp.hireDate);
         const halfDayAttDeduction = Math.round(halfDayAttDays * dailyRate * 100) / 100;
         
         // Calculate monthly incentive if sales department
@@ -1458,7 +1482,7 @@ async function loadSalaryCrediting() {
             <div id="${cardId}" style="display:none;margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
                 <div class="incentive-summary">
                     <div class="incentive-box">
-                        <label>${joiningDays > 0 ? `Salary (${joiningDays}d of ${new Date(pyr, pmo-1, 1).toLocaleString('en-IN',{month:'short'})} × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
+                        <label>${joiningDays > 0 ? `Salary (${joiningDays}d in cycle × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
                         <div class="value">${formatRupees(effectiveGross)}${joiningDays > 0 ? `<span style="font-size:11px;color:#6b7280;display:block;">Full: ${formatRupees(grossSalary)}</span>` : ''}</div>
                     </div>
                     ${monthlyIncentive > 0 ? `
@@ -1487,7 +1511,7 @@ async function loadSalaryCrediting() {
                 </div>
                 ${joiningDays > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;">
-                    <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> Joining month: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) × ₹${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
+                    <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> Joined inside cycle: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) × ₹${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
                 </div>` : ''}
                 ${monthlyIncentive > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#f0fff4;border-left:4px solid #38ef7d;border-radius:6px;">

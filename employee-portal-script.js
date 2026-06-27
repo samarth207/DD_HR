@@ -21,7 +21,8 @@ function fmtRupees(n) {
 function dayName(dateStr) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long' });
 }
-function calcDays(start, end) {
+function calcDays(start, end, isHalfDay = false) {
+    if (isHalfDay) return 0.5;
     const s = new Date(start + 'T00:00:00'), e = new Date(end + 'T00:00:00');
     if (isNaN(s) || isNaN(e) || e < s) return 0;
     return Math.floor((e - s) / 86400000) + 1;
@@ -29,12 +30,80 @@ function calcDays(start, end) {
 function monthKey(date = new Date()) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
+function parseDateOnly(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr + 'T00:00:00');
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+function getCycleDayFromHireDate(hireDate) {
+    const hd = parseDateOnly(hireDate);
+    if (!hd) return null;
+    // Keep cycles stable across months; payroll UI supports 1-28 as safe day range.
+    return Math.min(hd.getDate(), 28);
+}
+function getCycleRangeForMonth(month, hireDate) {
+    const [yr, mo] = month.split('-').map(Number);
+    const cycleDay = getCycleDayFromHireDate(hireDate);
+    if (!cycleDay) {
+        const start = new Date(yr, mo - 1, 1);
+        const end = new Date(yr, mo, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start, end, cycleDay: null, label: 'Calendar month' };
+    }
+
+    const start = new Date(yr, mo - 2, cycleDay);
+    const end = new Date(yr, mo - 1, cycleDay - 1);
+    end.setHours(23, 59, 59, 999);
+    return {
+        start,
+        end,
+        cycleDay,
+        label: `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+    };
+}
+// Returns the salary-cycle window that contains dateStr anchored on cycleDay (hire-date day).
+function getCycleWindowForDate(dateStr, cycleDay) {
+    if (!cycleDay) return null;
+    const d = parseDateOnly(dateStr);
+    if (!d) return null;
+    const year = d.getFullYear(), month = d.getMonth(), day = d.getDate();
+    let start, end;
+    if (day >= cycleDay) {
+        start = new Date(year, month, cycleDay);
+        end   = new Date(year, month + 1, cycleDay - 1);
+    } else {
+        start = new Date(year, month - 1, cycleDay);
+        end   = new Date(year, month, cycleDay - 1);
+    }
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+}
+
+function isJoinedByDate(hireDate, dateStr) {
+    if (!hireDate) return true;
+    const hire = parseDateOnly(hireDate);
+    const current = parseDateOnly(dateStr);
+    if (!hire || !current) return true;
+    return current >= hire;
+}
 function statusBadge(s) {
     const map = {
         approved: 'badge-green', rejected: 'badge-red',
         pending: 'badge-amber', cancelled: 'badge-gray'
     };
     return `<span class="badge ${map[s] || 'badge-gray'}">${s}</span>`;
+}
+
+function admissionReviewMeta(admission) {
+    const parts = [];
+    if (Array.isArray(admission.editSummary) && admission.editSummary.length) {
+        parts.push(`Edited by admin: ${admission.editSummary.join(', ')}`);
+    }
+    if (admission.reviewNote) {
+        parts.push(admission.reviewNote);
+    }
+    if (!parts.length) return '';
+    return `<div style="margin-top:6px;font-size:11px;line-height:1.45;color:var(--muted);">${parts.map(p => `<div>${p}</div>`).join('')}</div>`;
 }
 
 async function apiFetch(path, opts = {}) {
@@ -70,6 +139,17 @@ function showTab(name) {
     if (name === 'salary')     { loadSalaryBreakup(); loadSalaryTillDate(); loadSalaryHistory(); }
     if (name === 'attendance') loadMyAttendance();
     if (name === 'leaves')     loadProbationStatus();
+    if (name === 'documents')  loadMyDocuments();
+}
+
+function toggleLeavePolicy() {
+    const content = document.getElementById('leavePolicyContent');
+    const btn = document.getElementById('toggleLeavePolicyBtn');
+    if (!content || !btn) return;
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'flex' : 'none';
+    btn.textContent = isHidden ? 'Hide Policy' : 'Show Policy';
+    btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
 }
 
 // â”€â”€ Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -106,11 +186,6 @@ async function loadOverview() {
         const outstanding = advances.filter(a => !a.repaid).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
         document.getElementById('kpiAdvance').textContent = fmtRupees(outstanding);
 
-        // Net salary (gross minus outstanding advance)
-        const gross = parseFloat(empData.salary) || 0;
-        const net   = Math.max(0, gross - outstanding);
-        document.getElementById('kpiSalary').textContent = fmtRupees(net);
-
         // Recent leaves table
         const recent = [...myLeaves].sort((a, b) => new Date(b.startDate) - new Date(a.startDate)).slice(0, 5);
         const tbody = document.getElementById('recentLeavesBody');
@@ -122,7 +197,7 @@ async function loadOverview() {
                     <td>${l.leaveType || 'â€”'}</td>
                     <td>${fmt(l.startDate)}</td>
                     <td>${fmt(l.endDate)}</td>
-                    <td>${calcDays(l.startDate, l.endDate)}</td>
+                    <td>${calcDays(l.startDate, l.endDate, l.halfDay === true || l.leaveType === 'Half Day')}</td>
                     <td>${statusBadge(l.status)}</td>
                 </tr>`).join('');
         }
@@ -135,12 +210,13 @@ async function loadOverview() {
 
 function calcLeaveDays() {
     const s = document.getElementById('leaveStart').value;
-    const e = document.getElementById('leaveEnd').value;
+    // Employees apply one day at a time — end date always mirrors start date.
+    const endEl = document.getElementById('leaveEnd');
+    if (endEl) endEl.value = s;
     const info = document.getElementById('leaveDayInfo');
-    if (s && e) {
-        const d = calcDays(s, e);
-        if (d <= 0) { info.textContent = 'End date must be after start date.'; return; }
-        info.innerHTML = `<strong>${d}</strong> day${d !== 1 ? 's' : ''} selected`;
+    if (s) {
+        const isHalf = document.getElementById('halfDayCheckEmp')?.checked || false;
+        info.innerHTML = isHalf ? '<strong>0.5</strong> day selected (half day)' : '<strong>1</strong> day selected';
     } else {
         info.textContent = '';
     }
@@ -148,21 +224,36 @@ function calcLeaveDays() {
 
 function updateLeaveBalance() { /* balance is static label */ }
 
+function toggleHalfDaySessionEmp() {
+    const isChecked = document.getElementById('halfDayCheckEmp')?.checked || false;
+    const sessionRow = document.getElementById('halfDaySessionRowEmp');
+    if (sessionRow) sessionRow.style.display = isChecked ? 'block' : 'none';
+    calcLeaveDays();
+}
+
 async function submitLeave(event) {
     event.preventDefault();
     const type  = document.getElementById('leaveType').value;
     const start = document.getElementById('leaveStart').value;
     const end   = document.getElementById('leaveEnd').value;
     const reason = document.getElementById('leaveReason').value;
+    const isHalfDay = document.getElementById('halfDayCheckEmp')?.checked || false;
+    const halfDaySession = isHalfDay ? (document.getElementById('halfDaySessionEmp')?.value || 'First Half') : null;
 
-    if (calcDays(start, end) <= 0) { notify('leaveNotify', 'End date must be on or after start date.', 'error'); return; }
+    // Employees can only apply for a single day at a time.
+    if (!start) { notify('leaveNotify', 'Please select a leave date.', 'error'); return; }
+    if (end && end !== start) { notify('leaveNotify', 'Only single-day leave requests are allowed. Please select one day.', 'error'); return; }
+    // Ensure end is always in sync with start
+    const endEl2 = document.getElementById('leaveEnd');
+    if (endEl2) endEl2.value = start;
+    const syncedEnd = start;
 
     // Overlap check â€” cannot apply on a date that has an existing non-rejected leave
     try {
         const leavesData = await apiFetch('/leaves');
         const myLeaves = (leavesData.leaves || leavesData || []).filter(l => l.employeeId === EMP_ID && l.status !== 'rejected');
         const newStart = new Date(start + 'T00:00:00');
-        const newEnd   = new Date(end   + 'T00:00:00');
+        const newEnd   = new Date(syncedEnd + 'T00:00:00');
         const overlap = myLeaves.find(l => {
             const ls = new Date(l.startDate + 'T00:00:00');
             const le = new Date(l.endDate   + 'T00:00:00');
@@ -185,8 +276,10 @@ async function submitLeave(event) {
             employeeId: EMP_ID,
             employeeName: `${emp.firstName} ${emp.lastName}`,
             leaveType: type,
+            halfDay: isHalfDay,
+            halfDaySession,
             startDate: start,
-            endDate: end,
+            endDate: syncedEnd,
             reason,
             status: 'pending',
             appliedDate: new Date().toISOString(),
@@ -195,12 +288,16 @@ async function submitLeave(event) {
         await apiFetch('/leaves', { method: 'POST', body: JSON.stringify(leaveData) });
         notify('leaveNotify', 'Leave request submitted successfully!');
         document.getElementById('leaveForm').reset();
+        const halfDaySessionRow = document.getElementById('halfDaySessionRowEmp');
+        if (halfDaySessionRow) halfDaySessionRow.style.display = 'none';
         document.getElementById('leaveDayInfo').textContent = '';
         loadLeaveHistory();
         loadOverview();
     } catch (e) {
         if (e && e.probation) {
             notify('leaveNotify', 'You are currently on probation. Only Unpaid Leave or Work From Home is allowed.', 'error');
+        } else if (e && e.paidLeaveLimit) {
+            notify('leaveNotify', e.message || 'Only 1 paid leave is allowed per salary cycle.', 'error');
         } else {
             notify('leaveNotify', e.message || 'Failed to submit leave request.', 'error');
         }
@@ -252,6 +349,112 @@ async function loadLeaveHistory() {
         }).join('');
     } catch {
         tbody.innerHTML = '<tr><td colspan="6" class="no-data">Failed to load leave history</td></tr>';
+    }
+}
+
+// ── Documents ───────────────────────────────────────────────────────────────
+
+let myDocumentTypes = [];
+let myDocumentsByType = {};
+
+function fmtFileSize(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderMyDocuments() {
+    const grid = document.getElementById('myDocsGrid');
+    const summary = document.getElementById('myDocsSummary');
+    if (!grid || !summary) return;
+
+    const uploadedCount = myDocumentTypes.filter(t => myDocumentsByType[t.key]).length;
+    summary.textContent = `${uploadedCount}/${myDocumentTypes.length} document types uploaded`;
+
+    grid.innerHTML = myDocumentTypes.map(t => {
+        const doc = myDocumentsByType[t.key];
+        const meta = doc
+            ? `Uploaded ${fmt(doc.uploadedAt)} • ${fmtFileSize(doc.size)}`
+            : 'Not uploaded yet';
+
+        return `
+            <div class="doc-item">
+                <h4>${t.label}</h4>
+                <div class="doc-meta">${meta}</div>
+                <div class="doc-actions">
+                    ${doc ? `<button type="button" class="btn-doc" onclick="window.open('${doc.url}', '_blank')"><i class="fas fa-eye"></i> View</button>` : ''}
+                    <button type="button" class="btn-doc primary" onclick="openMyDocPicker('${t.key}')">
+                        <i class="fas fa-upload"></i> ${doc ? 'Replace' : 'Upload'}
+                    </button>
+                    ${doc ? `<button type="button" class="btn-doc danger" onclick="deleteMyDocument('${t.key}')"><i class="fas fa-trash"></i> Delete</button>` : ''}
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function openMyDocPicker(docType) {
+    const input = document.getElementById('myDocFileInput');
+    if (!input) return;
+    input.value = '';
+    input.dataset.docType = docType;
+    input.click();
+}
+
+async function uploadMyDocument(file, docType) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('docType', docType);
+
+    const resp = await fetch(`${API}/employees/${EMP_ID}/documents`, {
+        method: 'POST',
+        body: form
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+        const err = new Error(data.error || 'Upload failed');
+        Object.assign(err, data);
+        throw err;
+    }
+    return data;
+}
+
+async function deleteMyDocument(docType) {
+    try {
+        await apiFetch(`/employees/${EMP_ID}/documents/${docType}`, { method: 'DELETE' });
+        notify('documentsNotify', 'Document deleted successfully.');
+        await loadMyDocuments();
+    } catch (e) {
+        notify('documentsNotify', e.message || 'Failed to delete document.', 'error');
+    }
+}
+
+async function loadMyDocuments() {
+    const grid = document.getElementById('myDocsGrid');
+    const summary = document.getElementById('myDocsSummary');
+    if (!grid || !summary) return;
+
+    grid.innerHTML = '<div class="no-data" style="padding:26px 10px;"><div class="spinner"></div></div>';
+    summary.textContent = 'Loading documents...';
+
+    try {
+        const [typesRes, docsRes] = await Promise.all([
+            apiFetch('/employees/document-types'),
+            apiFetch(`/employees/${EMP_ID}/documents`)
+        ]);
+        myDocumentTypes = Array.isArray(typesRes) ? typesRes : [];
+        myDocumentsByType = (docsRes && docsRes.documents) ? docsRes.documents : {};
+
+        if (!myDocumentTypes.length) {
+            grid.innerHTML = '<div class="no-data">No document types configured</div>';
+            summary.textContent = '';
+            return;
+        }
+        renderMyDocuments();
+    } catch (e) {
+        grid.innerHTML = '<div class="no-data">Failed to load documents</div>';
+        summary.textContent = '';
+        notify('documentsNotify', e.message || 'Failed to load documents.', 'error');
     }
 }
 
@@ -363,7 +566,7 @@ async function loadMySales() {
     const month = document.getElementById('salesMonthFilter').value;
     const tbody = document.getElementById('salesHistoryBody');
     const kpiDiv = document.getElementById('salesKPIs');
-    tbody.innerHTML = '<tr><td colspan="6" class="no-data"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
         const [data, config, allSalesData, admissions] = await Promise.all([
@@ -376,16 +579,19 @@ async function loadMySales() {
         const monthBonuses = allBonuses.filter(b => (b.date || '').startsWith(month));
 
         const totalBonuses    = monthBonuses.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
-        // Use admissions count if available, else fall back to daily bonuses count
         const admList = Array.isArray(admissions) ? admissions : [];
-        const totalAdmissions = admList.length || monthBonuses.reduce((s, b) => s + (parseInt(b.salesCount) || 0), 0);
+        const approvedAdmList = admList.filter(a => (a.status || 'approved') === 'approved');
+        const approvedAdmissions = approvedAdmList.length;
+        const pendingAdmissions = admList.filter(a => (a.status || 'pending') === 'pending').length;
+        const totalAdmissions = approvedAdmissions;
 
         // Monthly sales/revenue target from sales tracking
         const empSales      = (allSalesData[month] || {})[EMP_ID] || (allSalesData[month] || {})[String(EMP_ID)] || {};
         const salesTarget   = empSales.salesTarget    || 0;
-        const salesAchieved = empSales.salesAchieved  || 0;
         const revTarget     = empSales.revenueTarget  || 0;
-        const revAchieved   = empSales.revenueAchieved || 0;
+        // Source of truth for achieved values is approved admissions list.
+        const salesAchieved = approvedAdmissions;
+        const revAchieved   = approvedAdmList.reduce((sum, a) => sum + (parseFloat(a.revenue) || 0), 0);
 
         // Monthly incentive — if already PAID use locked DB amount, else always recalculate live
         const monthlyKey     = `${month}_${EMP_ID}`;
@@ -414,7 +620,8 @@ async function loadMySales() {
 
         kpiDiv.innerHTML = `
             <div class="kpi"><div class="kpi-label">This Month Bonus</div><div class="kpi-value" style="color:var(--green);">${fmtRupees(totalBonuses)}</div><div class="kpi-sub">Daily bonuses earned</div></div>
-            <div class="kpi"><div class="kpi-label">Total Admissions</div><div class="kpi-value">${totalAdmissions}</div><div class="kpi-sub">This month</div></div>
+            <div class="kpi"><div class="kpi-label">Approved Admissions</div><div class="kpi-value">${totalAdmissions}</div><div class="kpi-sub">Counted in targets</div></div>
+            ${pendingAdmissions > 0 ? `<div class="kpi"><div class="kpi-label">Pending Review</div><div class="kpi-value" style="color:var(--amber);">${pendingAdmissions}</div><div class="kpi-sub">Waiting for admin approval</div></div>` : ''}
             ${revAchieved > 0 ? `<div class="kpi"><div class="kpi-label">Revenue This Month</div><div class="kpi-value" style="color:var(--primary);">${fmtRupees(revAchieved)}</div><div class="kpi-sub">Achieved</div></div>` : ''}
             ${monthlyIncAmount > 0 ? `<div class="kpi"><div class="kpi-label">Monthly Incentive</div><div class="kpi-value" style="color:var(--amber);">${fmtRupees(monthlyIncAmount)}</div><div class="kpi-sub">${monthlyIncPaid ? '<span class="badge badge-green" style="font-size:10px;">Paid</span>' : '<span class="badge badge-amber" style="font-size:10px;">Pending</span>'}</div></div>` : ''}`;
 
@@ -489,7 +696,7 @@ async function loadMySales() {
                     <div class="info-block">
                         <div class="info-block-title"><i class="fas fa-calendar-check" style="margin-right:5px;color:var(--primary);"></i>This Month Summary</div>
                         <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
-                            <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Total admissions</span> <strong>${totalAdmissions}</strong></div>
+                            <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Approved admissions</span> <strong>${totalAdmissions}</strong></div>
                             <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Daily bonuses earned</span> <strong style="color:#16a34a;">${fmtRupees(totalBonuses)}</strong></div>
                         </div>
                     </div>
@@ -509,7 +716,7 @@ async function loadMySales() {
 
         // Render admission records table
         if (!admList.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="no-data"><i class="fas fa-graduation-cap"></i><br>No admissions recorded for this month</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="no-data"><i class="fas fa-graduation-cap"></i><br>No admissions recorded for this month</td></tr>';
             return;
         }
 
@@ -526,9 +733,66 @@ async function loadMySales() {
                 <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || 'â€”'}</span></td>
                 <td style="color:var(--muted);font-size:12px;">${a.universityName || 'â€“'}</td>
                 <td style="color:var(--green);font-weight:700;">${fmtRupees(a.revenue || 0)}</td>
+                <td>${(a.status || 'approved') === 'approved'
+                    ? '<span class="badge badge-green" style="font-size:10px;">Approved</span>'
+                    : ((a.status || 'pending') === 'rejected'
+                        ? '<span class="badge badge-red" style="font-size:10px;">Rejected</span>'
+                        : '<span class="badge badge-amber" style="font-size:10px;">Pending Review</span>')}
+                    ${admissionReviewMeta(a)}</td>
             </tr>`).join('');
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="no-data">Failed to load sales data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="no-data">Failed to load sales data</td></tr>';
+    }
+}
+
+async function submitMySalesRecord(event) {
+    event.preventDefault();
+    const btn = document.getElementById('mySalesSubmitBtn');
+    const currentMonth = document.getElementById('salesMonthFilter').value;
+    const customerName = document.getElementById('mySalesCustomerName').value.trim();
+    const customerPhone = document.getElementById('mySalesCustomerPhone').value.trim();
+    const customerEmail = document.getElementById('mySalesCustomerEmail').value.trim();
+    const admissionDate = document.getElementById('mySalesDate').value;
+    const admissionType = document.getElementById('mySalesType').value;
+    const revenueRaw = document.getElementById('mySalesRevenue').value;
+    const universityName = document.getElementById('mySalesUniversity').value.trim();
+    const revenue = parseFloat(String(revenueRaw).replace(/[^0-9.]/g, '')) || 0;
+
+    if (!customerName || !customerPhone || !customerEmail || !admissionDate || !admissionType || revenue <= 0) {
+        notify('salesNotify', 'Please fill all required fields with valid values.', 'error');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+
+    try {
+        await apiFetch('/admissions', {
+            method: 'POST',
+            body: JSON.stringify({
+                employeeId: EMP_ID,
+                month: currentMonth,
+                customerName,
+                customerPhone,
+                customerEmail,
+                universityName,
+                admissionDate,
+                admissionType,
+                revenue,
+                status: 'pending',
+                submittedBy: 'employee'
+            })
+        });
+
+        notify('salesNotify', 'Sales record submitted. Waiting for admin approval.');
+        document.getElementById('mySalesForm').reset();
+        document.getElementById('mySalesDate').value = new Date().toISOString().split('T')[0];
+        await loadMySales();
+    } catch (e) {
+        notify('salesNotify', e.message || 'Failed to submit sales record.', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for Approval';
     }
 }
 // â”€â”€ Advances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -536,7 +800,7 @@ async function loadMySales() {
 async function loadMyAdvances() {
     const tbody = document.getElementById('advancesBody');
     const summary = document.getElementById('advancesSummary');
-    tbody.innerHTML = '<tr><td colspan="5" class="no-data"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
         const data = await apiFetch('/incentives/data');
@@ -545,7 +809,7 @@ async function loadMyAdvances() {
             .sort((a, b) => new Date(b.date) - new Date(a.date));
 
         const total      = advances.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-        const outstanding = advances.filter(a => !a.repaid).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
+        const outstanding = advances.filter(a => !a.adjustedInSalary).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
 
         summary.innerHTML = `
             <div style="display:flex;gap:14px;flex-wrap:wrap;">
@@ -561,23 +825,18 @@ async function loadMyAdvances() {
             </div>`;
 
         if (!advances.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="no-data"><i class="fas fa-hand-holding-usd"></i><br>No advances taken</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" class="no-data"><i class="fas fa-hand-holding-usd"></i><br>No advances taken</td></tr>';
             return;
         }
 
         tbody.innerHTML = advances.map(a => {
-            let statusBadge, statusDetail;
+            let statusBadge;
             if (a.adjustedInSalary) {
                 const [yr, mo] = (a.adjustedMonth || '').split('-');
                 const monthLabel = yr && mo ? new Date(parseInt(yr), parseInt(mo) - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : '';
                 statusBadge = `<span class="badge badge-green">Adjusted in Salary${monthLabel ? ' — ' + monthLabel : ''}</span>`;
-                statusDetail = a.repaidDate ? fmt(a.repaidDate) : 'â€"';
-            } else if (a.repaid) {
-                statusBadge = '<span class="badge badge-green">Repaid</span>';
-                statusDetail = a.repaidDate ? fmt(a.repaidDate) : 'â€"';
             } else {
-                statusBadge = '<span class="badge badge-red">Outstanding</span>';
-                statusDetail = 'â€"';
+                statusBadge = '<span class="badge badge-amber">Pending Adjustment</span>';
             }
             return `
             <tr>
@@ -585,15 +844,27 @@ async function loadMyAdvances() {
                 <td style="font-weight:700;">${fmtRupees(a.amount)}</td>
                 <td>${a.reason || 'â€"'}</td>
                 <td>${statusBadge}</td>
-                <td>${statusDetail}</td>
             </tr>`;
         }).join('');
     } catch {
-        tbody.innerHTML = '<tr><td colspan="5" class="no-data">Failed to load advance data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="no-data">Failed to load advance data</td></tr>';
     }
 }
 
 // â”€â”€ Salary Breakup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+let isSalaryBreakupVisible = false;
+
+function salaryDisplay(amount) {
+    return isSalaryBreakupVisible ? fmtRupees(amount) : '••••';
+}
+
+function toggleSalaryBreakupVisibility() {
+    isSalaryBreakupVisible = !isSalaryBreakupVisible;
+    const btn = document.getElementById('salaryVisibilityBtn');
+    if (btn) btn.textContent = isSalaryBreakupVisible ? 'Hide Salary' : 'Show Salary';
+    loadSalaryBreakup();
+}
 
 function initSalaryMonths() {
     const sel = document.getElementById('salaryMonthFilter');
@@ -616,11 +887,17 @@ async function loadSalaryBreakup() {
 
     try {
         await loadAttSettings();
-        const [empData, incData, leavesRaw, attDocs] = await Promise.all([
+        const [py, pm] = month.split('-').map(Number);
+        const prevMonthKey = pm === 1
+            ? `${py - 1}-12`
+            : `${py}-${String(pm - 1).padStart(2, '0')}`;
+
+        const [empData, incData, leavesRaw, attDocs, prevAttDocs] = await Promise.all([
             apiFetch(`/employees/${EMP_ID}`),
             apiFetch('/incentives/data'),
             apiFetch('/leaves'),
-            apiFetch(`/attendance/month/${month}`).catch(() => [])
+            apiFetch(`/attendance/month/${month}`).catch(() => []),
+            apiFetch(`/attendance/month/${prevMonthKey}`).catch(() => [])
         ]);
 
         const payKey = `${month}_${EMP_ID}`;
@@ -633,17 +910,16 @@ async function loadSalaryBreakup() {
             : parseFloat(empData.salary) || 0;
         const dailyRate = gross / 30;
 
-        // â"€â"€ Pro-rate if joining month â"€â"€
-        const [yr, mo]  = month.split('-').map(Number);
-        const monthStart = new Date(yr, mo - 1, 1);
-        const monthEnd   = new Date(yr, mo, 0); monthEnd.setHours(23, 59, 59, 999);
+        // â"€â"€ Pro-rate if joining inside selected salary cycle â"€â"€
+        const cycle = getCycleRangeForMonth(month, empData.hireDate);
+        const cycleStart = cycle.start;
+        const cycleEnd = cycle.end;
         let effectiveGross = gross;
         let joiningDays = 0;
         if (empData.hireDate) {
             const hd = new Date(empData.hireDate + 'T00:00:00');
-            const hdMon = `${hd.getFullYear()}-${String(hd.getMonth()+1).padStart(2,'0')}`;
-            if (hdMon === month) {
-                joiningDays = Math.floor((monthEnd - hd) / 86400000) + 1;
+            if (hd > cycleStart && hd <= cycleEnd) {
+                joiningDays = Math.floor((cycleEnd - hd) / 86400000) + 1;
                 effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
             }
         }
@@ -656,14 +932,14 @@ async function loadSalaryBreakup() {
             );
         let totalLeaveDays = 0;
         for (const leave of myUnpaidLeaves) {
-            if (leave.halfDay === true) {
+            if (leave.halfDay === true || leave.leaveType === 'Half Day') {
                 const ls = new Date(leave.startDate + 'T00:00:00');
-                if (ls >= monthStart && ls <= monthEnd) totalLeaveDays += 0.5;
+                if (ls >= cycleStart && ls <= cycleEnd) totalLeaveDays += 0.5;
             } else {
                 const ls = new Date(leave.startDate + 'T00:00:00');
                 const le = new Date(leave.endDate   + 'T00:00:00');
-                const os = ls < monthStart ? monthStart : ls;
-                const oe = le > monthEnd   ? monthEnd   : le;
+                const os = ls < cycleStart ? cycleStart : ls;
+                const oe = le > cycleEnd   ? cycleEnd   : le;
                 if (os <= oe) {
                     totalLeaveDays += Math.round((oe - os) / 86400000) + 1;
                     // Sandwich Sundays on this leave are also unpaid (they follow Monday's type)
@@ -676,7 +952,10 @@ async function loadSalaryBreakup() {
 
         // â”€â”€ Late half-day attendance deduction â”€â”€
         let lateCount = 0;
-        (attDocs || []).forEach(doc => {
+        const allAttDocs = [...(attDocs || []), ...(prevAttDocs || [])];
+        allAttDocs.forEach(doc => {
+            const docDate = new Date((doc.date || '') + 'T00:00:00');
+            if (Number.isNaN(docDate.getTime()) || docDate < cycleStart || docDate > cycleEnd) return;
             const rec = (doc.records || {})[EMP_ID] || (doc.records || {})[String(EMP_ID)];
             if (rec && rec.time && isLateEntry(rec.time)) lateCount++;
         });
@@ -741,43 +1020,44 @@ async function loadSalaryBreakup() {
         content.innerHTML = `
             ${paidBadge}
             ${salaryDayInfo}
+            ${cycle.cycleDay ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px;"><i class="fas fa-repeat"></i> Salary cycle: <strong>${cycle.label}</strong></div>` : ''}
             ${joiningDays > 0 ? `
             <div style="margin-bottom:12px;padding:10px 14px;background:#1e3a5f;border-left:4px solid #3b82f6;border-radius:10px;font-size:12px;color:#93c5fd;">
-                <i class="fas fa-user-plus"></i> <strong>Joining month:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked \u00d7 \u20b9${Math.round(dailyRate)}/day = ${fmtRupees(effectiveGross)}
+                <i class="fas fa-user-plus"></i> <strong>Joining month:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked x INR ${Math.round(dailyRate)}/day = ${salaryDisplay(effectiveGross)}
             </div>` : ''}
             <div class="salary-row earning">
-                <span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:6px;"></i>${joiningDays > 0 ? `Salary (${joiningDays}d of ${new Date(yr, mo-1, 1).toLocaleString('en-IN',{month:'short'})})` : 'Gross Salary'}</span>
-                <span class="amount">${fmtRupees(effectiveGross)}</span>
+                <span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:6px;"></i>${joiningDays > 0 ? `Salary (${joiningDays}d in cycle)` : 'Gross Salary'}</span>
+                <span class="amount">${salaryDisplay(effectiveGross)}</span>
             </div>
             ${incentive > 0 ? `
             <div class="salary-row earning">
                 <span class="label"><i class="fas fa-star" style="color:var(--amber);margin-right:6px;"></i>Monthly Incentive</span>
-                <span class="amount">${fmtRupees(incentive)}</span>
+                <span class="amount">${salaryDisplay(incentive)}</span>
             </div>` : ''}
             ${bonusTotal > 0 ? `
             <div class="salary-row earning">
                 <span class="label"><i class="fas fa-gift" style="color:var(--green);margin-right:6px;"></i>Daily Bonuses</span>
-                <span class="amount">${fmtRupees(bonusTotal)}</span>
+                <span class="amount">${salaryDisplay(bonusTotal)}</span>
             </div>` : ''}
             ${unpaidLeaveDeduction > 0 ? `
             <div class="salary-row deduction">
                 <span class="label"><i class="fas fa-calendar-times" style="color:var(--red);margin-right:6px;"></i>Unpaid Leave (${unpaidLeaveDays}d × ₹${Math.round(dailyRate)})</span>
-                <span class="amount">- ${fmtRupees(unpaidLeaveDeduction)}</span>
+                <span class="amount">- ${salaryDisplay(unpaidLeaveDeduction)}</span>
             </div>` : ''}
             ${halfDayAttDeduction > 0 ? `
             <div class="salary-row deduction">
                 <span class="label"><i class="fas fa-adjust" style="color:var(--amber);margin-right:6px;"></i>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</span>
-                <span class="amount">- ${fmtRupees(halfDayAttDeduction)}</span>
+                <span class="amount">- ${salaryDisplay(halfDayAttDeduction)}</span>
             </div>` : ''}
             ${advanceDeduction > 0 ? `
             <div class="salary-row deduction">
                 <span class="label"><i class="fas fa-minus-circle" style="color:var(--red);margin-right:6px;"></i>Outstanding Advance</span>
-                <span class="amount">- ${fmtRupees(advanceDeduction)}</span>
+                <span class="amount">- ${salaryDisplay(advanceDeduction)}</span>
             </div>` : ''}
             <div style="border-top:2px solid var(--border);margin:8px 0;"></div>
             <div class="salary-row net">
                 <span class="label" style="color:var(--text);font-weight:700;">Net Payable</span>
-                <span class="amount">${fmtRupees(net)}</span>
+                <span class="amount">${salaryDisplay(net)}</span>
             </div>
             ${unpaidLeaveDays > 0 || halfDayAttDays > 0 ? `
             <div style="margin-top:14px;padding:12px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:12px;color:#c2410c;line-height:1.7;">
@@ -925,9 +1205,10 @@ async function loadMyAttendance() {
     tbody.innerHTML = '<tr><td colspan="5" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
-        const [docs, leavesData] = await Promise.all([
+        const [docs, leavesData, profile] = await Promise.all([
             apiFetch(`/attendance/month/${month}`),
-            apiFetch('/leaves')
+            apiFetch('/leaves'),
+            apiFetch(`/employees/${EMP_ID}`).catch(() => null)
         ]);
 
         const attMap = {};
@@ -950,6 +1231,7 @@ async function loadMyAttendance() {
             const dateStr  = `${month}-${String(d).padStart(2,'0')}`;
             const thisDate = new Date(dateStr + 'T00:00:00');
             if (thisDate > today) continue;
+            if (!isJoinedByDate(profile?.hireDate, dateStr)) continue;
             if (thisDate.getDay() === 0) continue; // skip Sundays
 
             const dayLabel = thisDate.toLocaleDateString('en-IN', { weekday: 'short' });
@@ -1073,7 +1355,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadSalaryTillDate();
     loadSalaryHistory();
     loadNavIncentive();  // piggy bank widget
+
+    const docsInput = document.getElementById('myDocFileInput');
+    if (docsInput) {
+        docsInput.addEventListener('change', async (event) => {
+            const file = event.target.files && event.target.files[0];
+            const docType = event.target.dataset.docType;
+            if (!file || !docType) return;
+            try {
+                notify('documentsNotify', 'Uploading document...');
+                await uploadMyDocument(file, docType);
+                notify('documentsNotify', 'Document uploaded successfully.');
+                await loadMyDocuments();
+            } catch (e) {
+                notify('documentsNotify', e.message || 'Failed to upload document.', 'error');
+            }
+        });
+    }
+
+    const salesDateInput = document.getElementById('mySalesDate');
+    if (salesDateInput) salesDateInput.value = new Date().toISOString().split('T')[0];
 });
+
+window.submitMySalesRecord = submitMySalesRecord;
+window.toggleLeavePolicy = toggleLeavePolicy;
+window.toggleHalfDaySessionEmp = toggleHalfDaySessionEmp;
+window.toggleSalaryBreakupVisibility = toggleSalaryBreakupVisibility;
+window.openMyDocPicker = openMyDocPicker;
+window.deleteMyDocument = deleteMyDocument;
 
 // ══════════════════════════════════════════════
 //  CONGRATULATIONS OVERLAY
@@ -1084,10 +1393,11 @@ async function loadNavIncentive() {
     try {
         const now   = new Date();
         const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-        const [data, config, salesData] = await Promise.all([
+        const [data, config, salesData, admissions] = await Promise.all([
             apiFetch('/incentives/data').catch(() => null),
             apiFetch('/incentives/config').catch(() => ({})),
-            apiFetch('/sales').catch(() => ({}))
+            apiFetch('/sales').catch(() => ({})),
+            apiFetch(`/admissions?employeeId=${EMP_ID}&month=${month}`).catch(() => [])
         ]);
         if (!data) return;
 
@@ -1103,9 +1413,11 @@ async function loadNavIncentive() {
             // Not paid — recalculate live from slabs so deletions are reflected
             const empSales      = (salesData[month] || {})[EMP_ID] || (salesData[month] || {})[String(EMP_ID)] || {};
             const salesTarget   = empSales.salesTarget   || 0;
-            const salesAchieved = empSales.salesAchieved || 0;
             const revTarget     = empSales.revenueTarget || 0;
-            const revAchieved   = empSales.revenueAchieved || 0;
+            const approvedAdmissions = (Array.isArray(admissions) ? admissions : [])
+                .filter(a => (a.status || 'approved') === 'approved');
+            const salesAchieved = approvedAdmissions.length;
+            const revAchieved   = approvedAdmissions.reduce((sum, a) => sum + (parseFloat(a.revenue) || 0), 0);
             let achievementRate = 0;
             if (salesTarget > 0)    achievementRate = salesAchieved / salesTarget * 100;
             else if (revTarget > 0) achievementRate = revAchieved   / revTarget   * 100;

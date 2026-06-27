@@ -99,6 +99,52 @@ function getPaidLeaveBalance(employee) {
     return legacyTotal || DEFAULT_PAID_LEAVE;
 }
 
+// Returns the salary-cycle window that contains dateStr, anchored on cycleDay (hire-date day).
+function getCycleWindowForDate(dateStr, cycleDay) {
+    const d = parseDate(dateStr);
+    if (!d || !cycleDay) return null;
+    const year = d.getFullYear(), month = d.getMonth(), day = d.getDate();
+    let start, end;
+    if (day >= cycleDay) {
+        start = new Date(year, month, cycleDay);
+        end   = new Date(year, month + 1, cycleDay - 1);
+    } else {
+        start = new Date(year, month - 1, cycleDay);
+        end   = new Date(year, month, cycleDay - 1);
+    }
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+}
+
+// Enforces the 1-paid-leave-per-cycle rule.
+// excludeLeaveId – set to the current leave id when updating so self is not counted.
+async function checkOnePaidLeavePerCycle(db, employeeId, leaveStartDate, excludeLeaveId) {
+    const employee = await db.collection('employees').findOne({ id: employeeId });
+    if (!employee || !employee.hireDate) return { ok: true };
+    const hireDay = Math.min(new Date(employee.hireDate + 'T00:00:00').getDate(), 28);
+    const cycle = getCycleWindowForDate(leaveStartDate, hireDay);
+    if (!cycle) return { ok: true };
+    const cycleStartStr = toDateStr(cycle.start);
+    const cycleEndStr   = toDateStr(cycle.end);
+    const query = {
+        employeeId,
+        status: { $ne: 'rejected' },
+        leaveType: { $nin: Array.from(UNPAID_LEAVE_TYPES) },
+        startDate: { $lte: cycleEndStr },
+        endDate:   { $gte: cycleStartStr }
+    };
+    if (excludeLeaveId) query.id = { $ne: excludeLeaveId };
+    const existing = await db.collection('leaves').findOne(query);
+    if (existing) {
+        return {
+            ok: false,
+            message: `Only 1 paid leave is allowed per salary cycle (${cycleStartStr} to ${cycleEndStr}). A paid leave already exists from ${existing.startDate} to ${existing.endDate} in this cycle.`,
+            paidLeaveLimit: true
+        };
+    }
+    return { ok: true };
+}
+
 async function enforceNoHolidayInRange(db, startDate, endDate) {
     const start = parseDate(startDate);
     const end = parseDate(endDate);
@@ -210,6 +256,14 @@ router.post('/', async (req, res) => {
             }
         }
 
+        // One paid leave per salary cycle
+        if (isPaidType && leave.leaveType !== 'Work From Home' && leave.status !== 'rejected') {
+            const cycleCheck = await checkOnePaidLeavePerCycle(db, leave.employeeId, leave.startDate, null);
+            if (!cycleCheck.ok) {
+                return res.status(400).json({ error: cycleCheck.message, paidLeaveLimit: true });
+            }
+        }
+
         // Sandwich leave rule: if Sat+Mon leaves exist, Sunday is counted
         // sandwichDays = total (for display); paidSandwichDays = only those whose Monday is paid (for balance)
         const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
@@ -263,6 +317,14 @@ router.put('/:id', async (req, res) => {
                     error: 'Employee is currently on probation. Paid leave is not allowed during the probation period.',
                     probation: true
                 });
+            }
+        }
+
+        // One paid leave per salary cycle (skip when rejecting/deleting)
+        if (newIsPaidType && nextLeave.leaveType !== 'Work From Home' && nextLeave.status !== 'rejected') {
+            const cycleCheck = await checkOnePaidLeavePerCycle(db, nextLeave.employeeId, nextLeave.startDate, leaveId);
+            if (!cycleCheck.ok) {
+                return res.status(400).json({ error: cycleCheck.message, paidLeaveLimit: true });
             }
         }
 

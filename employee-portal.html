@@ -467,11 +467,6 @@
                 <div class="kpi-value" id="kpiAdvance">—</div>
                 <div class="kpi-sub">To be deducted</div>
             </div>
-            <div class="kpi">
-                <div class="kpi-label">Net Salary</div>
-                <div class="kpi-value" id="kpiSalary">—</div>
-                <div class="kpi-sub">This month (est.)</div>
-            </div>
         </div>
 
         <div class="card">
@@ -500,10 +495,13 @@
             </div>
         </div>
 
-        <!-- Leave Policy Info -->
+        <!-- Leave Policy Info (hidden by default) -->
         <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;margin-bottom:16px;">
-            <div class="card-title" style="color:#065f46;"><i class="fas fa-info-circle"></i> Leave Policy</div>
-            <div style="font-size:13px;color:#064e3b;line-height:1.7;display:flex;flex-direction:column;gap:8px;">
+            <div class="card-title" style="color:#065f46;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <span><i class="fas fa-info-circle"></i> Leave Policy</span>
+                <button type="button" id="toggleLeavePolicyBtn" class="btn-doc primary" onclick="toggleLeavePolicy()" aria-expanded="false" aria-controls="leavePolicyContent">Show Policy</button>
+            </div>
+            <div id="leavePolicyContent" style="display:none;font-size:13px;color:#064e3b;line-height:1.7;flex-direction:column;gap:8px;">
                 <div style="display:flex;align-items:flex-start;gap:10px;">
                     <i class="fas fa-sandwich" style="color:#7c3aed;margin-top:3px;"></i>
                     <div><strong style="color:#4c1d95;">Sandwich Leave Rule:</strong> If you take leave on a <strong>Saturday</strong> and the following <strong>Monday</strong>, the <strong>Sunday</strong> in between will automatically be counted as a leave day. Plan your leaves accordingly.</div>
@@ -511,6 +509,10 @@
                 <div style="display:flex;align-items:flex-start;gap:10px;">
                     <i class="fas fa-calendar-check" style="color:#2563eb;margin-top:3px;"></i>
                     <div><strong style="color:#1e3a8a;">Half-day leave</strong> counts as 0.5 days from your balance.</div>
+                </div>
+                <div style="display:flex;align-items:flex-start;gap:10px;">
+                    <i class="fas fa-award" style="color:#7c3aed;margin-top:3px;"></i>
+                    <div><strong style="color:#4c1d95;">Paid Leave limit:</strong> Only <strong>1 paid leave</strong> is allowed per salary cycle. Your cycle runs from the <strong>same day as your joining date</strong> each month.</div>
                 </div>
                 <div style="display:flex;align-items:flex-start;gap:10px;">
                     <i class="fas fa-ban" style="color:#dc2626;margin-top:3px;"></i>
@@ -531,14 +533,12 @@
                             <option value="Work From Home">Work From Home</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Start Date *</label>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Leave Date *</label>
                         <input type="date" id="leaveStart" required onchange="calcLeaveDays()">
                     </div>
-                    <div class="form-group">
-                        <label>End Date *</label>
-                        <input type="date" id="leaveEnd" required onchange="calcLeaveDays()">
-                    </div>
+                    <!-- End date is always the same as start date for employees (single-day policy) -->
+                    <input type="hidden" id="leaveEnd">
                     <div class="form-group" style="grid-column:1/-1;">
                         <label style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;">
                             <input type="checkbox" id="halfDayCheckEmp" onchange="toggleHalfDaySessionEmp()" style="width:16px;height:16px;accent-color:#4338ca;cursor:pointer;">
@@ -627,6 +627,51 @@
         <div id="salesNotify"></div>
         <div class="kpi-grid" id="salesKPIs"></div>
 
+        <div class="card">
+            <div class="card-title"><i class="fas fa-plus-circle"></i> Submit Sales Record</div>
+            <form id="mySalesForm" onsubmit="submitMySalesRecord(event)">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Customer Name</label>
+                        <input id="mySalesCustomerName" required placeholder="Full name" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Phone Number</label>
+                        <input id="mySalesCustomerPhone" required placeholder="e.g., 9876543210" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Email</label>
+                        <input id="mySalesCustomerEmail" type="email" required placeholder="customer@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Admission Date</label>
+                        <input id="mySalesDate" type="date" required style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Type</label>
+                        <select id="mySalesType" required style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                            <option value="">Select type...</option>
+                            <option value="one-time">One-Time</option>
+                            <option value="semester">Semester</option>
+                            <option value="annual">Annual</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Revenue (₹)</label>
+                        <input id="mySalesRevenue" required inputmode="numeric" placeholder="e.g., 25000" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div style="grid-column:1 / -1;">
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">University / Institute</label>
+                        <input id="mySalesUniversity" placeholder="e.g., Delhi University" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap;">
+                    <small style="color:var(--muted);"><i class="fas fa-info-circle"></i> Your submission is marked as <strong>Pending</strong> until admin approves it.</small>
+                    <button id="mySalesSubmitBtn" type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit for Approval</button>
+                </div>
+            </form>
+        </div>
+
         <div class="card" id="salesTargetCard" style="display:none;">
             <div class="card-title"><i class="fas fa-bullseye"></i> Sales Target &amp; Incentives</div>
             <div id="salesTargetInfo"></div>
@@ -639,9 +684,9 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Date</th><th>Customer Name</th><th>Phone</th><th>Email</th><th>Type</th><th>University</th><th>Revenue</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Customer Name</th><th>Phone</th><th>Email</th><th>Type</th><th>University</th><th>Revenue</th><th>Status</th></tr></thead>
                     <tbody id="salesHistoryBody">
-                        <tr><td colspan="6" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                        <tr><td colspan="8" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -655,9 +700,9 @@
             <div id="advancesSummary" style="margin-bottom:18px;"></div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Date</th><th>Amount</th><th>Reason</th><th>Status</th><th>Repaid</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Amount</th><th>Reason</th><th>Status</th></tr></thead>
                     <tbody id="advancesBody">
-                        <tr><td colspan="5" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                        <tr><td colspan="4" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -691,7 +736,7 @@
     <!-- ── SALARY BREAKUP ─────────────────────────────────── -->
     <div class="tab-section" id="section-salary">
         <!-- Salary Till Today Card -->
-        <div class="card" style="max-width:520px;margin:0 auto 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;">
+        <div class="card" style="display:none;max-width:520px;margin:0 auto 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;">
             <div class="card-title" style="color:#065f46;"><i class="fas fa-calculator"></i> Salary Till Today</div>
             <div id="salaryTillDateContent">
                 <div class="no-data"><div class="spinner"></div></div>
@@ -702,6 +747,7 @@
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
                 <label style="font-size:13px;color:var(--muted);font-weight:600;">Month:</label>
                 <select id="salaryMonthFilter" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;" onchange="loadSalaryBreakup()"></select>
+                <button type="button" id="salaryVisibilityBtn" class="btn-doc primary" onclick="toggleSalaryBreakupVisibility()" style="margin-left:auto;">Show Salary</button>
             </div>
             <div id="salaryBreakupContent">
                 <div class="no-data"><div class="spinner"></div></div>

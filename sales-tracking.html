@@ -602,7 +602,7 @@
 
     <!-- Admissions List Modal -->
     <div id="admissionsListModal" class="modal" style="display:none;">
-        <div class="modal-content" style="max-width:780px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div class="modal-content" style="max-width:1180px;width:min(1180px,96vw);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
             <div class="modal-header" style="background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%);">
                 <div>
                     <h2 style="margin:0;font-size:20px;">Admission Records</h2>
@@ -622,6 +622,7 @@
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Type</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">University</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Revenue</th>
+                                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Status</th>
                                 <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.5px;">Action</th>
                             </tr>
                         </thead>
@@ -632,6 +633,67 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeAdmissionsListModal()">Close</button>
             </div>
+        </div>
+    </div>
+
+    <div id="editAdmissionModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width:760px;width:min(760px,94vw);">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin:0;font-size:22px;">Edit Lead Details</h2>
+                    <p id="editAdmissionSubtitle" style="margin:4px 0 0;font-size:13px;opacity:.85;"></p>
+                </div>
+                <button class="close-btn" onclick="closeEditAdmissionModal()">&times;</button>
+            </div>
+            <form id="editAdmissionForm" onsubmit="saveAdmissionEdits(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editAdmCustomerName">Customer Name *</label>
+                        <input type="text" id="editAdmCustomerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAdmCustomerPhone">Phone Number</label>
+                        <input type="tel" id="editAdmCustomerPhone">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editAdmCustomerEmail">Email</label>
+                        <input type="email" id="editAdmCustomerEmail">
+                    </div>
+                    <div class="form-group">
+                        <label for="editAdmDate">Admission Date *</label>
+                        <input type="date" id="editAdmDate" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editAdmType">Type *</label>
+                        <select id="editAdmType" required>
+                            <option value="one-time">One-Time</option>
+                            <option value="semester">Semester</option>
+                            <option value="annual">Annual</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAdmRevenue">Revenue (₹) *</label>
+                        <input type="text" id="editAdmRevenue" inputmode="numeric" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editAdmUniversity">University / Institute</label>
+                    <input type="text" id="editAdmUniversity">
+                </div>
+                <div class="form-group">
+                    <label for="editAdmReviewNote">Review Note</label>
+                    <textarea id="editAdmReviewNote" rows="3" placeholder="Optional note visible to the employee, e.g. corrected phone and revenue after review"></textarea>
+                </div>
+                <input type="hidden" id="editAdmissionId">
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditAdmissionModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 

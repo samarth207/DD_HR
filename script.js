@@ -138,8 +138,10 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
         
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'API request failed');
+            const errorBody = await response.json();
+            const err = new Error(errorBody.error || 'API request failed');
+            Object.assign(err, errorBody); // preserve probation, paidLeaveLimit, etc.
+            throw err;
         }
         
         return await response.json();

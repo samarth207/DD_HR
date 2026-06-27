@@ -106,6 +106,11 @@ async function loadSalesData() {
     const selectedMonth = monthSelect.value;
     const salesData = await getSalesData();
     const monthData = salesData[selectedMonth] || {};
+    const allAdmissions = await fetch(`${API_BASE_URL}/admissions?month=${selectedMonth}`)
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => []);
+    const pendingAdmissions = allAdmissions.filter(a => (a.status || '').toLowerCase() === 'pending');
+    const approvedAdmissions = allAdmissions.filter(a => (a.status || 'approved').toLowerCase() === 'approved');
     
     const salesEmployees = await getSalesEmployees();
     
@@ -132,11 +137,17 @@ async function loadSalesData() {
     container.innerHTML = '';
     
     salesEmployees.forEach(employee => {
-        const empData = monthData[employee.id] || {
+        const aggregateData = monthData[employee.id] || {
             salesTarget: 0,
             revenueTarget: 0,
             salesAchieved: 0,
             revenueAchieved: 0
+        };
+        const employeeApprovedAdmissions = approvedAdmissions.filter(a => a.employeeId === employee.id);
+        const empData = {
+            ...aggregateData,
+            salesAchieved: employeeApprovedAdmissions.length,
+            revenueAchieved: employeeApprovedAdmissions.reduce((sum, admission) => sum + (parseFloat(admission.revenue) || 0), 0)
         };
         
         totalSalesTarget += empData.salesTarget || 0;
@@ -148,6 +159,7 @@ async function loadSalesData() {
         
         const salesProgressClass = salesPercentage >= 100 ? 'high' : salesPercentage >= 50 ? '' : 'low';
         
+        const pendingCount = pendingAdmissions.filter(a => a.employeeId === employee.id).length;
         const row = document.createElement('tr');
         row.style.borderTop = '1px solid #f0f4f8';
         row.innerHTML = `
@@ -179,6 +191,7 @@ async function loadSalesData() {
                     <button class="btn-icon" style="padding:5px 10px;font-size:12px;background:#e0e7ff;color:#3730a3;border:none;border-radius:10px;cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;" onclick="viewAdmissions(${employee.id}, '${employee.firstName} ${employee.lastName}', '${selectedMonth}')">
                         <i class="fas fa-list"></i> View
                     </button>
+                    ${pendingCount > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:700;">${pendingCount} Pending</span>` : ''}
                 </div>
             </td>
         `;
@@ -315,7 +328,7 @@ async function recordSales(event) {
     const response = await fetch(`${API_BASE_URL}/admissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, universityName, admissionDate, admissionType, revenue })
+        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, universityName, admissionDate, admissionType, revenue, status: 'approved', submittedBy: 'admin' })
     });
     
     if (!response.ok) {
@@ -340,6 +353,7 @@ async function recordSales(event) {
 let _admCurrentEmployeeId = null;
 let _admCurrentEmployeeName = null;
 let _admCurrentMonth = null;
+let _admCurrentRecords = [];
 
 async function viewAdmissions(employeeId, employeeName, month) {
     _admCurrentEmployeeId = employeeId;
@@ -351,15 +365,16 @@ async function viewAdmissions(employeeId, employeeName, month) {
     const tbody = document.getElementById('admListBody');
 
     title.textContent = `${employeeName} \u2014 ${formatMonth(month)}`;
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#718096;">Loading\u2026</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#718096;">Loading…</td></tr>';
     modal.style.display = 'flex';
 
     try {
         const res = await fetch(`${API_BASE_URL}/admissions?employeeId=${employeeId}&month=${month}`);
         const records = await res.json();
+        _admCurrentRecords = Array.isArray(records) ? records : [];
 
         if (!records.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
             return;
         }
 
@@ -376,6 +391,22 @@ async function viewAdmissions(employeeId, employeeName, month) {
                 const clr     = typeColor[r.admissionType]  || '#374151';
                 const rev     = '\u20B9' + (parseFloat(r.revenue) || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
                 const rid     = String(r._id);
+                const currentStatus = (r.status || 'approved').toLowerCase();
+                const statusBadge = currentStatus === 'approved'
+                    ? '<span class="badge badge-green" style="font-size:10px;">Approved</span>'
+                    : currentStatus === 'rejected'
+                        ? '<span class="badge badge-red" style="font-size:10px;">Rejected</span>'
+                        : '<span class="badge badge-amber" style="font-size:10px;">Pending</span>';
+                const approveBtn = currentStatus === 'pending'
+                    ? `<button onclick="approveAdmission('${rid}')" style="background:#dcfce7;color:#166534;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
+                            <i class=\"fas fa-check\"></i> Approve
+                        </button>`
+                    : '';
+                const rejectBtn = currentStatus !== 'rejected'
+                    ? `<button onclick="rejectAdmission('${rid}')" style="background:#fff7ed;color:#c2410c;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
+                            <i class=\"fas fa-ban\"></i> Reject
+                        </button>`
+                    : '';
                 return `<tr style="border-top:1px solid #f0f4f8;">
                     <td style="padding:10px 12px;font-size:13px;color:#6b7280;">${i + 1}</td>
                     <td style="padding:10px 12px;font-size:13px;">${dt}</td>
@@ -384,15 +415,92 @@ async function viewAdmissions(employeeId, employeeName, month) {
                     <td style="padding:10px 12px;"><span style="background:${bg};color:${clr};font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;">${typeLbl}</span></td>
                     <td style="padding:10px 12px;font-size:12px;color:#4a5568;">${r.universityName || '\u2014'}</td>
                     <td style="padding:10px 12px;font-weight:700;color:#059669;">${rev}</td>
+                    <td style="padding:10px 12px;">${statusBadge}</td>
                     <td style="padding:10px 12px;">
-                        <button onclick="deleteAdmission('${rid}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
-                            <i class=\"fas fa-trash-alt\"></i> Delete
-                        </button>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button onclick="openEditAdmissionModal('${rid}')" style="background:#e0f2fe;color:#075985;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
+                                <i class=\"fas fa-pen\"></i> Edit
+                            </button>
+                            ${approveBtn}
+                            ${rejectBtn}
+                            <button onclick="deleteAdmission('${rid}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
+                                <i class=\"fas fa-trash-alt\"></i> Delete
+                            </button>
+                        </div>
                     </td>
                 </tr>`;
             }).join('');
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+    }
+}
+
+function getAdmissionRecordById(id) {
+    return _admCurrentRecords.find(r => String(r._id) === String(id));
+}
+
+function openEditAdmissionModal(id) {
+    const record = getAdmissionRecordById(id);
+    if (!record) {
+        showNotification('Admission record not found', 'error');
+        return;
+    }
+
+    document.getElementById('editAdmissionId').value = id;
+    document.getElementById('editAdmissionSubtitle').textContent = `${record.customerName || 'Lead'} • ${_admCurrentEmployeeName || ''}`;
+    document.getElementById('editAdmCustomerName').value = record.customerName || '';
+    document.getElementById('editAdmCustomerPhone').value = record.customerPhone || '';
+    document.getElementById('editAdmCustomerEmail').value = record.customerEmail || '';
+    document.getElementById('editAdmDate').value = record.admissionDate || '';
+    document.getElementById('editAdmType').value = record.admissionType || 'one-time';
+    document.getElementById('editAdmRevenue').value = formatRupees(record.revenue || 0);
+    document.getElementById('editAdmUniversity').value = record.universityName || '';
+    document.getElementById('editAdmReviewNote').value = record.reviewNote || '';
+
+    const revenueInput = document.getElementById('editAdmRevenue');
+    revenueInput.oninput = function() { formatCurrencyInput(this); };
+
+    document.getElementById('editAdmissionModal').style.display = 'flex';
+}
+
+function closeEditAdmissionModal() {
+    document.getElementById('editAdmissionModal').style.display = 'none';
+    document.getElementById('editAdmissionForm').reset();
+}
+
+async function saveAdmissionEdits(event) {
+    event.preventDefault();
+    const id = document.getElementById('editAdmissionId').value;
+    const payload = {
+        customerName: document.getElementById('editAdmCustomerName').value.trim(),
+        customerPhone: document.getElementById('editAdmCustomerPhone').value.trim(),
+        customerEmail: document.getElementById('editAdmCustomerEmail').value.trim(),
+        admissionDate: document.getElementById('editAdmDate').value,
+        admissionType: document.getElementById('editAdmType').value,
+        revenue: getRawCurrencyValue(document.getElementById('editAdmRevenue')),
+        universityName: document.getElementById('editAdmUniversity').value.trim(),
+        reviewNote: document.getElementById('editAdmReviewNote').value.trim()
+    };
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/admissions/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showNotification(err.error || 'Failed to update admission', 'error');
+            return;
+        }
+
+        cachedSalesData = null;
+        showNotification('Lead details updated successfully', 'success');
+        closeEditAdmissionModal();
+        await viewAdmissions(_admCurrentEmployeeId, _admCurrentEmployeeName, _admCurrentMonth);
+        await loadSalesData();
+    } catch (e) {
+        showNotification('Failed to update admission', 'error');
     }
 }
 
@@ -411,6 +519,50 @@ async function deleteAdmission(id) {
         await loadSalesData();
     } catch (e) {
         showNotification('Failed to delete admission', 'error');
+    }
+}
+
+async function approveAdmission(id) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/admissions/${id}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'approved' })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showNotification(err.error || 'Failed to approve admission', 'error');
+            return;
+        }
+        cachedSalesData = null;
+        showNotification('Admission approved successfully', 'success');
+        await viewAdmissions(_admCurrentEmployeeId, _admCurrentEmployeeName, _admCurrentMonth);
+        await loadSalesData();
+    } catch (e) {
+        showNotification('Failed to approve admission', 'error');
+    }
+}
+
+async function rejectAdmission(id) {
+    const reviewNote = window.prompt('Enter rejection reason (visible to employee):', '');
+    if (reviewNote === null) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/admissions/${id}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'rejected', reviewNote: reviewNote.trim() })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            showNotification(err.error || 'Failed to reject admission', 'error');
+            return;
+        }
+        cachedSalesData = null;
+        showNotification('Admission rejected', 'success');
+        await viewAdmissions(_admCurrentEmployeeId, _admCurrentEmployeeName, _admCurrentMonth);
+        await loadSalesData();
+    } catch (e) {
+        showNotification('Failed to reject admission', 'error');
     }
 }
 
@@ -454,6 +606,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Click outside modal to close
     const targetModal = document.getElementById('targetModal');
     const salesModal = document.getElementById('salesModal');
+    const editAdmissionModal = document.getElementById('editAdmissionModal');
     
     if (targetModal) {
         targetModal.addEventListener('click', function(event) {
@@ -468,6 +621,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (event.target === salesModal) {
                 closeSalesModal();
             }
+        });
+    }
+
+    if (editAdmissionModal) {
+        editAdmissionModal.addEventListener('click', function(event) {
+            if (event.target === editAdmissionModal) closeEditAdmissionModal();
         });
     }
 
@@ -496,4 +655,9 @@ window.recordSales = recordSales;
 window.loadSalesData = loadSalesData;
 window.viewAdmissions = viewAdmissions;
 window.deleteAdmission = deleteAdmission;
+window.approveAdmission = approveAdmission;
+window.rejectAdmission = rejectAdmission;
+window.openEditAdmissionModal = openEditAdmissionModal;
+window.closeEditAdmissionModal = closeEditAdmissionModal;
+window.saveAdmissionEdits = saveAdmissionEdits;
 window.closeAdmissionsListModal = closeAdmissionsListModal;
