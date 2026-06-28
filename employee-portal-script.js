@@ -30,6 +30,13 @@ function calcDays(start, end, isHalfDay = false) {
 function monthKey(date = new Date()) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
+function isBonusVisibleForMonth(dateStr, month) {
+    if (!dateStr || !dateStr.startsWith(month)) return false;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentMonth = monthKey(new Date());
+    // For current month, show only bonuses up to today. Past months show full month.
+    return month === currentMonth ? dateStr <= todayStr : true;
+}
 function parseDateOnly(dateStr) {
     if (!dateStr) return null;
     const d = new Date(dateStr + 'T00:00:00');
@@ -421,7 +428,7 @@ function renderMyDocuments() {
     grid.innerHTML = myDocumentTypes.map(t => {
         const doc = myDocumentsByType[t.key];
         const meta = doc
-            ? `Uploaded ${fmt(doc.uploadedAt)} • ${fmtFileSize(doc.size)}`
+            ? `Uploaded ${fmt(doc.uploadedAt)} • ${fmtFileSize(doc.size)}${doc.locked ? ' • Locked' : ''}`
             : 'Not uploaded yet';
 
         return `
@@ -430,10 +437,12 @@ function renderMyDocuments() {
                 <div class="doc-meta">${meta}</div>
                 <div class="doc-actions">
                     ${doc ? `<button type="button" class="btn-doc" onclick="window.open('${doc.url}', '_blank')"><i class="fas fa-eye"></i> View</button>` : ''}
-                    <button type="button" class="btn-doc primary" onclick="openMyDocPicker('${t.key}')">
+                    ${doc && !doc.locked ? `<button type="button" class="btn-doc primary" onclick="openMyDocPicker('${t.key}')">
                         <i class="fas fa-upload"></i> ${doc ? 'Replace' : 'Upload'}
-                    </button>
-                    ${doc ? `<button type="button" class="btn-doc danger" onclick="deleteMyDocument('${t.key}')"><i class="fas fa-trash"></i> Delete</button>` : ''}
+                    </button>` : (!doc ? `<button type="button" class="btn-doc primary" onclick="openMyDocPicker('${t.key}')"><i class="fas fa-upload"></i> Upload</button>` : '')}
+                    ${doc && !doc.locked ? `<button type="button" class="btn-doc" style="background:#e0f2fe;border-color:#bae6fd;color:#075985;" onclick="lockMyDocument('${t.key}')"><i class="fas fa-lock"></i> Lock</button>` : ''}
+                    ${doc && !doc.locked ? `<button type="button" class="btn-doc danger" onclick="deleteMyDocument('${t.key}')"><i class="fas fa-trash"></i> Delete</button>` : ''}
+                    ${doc && doc.locked ? `<span class="badge badge-gray" style="align-self:center;">Locked</span>` : ''}
                 </div>
             </div>`;
     }).join('');
@@ -463,6 +472,19 @@ async function uploadMyDocument(file, docType) {
         throw err;
     }
     return data;
+}
+
+async function lockMyDocument(docType) {
+    try {
+        await apiFetch(`/employees/${EMP_ID}/documents/${docType}/lock`, {
+            method: 'PATCH',
+            body: JSON.stringify({ locked: true, lockedBy: 'employee' })
+        });
+        notify('documentsNotify', 'Document locked. Admin must unlock it before changes can be made.');
+        await loadMyDocuments();
+    } catch (e) {
+        notify('documentsNotify', e.message || 'Failed to lock document.', 'error');
+    }
 }
 
 async function deleteMyDocument(docType) {
@@ -622,7 +644,7 @@ async function loadMySales() {
             apiFetch(`/admissions?employeeId=${EMP_ID}&month=${month}`).catch(() => [])
         ]);
         const allBonuses   = (data.dailyBonuses || []).filter(b => b.employeeId === EMP_ID || b.employeeId === String(EMP_ID));
-        const monthBonuses = allBonuses.filter(b => (b.date || '').startsWith(month));
+        const monthBonuses = allBonuses.filter(b => isBonusVisibleForMonth(b.date || '', month));
 
         const totalBonuses    = monthBonuses.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
         const admList = Array.isArray(admissions) ? admissions : [];
@@ -1077,7 +1099,7 @@ async function loadSalaryBreakup() {
 
         // â”€â”€ Daily bonuses this month â”€â”€
         const bonusTotal = (incData.dailyBonuses || [])
-            .filter(b => (b.employeeId === EMP_ID || b.employeeId === String(EMP_ID)) && (b.date || '').startsWith(month))
+            .filter(b => (b.employeeId === EMP_ID || b.employeeId === String(EMP_ID)) && isBonusVisibleForMonth(b.date || '', month))
             .reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
 
         const totalEarnings   = effectiveGross + incentive + bonusTotal;
@@ -1460,6 +1482,7 @@ window.toggleHalfDaySessionEmp = toggleHalfDaySessionEmp;
 window.toggleSalaryBreakupVisibility = toggleSalaryBreakupVisibility;
 window.toggleSalaryHistoryVisibility = toggleSalaryHistoryVisibility;
 window.openMyDocPicker = openMyDocPicker;
+window.lockMyDocument = lockMyDocument;
 window.deleteMyDocument = deleteMyDocument;
 
 // ══════════════════════════════════════════════

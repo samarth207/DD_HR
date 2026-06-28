@@ -915,6 +915,7 @@
             grid.innerHTML = DOC_TYPES.map(dt => {
                 const doc = docsData[dt.key];
                 const uploaded = !!doc;
+                const locked = uploaded && !!doc.locked;
                 return `
                 <div class="doc-card ${uploaded ? 'doc-card-uploaded' : 'doc-card-empty'}">
                     <div class="doc-card-header">
@@ -922,7 +923,7 @@
                             <i class="fas ${uploaded ? 'fa-file-check' : 'fa-file-upload'}"></i>
                         </div>
                         <div class="doc-card-status ${uploaded ? 'status-uploaded' : 'status-missing'}">
-                            ${uploaded ? '<i class="fas fa-check"></i> Uploaded' : '<i class="fas fa-clock"></i> Missing'}
+                            ${uploaded ? (locked ? '<i class="fas fa-lock"></i> Locked' : '<i class="fas fa-check"></i> Uploaded') : '<i class="fas fa-clock"></i> Missing'}
                         </div>
                     </div>
                     <div class="doc-card-label">${dt.label}</div>
@@ -930,7 +931,12 @@
                     <div class="doc-card-actions">
                         ${uploaded
                             ? `<button class="btn-doc-view"  onclick="viewDoc('${dt.key}','${doc.url}','${dt.label}')"><i class="fas fa-eye"></i> View</button>
-                               <button class="btn-doc-delete" onclick="deleteDoc('${dt.key}')"><i class="fas fa-trash"></i> Remove</button>`
+                               ${locked
+                                   ? `<button class="btn-doc-upload" onclick="toggleDocLock('${dt.key}', false)"><i class="fas fa-lock-open"></i> Unlock</button>`
+                                   : `<button class="btn-doc-upload" onclick="triggerUpload('${dt.key}')"><i class="fas fa-upload"></i> Replace</button>
+                                      <button class="btn-doc-delete" onclick="deleteDoc('${dt.key}')"><i class="fas fa-trash"></i> Remove</button>
+                                      <button class="btn-doc-upload" onclick="toggleDocLock('${dt.key}', true)"><i class="fas fa-lock"></i> Lock</button>`}
+                              `
                             : `<button class="btn-doc-upload" onclick="triggerUpload('${dt.key}')"><i class="fas fa-upload"></i> Upload</button>`
                         }
                     </div>
@@ -978,6 +984,23 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Delete failed');
                 showNotification('Document removed.', 'success');
+                await renderDocsGrid();
+            } catch(err) {
+                showNotification('Error: ' + err.message, 'error');
+            }
+        }
+
+        async function toggleDocLock(docType, locked) {
+            try {
+                const res = await fetch(`/api/employees/${currentDocsEmployeeId}/documents/${docType}/lock`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ locked, lockedBy: 'admin' })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Update failed');
+                showNotification(locked ? 'Document locked.' : 'Document unlocked.', 'success');
+                addLog('edit', `${locked ? 'Locked' : 'Unlocked'} document ${docType} for employee #${currentDocsEmployeeId}`);
                 await renderDocsGrid();
             } catch(err) {
                 showNotification('Error: ' + err.message, 'error');

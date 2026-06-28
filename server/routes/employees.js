@@ -49,6 +49,26 @@ const upload = multer({
     }
 });
 
+function getDocumentPaths(employeeId, filename) {
+    return [
+        path.join(__dirname, '..', 'uploads', `employee-${employeeId}`, filename),
+        path.join(__dirname, '..', '..', 'uploads', `employee-${employeeId}`, filename)
+    ];
+}
+
+function removeDocumentFile(employeeId, filename) {
+    for (const filePath of getDocumentPaths(employeeId, filename)) {
+        try {
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        } catch (_) { /* non-critical */ }
+    }
+}
+
+function normalizeDocument(doc) {
+    if (!doc) return null;
+    return { locked: false, ...doc, locked: !!doc.locked };
+}
+
 async function allocateNextEmployeeId(db) {
     const rows = await db.collection('employees').find({}, { projection: { id: 1 } }).toArray();
     const ids = rows
@@ -196,7 +216,11 @@ router.get('/:id/documents', async (req, res) => {
         const db = getDB();
         const employee = await db.collection('employees').findOne({ id: parseInt(req.params.id) });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
-        res.json({ documents: employee.documents || {} });
+        const documents = {};
+        for (const [key, doc] of Object.entries(employee.documents || {})) {
+            documents[key] = normalizeDocument(doc);
+        }
+        res.json({ documents });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -215,13 +239,28 @@ router.post('/:id/documents', upload.single('file'), async (req, res) => {
         const validTypes = DOCUMENT_TYPES.map(d => d.key);
         if (!validTypes.includes(docType)) return res.status(400).json({ error: 'Invalid document type' });
 
+        const employee = await db.collection('employees').findOne({ id: employeeId });
+        if (!employee) {
+            if (req.file?.path) removeDocumentFile(employeeId, req.file.filename);
+            return res.status(404).json({ error: 'Employee not found' });
+        }
+
+        const existingDoc = normalizeDocument((employee.documents || {})[docType]);
+        if (existingDoc?.locked) {
+            if (req.file?.path) removeDocumentFile(employeeId, req.file.filename);
+            return res.status(423).json({ error: 'Document is locked. Ask admin to unlock it before replacing.' });
+        }
+
         const fileUrl = `/uploads/employee-${employeeId}/${req.file.filename}`;
         const docInfo = {
             filename: req.file.filename,
             originalName: req.file.originalname,
             url: fileUrl,
             uploadedAt: new Date().toISOString(),
-            size: req.file.size
+            size: req.file.size,
+            locked: false,
+            lockedAt: null,
+            lockedBy: null
         };
 
         const result = await db.collection('employees').updateOne(
@@ -229,12 +268,52 @@ router.post('/:id/documents', upload.single('file'), async (req, res) => {
             { $set: { [`documents.${docType}`]: docInfo } }
         );
         if (result.matchedCount === 0) {
-            const orphanPath = path.join(__dirname, '..', 'uploads', `employee-${employeeId}`, req.file.filename);
-            if (fs.existsSync(orphanPath)) fs.unlinkSync(orphanPath);
+            removeDocumentFile(employeeId, req.file.filename);
             return res.status(404).json({ error: 'Employee not found' });
         }
 
+        if (existingDoc?.filename && existingDoc.filename !== req.file.filename) {
+            removeDocumentFile(employeeId, existingDoc.filename);
+        }
+
         res.json({ success: true, document: docInfo });
+    } catch (error) {
+        if (req.file?.filename) removeDocumentFile(parseInt(req.params.id), req.file.filename);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Lock or unlock a document for an employee
+router.patch('/:id/documents/:docType/lock', async (req, res) => {
+    try {
+        const db = getDB();
+        const employeeId = parseInt(req.params.id);
+        const docType = req.params.docType;
+        const locked = req.body?.locked !== false;
+        const lockedBy = req.body?.lockedBy || (locked ? 'employee' : 'admin');
+
+        const validTypes = DOCUMENT_TYPES.map(d => d.key);
+        if (!validTypes.includes(docType)) return res.status(400).json({ error: 'Invalid document type' });
+
+        const employee = await db.collection('employees').findOne({ id: employeeId });
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+        const existingDoc = normalizeDocument((employee.documents || {})[docType]);
+        if (!existingDoc) return res.status(404).json({ error: 'Document not found' });
+
+        const updatedDoc = {
+            ...existingDoc,
+            locked,
+            lockedBy: locked ? lockedBy : null,
+            lockedAt: locked ? new Date().toISOString() : null
+        };
+
+        await db.collection('employees').updateOne(
+            { id: employeeId },
+            { $set: { [`documents.${docType}`]: updatedDoc } }
+        );
+
+        res.json({ success: true, document: updatedDoc });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -252,10 +331,12 @@ router.delete('/:id/documents/:docType', async (req, res) => {
         const employee = await db.collection('employees').findOne({ id: employeeId });
         if (!employee) return res.status(404).json({ error: 'Employee not found' });
 
-        const doc = (employee.documents || {})[docType];
+        const doc = normalizeDocument((employee.documents || {})[docType]);
+        if (doc?.locked) {
+            return res.status(423).json({ error: 'Document is locked. Ask admin to unlock it before deleting.' });
+        }
         if (doc) {
-            const filePath = path.join(__dirname, '..', 'uploads', `employee-${employeeId}`, doc.filename);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            removeDocumentFile(employeeId, doc.filename);
         }
 
         await db.collection('employees').updateOne(

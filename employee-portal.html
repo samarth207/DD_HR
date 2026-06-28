@@ -323,50 +323,64 @@
             body { background: #eef2ff; }
             .topbar {
                 height: auto;
-                padding: 12px 12px 10px;
+                padding: 8px 10px 7px;
                 flex-direction: column;
                 align-items: stretch;
-                gap: 10px;
+                gap: 6px;
             }
             .topbar-brand { justify-content: space-between; }
+            .topbar-brand .logo-icon,
+            .topbar-brand span { display: none; }
+            .topbar-brand .logo-icon { width: 30px; height: 30px; font-size: 13px; border-radius: 8px; }
+            .topbar-brand span { font-size: 14px; }
             .topbar-right {
                 width: 100%;
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) auto;
-                gap: 8px 10px;
+                gap: 6px 8px;
                 align-items: center;
             }
-            .piggy-widget { grid-column: 1 / -1; width: 100%; justify-content: center; padding: 8px 12px; }
+            .piggy-widget {
+                grid-column: 1 / -1;
+                width: 100%;
+                justify-content: center;
+                padding: 6px 10px;
+                border-radius: 24px;
+            }
             .piggy-text { min-width: 0; }
-            .piggy-amt { font-size: 13px; }
+            .piggy-lbl { font-size: 9px; }
+            .piggy-amt { font-size: 12px; }
             .user-chip {
                 width: 100%;
                 min-width: 0;
                 justify-content: flex-start;
-                padding: 6px 10px 6px 8px;
+                padding: 4px 8px 4px 6px;
             }
+            .user-avatar { width: 24px; height: 24px; font-size: 10px; }
             .user-chip .user-name { font-size: 12px; }
             .user-chip .user-role { display: none; }
             .btn-logout {
                 width: auto;
-                min-width: 92px;
+                min-width: 82px;
                 justify-content: center;
-                padding: 8px 12px;
-                font-size: 12px;
+                padding: 6px 10px;
+                font-size: 11px;
             }
             .nav-bar {
-                padding: 0 10px;
-                gap: 8px;
+                padding: 0 8px;
+                gap: 6px;
                 position: sticky;
                 top: 0;
                 z-index: 95;
                 background: var(--surface);
             }
             .nav-tab {
-                padding: 12px 14px;
-                font-size: 12px;
+                padding: 9px 11px;
+                font-size: 11px;
                 border-radius: 10px 10px 0 0;
+                gap: 5px;
             }
+            .nav-tab i { font-size: 11px; }
             .main { padding: 12px 10px 24px; }
             .card {
                 padding: 16px;

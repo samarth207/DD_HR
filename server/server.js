@@ -19,6 +19,7 @@ app.use(express.static(path.join(__dirname, '..')));
 
 // Serve uploaded documents
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // Import routes
 const employeesRoutes = require('./routes/employees');
