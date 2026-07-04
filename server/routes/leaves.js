@@ -1,8 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
+const { sendMail } = require('../utils/mailer');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
+
+async function getEmployeeById(db, employeeId) {
+    if (!employeeId) return null;
+    return db.collection('employees').findOne({ id: parseInt(employeeId) });
+}
+
+async function sendLeaveApprovedNotification(db, leave, employee) {
+    if (!employee || !employee.email) return;
+
+    const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+    const leaveDays = calculateDays(leave.startDate, leave.endDate, leave.halfDay || leave.leaveType === 'Half Day') + (leave.paidSandwichDays ?? leave.sandwichDays ?? 0);
+    const subject = 'Leave Approved | DegreeDrishti HR';
+    const text = `Hi ${fullName},\n\nYour leave request has been approved.\n\nLeave type: ${leave.leaveType}\nDates: ${leave.startDate} to ${leave.endDate}\nTotal days: ${leaveDays}\n\nIf you have questions, please contact HR.\n\nRegards,\nDegreeDrishti HR`;
+    const html = `<p>Hi ${fullName},</p><p>Your leave request has been approved.</p><ul><li><strong>Leave type:</strong> ${leave.leaveType}</li><li><strong>Dates:</strong> ${leave.startDate} to ${leave.endDate}</li><li><strong>Total days:</strong> ${leaveDays}</li></ul><p>If you have questions, please contact HR.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    await sendMail({ to: employee.email, subject, text, html });
+}
+
+async function sendLeaveRejectedNotification(db, leave, employee) {
+    if (!employee || !employee.email) return;
+
+    const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+    const subject = 'Leave Rejected | DegreeDrishti HR';
+    const text = `Hi ${fullName},\n\nYour leave request has been rejected.\n\nLeave type: ${leave.leaveType}\nDates: ${leave.startDate} to ${leave.endDate}\n\nIf you have questions, please contact HR.\n\nRegards,\nDegreeDrishti HR`;
+    const html = `<p>Hi ${fullName},</p><p>Your leave request has been rejected.</p><ul><li><strong>Leave type:</strong> ${leave.leaveType}</li><li><strong>Dates:</strong> ${leave.startDate} to ${leave.endDate}</li></ul><p>If you have questions, please contact HR.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    await sendMail({ to: employee.email, subject, text, html });
+}
 const DEFAULT_PAID_LEAVE = 12;
 const UNPAID_LEAVE_TYPES = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternity Leave', 'Work From Home']);
 
@@ -105,12 +132,12 @@ function getCycleWindowForDate(dateStr, cycleDay) {
     if (!d || !cycleDay) return null;
     const year = d.getFullYear(), month = d.getMonth(), day = d.getDate();
     let start, end;
-    if (day >= cycleDay) {
+    if (day > cycleDay) {
         start = new Date(year, month, cycleDay);
-        end   = new Date(year, month + 1, cycleDay - 1);
+        end   = new Date(year, month + 1, cycleDay);
     } else {
         start = new Date(year, month - 1, cycleDay);
-        end   = new Date(year, month, cycleDay - 1);
+        end   = new Date(year, month, cycleDay);
     }
     end.setHours(23, 59, 59, 999);
     return { start, end };
@@ -281,6 +308,12 @@ router.post('/', async (req, res) => {
         }
 
         await db.collection('leaves').insertOne(leave);
+
+        if (String(leave.status).toLowerCase() === 'approved') {
+            const employee = await getEmployeeById(db, leave.employeeId);
+            await sendLeaveApprovedNotification(db, leave, employee);
+        }
+
         res.status(201).json({ success: true, leave });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -368,6 +401,16 @@ router.put('/:id', async (req, res) => {
             { id: leaveId },
             { $set: nextLeave }
         );
+
+        if (String(existingLeave.status).toLowerCase() !== 'approved' && String(nextLeave.status).toLowerCase() === 'approved') {
+            const employee = await getEmployeeById(db, nextLeave.employeeId);
+            await sendLeaveApprovedNotification(db, nextLeave, employee);
+        }
+
+        if (String(existingLeave.status).toLowerCase() !== 'rejected' && String(nextLeave.status).toLowerCase() === 'rejected') {
+            const employee = await getEmployeeById(db, nextLeave.employeeId);
+            await sendLeaveRejectedNotification(db, nextLeave, employee);
+        }
 
         res.json({ success: true, message: 'Leave updated' });
     } catch (error) {

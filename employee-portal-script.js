@@ -59,7 +59,7 @@ function getCycleRangeForMonth(month, hireDate) {
     }
 
     const start = new Date(yr, mo - 2, cycleDay);
-    const end = new Date(yr, mo - 1, cycleDay - 1);
+    const end = new Date(yr, mo - 1, cycleDay);
     end.setHours(23, 59, 59, 999);
     return {
         start,
@@ -68,6 +68,17 @@ function getCycleRangeForMonth(month, hireDate) {
         label: `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
     };
 }
+function getEmployeeJoinDate(employee) {
+    return employee?.hireDate || employee?.joinDate || employee?.joiningDate || employee?.dateOfJoining || '';
+}
+function isAdmissionVisibleForEmployee(admission, employee) {
+    const joinDateValue = getEmployeeJoinDate(employee);
+    if (!joinDateValue) return true;
+    const joinDate = parseDateOnly(joinDateValue);
+    const admissionDate = parseDateOnly(admission?.admissionDate);
+    if (!joinDate || !admissionDate) return true;
+    return admissionDate >= joinDate;
+}
 // Returns the salary-cycle window that contains dateStr anchored on cycleDay (hire-date day).
 function getCycleWindowForDate(dateStr, cycleDay) {
     if (!cycleDay) return null;
@@ -75,12 +86,12 @@ function getCycleWindowForDate(dateStr, cycleDay) {
     if (!d) return null;
     const year = d.getFullYear(), month = d.getMonth(), day = d.getDate();
     let start, end;
-    if (day >= cycleDay) {
+    if (day > cycleDay) {
         start = new Date(year, month, cycleDay);
-        end   = new Date(year, month + 1, cycleDay - 1);
+        end   = new Date(year, month + 1, cycleDay);
     } else {
         start = new Date(year, month - 1, cycleDay);
-        end   = new Date(year, month, cycleDay - 1);
+        end   = new Date(year, month, cycleDay);
     }
     end.setHours(23, 59, 59, 999);
     return { start, end };
@@ -637,6 +648,8 @@ async function loadMySales() {
     tbody.innerHTML = '<tr><td colspan="8" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
+        const employees = await loadEmployees();
+        const currentEmployee = employees.find(emp => emp.id === EMP_ID || String(emp.id) === String(EMP_ID)) || null;
         const [data, config, allSalesData, admissions] = await Promise.all([
             apiFetch('/incentives/data'),
             apiFetch('/incentives/config').catch(() => ({})),
@@ -647,7 +660,9 @@ async function loadMySales() {
         const monthBonuses = allBonuses.filter(b => isBonusVisibleForMonth(b.date || '', month));
 
         const totalBonuses    = monthBonuses.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
-        const admList = Array.isArray(admissions) ? admissions : [];
+        const admList = Array.isArray(admissions)
+            ? admissions.filter(admission => isAdmissionVisibleForEmployee(admission, currentEmployee))
+            : [];
         const approvedAdmList = admList.filter(a => (a.status || 'approved') === 'approved');
         const approvedAdmissions = approvedAdmList.length;
         const pendingAdmissions = admList.filter(a => (a.status || 'pending') === 'pending').length;
@@ -797,7 +812,7 @@ async function loadMySales() {
 
         // Render admission records table
         if (!admList.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="no-data"><i class="fas fa-graduation-cap"></i><br>No admissions recorded for this month</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="no-data"><i class="fas fa-graduation-cap"></i><br>No admissions recorded for this month</td></tr>';
             return;
         }
 
@@ -809,8 +824,9 @@ async function loadMySales() {
             .map(a => `<tr>
                 <td>${fmt(a.admissionDate)}</td>
                 <td style="font-weight:600;">${a.customerName || 'â€”'}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.customerPhone || 'â€”'}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.customerEmail || 'â€”'}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.customerPhone || 'â€”'}${a.alternateCustomerPhone ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerPhone}</span>` : ''}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.customerEmail || 'â€”'}${a.alternateCustomerEmail ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerEmail}</span>` : ''}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.course || 'â€”'}</td>
                 <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || 'â€”'}</span></td>
                 <td style="color:var(--muted);font-size:12px;">${a.universityName || 'â€“'}</td>
                 <td style="color:var(--green);font-weight:700;">${fmtRupees(a.revenue || 0)}</td>
@@ -822,7 +838,7 @@ async function loadMySales() {
                     ${admissionReviewMeta(a)}</td>
             </tr>`).join('');
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="8" class="no-data">Failed to load sales data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="no-data">Failed to load sales data</td></tr>';
     }
 }
 
@@ -833,6 +849,9 @@ async function submitMySalesRecord(event) {
     const customerName = document.getElementById('mySalesCustomerName').value.trim();
     const customerPhone = document.getElementById('mySalesCustomerPhone').value.trim();
     const customerEmail = document.getElementById('mySalesCustomerEmail').value.trim();
+    const alternateCustomerPhone = document.getElementById('mySalesAlternatePhone').value.trim();
+    const alternateCustomerEmail = document.getElementById('mySalesAlternateEmail').value.trim();
+    const course = document.getElementById('mySalesCourse').value.trim();
     const admissionDate = document.getElementById('mySalesDate').value;
     const admissionType = document.getElementById('mySalesType').value;
     const revenueRaw = document.getElementById('mySalesRevenue').value;
@@ -856,6 +875,9 @@ async function submitMySalesRecord(event) {
                 customerName,
                 customerPhone,
                 customerEmail,
+                alternateCustomerPhone,
+                alternateCustomerEmail,
+                course,
                 universityName,
                 admissionDate,
                 admissionType,
@@ -1023,12 +1045,20 @@ async function loadSalaryBreakup() {
             }
         }
         // Only 'Unpaid Leave' type deducts from salary. Paid Leave uses leave balance — no salary impact.
-        const myUnpaidLeaves = (leavesRaw.leaves || leavesRaw || [])
+        const myAllLeaves = (leavesRaw.leaves || leavesRaw || []);
+        const myUnpaidLeaves = myAllLeaves
             .filter(l =>
                 (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID)) &&
                 l.status === 'approved' &&
                 l.leaveType === 'Unpaid Leave'
             );
+        const hasFullDayLeaveOnDate = (dateStr) => myAllLeaves.some(l => {
+            const isSameEmployee = (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID));
+            const isApproved = l.status === 'approved';
+            const inRange = dateStr >= l.startDate && dateStr <= l.endDate;
+            const isHalfDayLeave = l.halfDay === true || l.leaveType === 'Half Day';
+            return isSameEmployee && isApproved && inRange && !isHalfDayLeave;
+        });
         let totalLeaveDays = 0;
         for (const leave of myUnpaidLeaves) {
             if (leave.halfDay === true || leave.leaveType === 'Half Day') {
@@ -1055,6 +1085,7 @@ async function loadSalaryBreakup() {
         allAttDocs.forEach(doc => {
             const docDate = new Date((doc.date || '') + 'T00:00:00');
             if (Number.isNaN(docDate.getTime()) || docDate < cycleStart || docDate > cycleEnd) return;
+            if (hasFullDayLeaveOnDate(doc.date || '')) return;
             const rec = (doc.records || {})[EMP_ID] || (doc.records || {})[String(EMP_ID)];
             if (rec && rec.time && isLateEntry(rec.time)) lateCount++;
         });

@@ -2,9 +2,24 @@ const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { ObjectId } = require('mongodb');
+const { sendMail } = require('../utils/mailer');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
-const EDITABLE_FIELDS = ['customerName', 'customerPhone', 'customerEmail', 'universityName', 'admissionDate', 'admissionType', 'revenue'];
+const EDITABLE_FIELDS = ['customerName', 'customerPhone', 'customerEmail', 'alternateCustomerPhone', 'alternateCustomerEmail', 'course', 'universityName', 'admissionDate', 'admissionType', 'revenue'];
+
+async function getEmployeeById(db, employeeId) {
+    if (!employeeId) return null;
+    return db.collection('employees').findOne({ id: parseInt(employeeId) });
+}
+
+async function sendSalesApprovedNotification(admission, employee) {
+    if (!employee || !employee.email) return;
+    const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+    const subject = 'Sales Record Approved | DegreeDrishti HR';
+    const text = `Hi ${fullName},\n\nYour sales record has been approved.\n\nStudent: ${admission.customerName}\nUniversity: ${admission.universityName}\nRevenue: ₹${parseFloat(admission.revenue || 0).toFixed(2)}\n\nThank you for your effort.\n\nRegards,\nDegreeDrishti HR`;
+    const html = `<p>Hi ${fullName},</p><p>Your sales record has been approved.</p><ul><li><strong>Student:</strong> ${admission.customerName}</li><li><strong>University:</strong> ${admission.universityName}</li><li><strong>Revenue:</strong> ₹${parseFloat(admission.revenue || 0).toFixed(2)}</li></ul><p>Thank you for your effort.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    await sendMail({ to: employee.email, subject, text, html });
+}
 
 function getAdmissionStatus(admission) {
     const status = typeof admission?.status === 'string' ? admission.status.trim().toLowerCase() : '';
@@ -16,6 +31,9 @@ function normalizeEditableAdmissionFields(payload = {}) {
         customerName: payload.customerName ? String(payload.customerName).trim() : '',
         customerPhone: payload.customerPhone ? String(payload.customerPhone).trim() : '',
         customerEmail: payload.customerEmail ? String(payload.customerEmail).trim() : '',
+        alternateCustomerPhone: payload.alternateCustomerPhone ? String(payload.alternateCustomerPhone).trim() : '',
+        alternateCustomerEmail: payload.alternateCustomerEmail ? String(payload.alternateCustomerEmail).trim() : '',
+        course: payload.course ? String(payload.course).trim() : '',
         universityName: payload.universityName ? String(payload.universityName).trim() : '',
         admissionDate: payload.admissionDate ? String(payload.admissionDate) : '',
         admissionType: payload.admissionType ? String(payload.admissionType) : '',
@@ -25,9 +43,12 @@ function normalizeEditableAdmissionFields(payload = {}) {
 
 function getAdmissionEditSummary(previous, next) {
     const labels = {
-        customerName: 'Customer Name',
+        customerName: 'Student Name',
         customerPhone: 'Phone',
         customerEmail: 'Email',
+        alternateCustomerPhone: 'Alternate Phone',
+        alternateCustomerEmail: 'Alternate Email',
+        course: 'Course',
         universityName: 'University',
         admissionDate: 'Admission Date',
         admissionType: 'Admission Type',
@@ -65,6 +86,9 @@ router.post('/', async (req, res) => {
             customerName,
             customerPhone,
             customerEmail,
+            alternateCustomerPhone,
+            alternateCustomerEmail,
+            course,
             admissionDate,
             admissionType,
             revenue,
@@ -86,6 +110,9 @@ router.post('/', async (req, res) => {
             customerName: String(customerName).trim(),
             customerPhone: customerPhone ? String(customerPhone).trim() : '',
             customerEmail: customerEmail ? String(customerEmail).trim() : '',
+            alternateCustomerPhone: alternateCustomerPhone ? String(alternateCustomerPhone).trim() : '',
+            alternateCustomerEmail: alternateCustomerEmail ? String(alternateCustomerEmail).trim() : '',
+            course: course ? String(course).trim() : '',
             universityName: universityName ? String(universityName).trim() : '',
             admissionDate,
             admissionType,
@@ -109,13 +136,17 @@ router.post('/', async (req, res) => {
                     },
                     $setOnInsert: {
                         salesTarget: 0,
-                        revenueTarget: 0,
-                        updatedAt: new Date()
+                        revenueTarget: 0
                     },
                     $set: { updatedAt: new Date() }
                 },
                 { upsert: true }
             );
+        }
+
+        if (normalizedStatus === 'approved') {
+            const employee = await getEmployeeById(db, admission.employeeId);
+            await sendSalesApprovedNotification(admission, employee);
         }
 
         res.json({
@@ -166,6 +197,9 @@ router.put('/:id/status', async (req, res) => {
                 },
                 { upsert: true }
             );
+
+            const employee = await getEmployeeById(db, admission.employeeId);
+            await sendSalesApprovedNotification(admission, employee);
         }
 
         // If moving from approved to rejected, rollback aggregate.
@@ -216,7 +250,7 @@ router.put('/:id', async (req, res) => {
 
         const nextFields = normalizeEditableAdmissionFields(req.body);
         if (!nextFields.customerName || !nextFields.admissionDate || !nextFields.admissionType) {
-            return res.status(400).json({ error: 'Customer name, admission date and admission type are required' });
+            return res.status(400).json({ error: 'Student name, admission date and admission type are required' });
         }
 
         const editSummary = getAdmissionEditSummary(admission, nextFields);

@@ -136,8 +136,8 @@ function showEmployeeLeaveBalance() {
             const hireDay = Math.min(new Date(emp.hireDate + 'T00:00:00').getDate(), 28);
             const ds = new Date(startDate + 'T00:00:00');
             const yr = ds.getFullYear(), mn = ds.getMonth(), dy = ds.getDate();
-            const cStart = dy >= hireDay ? new Date(yr, mn, hireDay)     : new Date(yr, mn - 1, hireDay);
-            const cEnd   = dy >= hireDay ? new Date(yr, mn + 1, hireDay - 1) : new Date(yr, mn, hireDay - 1);
+            const cStart = dy > hireDay ? new Date(yr, mn, hireDay)     : new Date(yr, mn - 1, hireDay);
+            const cEnd   = dy > hireDay ? new Date(yr, mn + 1, hireDay) : new Date(yr, mn, hireDay);
             cEnd.setHours(23, 59, 59, 999);
             const dStr = d2 => `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
             const cStartStr = dStr(cStart), cEndStr = dStr(cEnd);

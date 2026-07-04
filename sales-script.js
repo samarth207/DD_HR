@@ -63,6 +63,25 @@ function formatMonth(monthKey) {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
 }
 
+function parseDateOnly(value) {
+    if (!value) return null;
+    const date = new Date(`${value}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getEmployeeJoinDate(employee) {
+    return employee?.hireDate || employee?.joinDate || employee?.joiningDate || employee?.dateOfJoining || '';
+}
+
+function isAdmissionVisibleForEmployee(admission, employee) {
+    const joinDateValue = getEmployeeJoinDate(employee);
+    if (!joinDateValue) return true;
+    const joinDate = parseDateOnly(joinDateValue);
+    const admissionDate = parseDateOnly(admission?.admissionDate);
+    if (!joinDate || !admissionDate) return true;
+    return admissionDate >= joinDate;
+}
+
 // Initialize month selector
 function initializeMonthSelector() {
     const select = document.getElementById('monthSelect');
@@ -112,7 +131,12 @@ async function loadSalesData() {
     const pendingAdmissions = allAdmissions.filter(a => (a.status || '').toLowerCase() === 'pending');
     const approvedAdmissions = allAdmissions.filter(a => (a.status || 'approved').toLowerCase() === 'approved');
     
-    const salesEmployees = await getSalesEmployees();
+    const employees = await loadEmployees();
+    const salesEmployees = employees.filter(emp => {
+        const department = emp.department?.toLowerCase() || '';
+        const status = emp.status || 'Active';
+        return department.includes('sales') && status === 'Active';
+    });
     
     if (salesEmployees.length === 0) {
         document.getElementById('salesTeamContainer').innerHTML = `
@@ -143,7 +167,10 @@ async function loadSalesData() {
             salesAchieved: 0,
             revenueAchieved: 0
         };
-        const employeeApprovedAdmissions = approvedAdmissions.filter(a => a.employeeId === employee.id);
+        const employeeVisibleAdmissions = approvedAdmissions
+            .concat(pendingAdmissions)
+            .filter(a => a.employeeId === employee.id && isAdmissionVisibleForEmployee(a, employee));
+        const employeeApprovedAdmissions = employeeVisibleAdmissions.filter(a => (a.status || 'approved').toLowerCase() === 'approved');
         const empData = {
             ...aggregateData,
             salesAchieved: employeeApprovedAdmissions.length,
@@ -159,7 +186,7 @@ async function loadSalesData() {
         
         const salesProgressClass = salesPercentage >= 100 ? 'high' : salesPercentage >= 50 ? '' : 'low';
         
-        const pendingCount = pendingAdmissions.filter(a => a.employeeId === employee.id).length;
+        const pendingCount = employeeVisibleAdmissions.filter(a => (a.status || '').toLowerCase() === 'pending').length;
         const row = document.createElement('tr');
         row.style.borderTop = '1px solid #f0f4f8';
         row.innerHTML = `
@@ -291,6 +318,9 @@ async function openSalesModal(employeeId, month) {
     document.getElementById('admCustomerName').value = '';
     document.getElementById('admCustomerPhone').value = '';
     document.getElementById('admCustomerEmail').value = '';
+    document.getElementById('admAlternatePhone').value = '';
+    document.getElementById('admAlternateEmail').value = '';
+    document.getElementById('admCourse').value = '';
     document.getElementById('admUniversity').value = '';
     document.getElementById('admDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('admType').value = '';
@@ -320,6 +350,9 @@ async function recordSales(event) {
     const customerName    = document.getElementById('admCustomerName').value.trim();
     const customerPhone   = document.getElementById('admCustomerPhone').value.trim();
     const customerEmail   = document.getElementById('admCustomerEmail').value.trim();
+    const alternateCustomerPhone = document.getElementById('admAlternatePhone').value.trim();
+    const alternateCustomerEmail = document.getElementById('admAlternateEmail').value.trim();
+    const course = document.getElementById('admCourse').value.trim();
     const universityName  = document.getElementById('admUniversity').value.trim();
     const admissionDate   = document.getElementById('admDate').value;
     const admissionType   = document.getElementById('admType').value;
@@ -328,7 +361,7 @@ async function recordSales(event) {
     const response = await fetch(`${API_BASE_URL}/admissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, universityName, admissionDate, admissionType, revenue, status: 'approved', submittedBy: 'admin' })
+        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, alternateCustomerPhone, alternateCustomerEmail, course, universityName, admissionDate, admissionType, revenue, status: 'approved', submittedBy: 'admin' })
     });
     
     if (!response.ok) {
@@ -365,16 +398,20 @@ async function viewAdmissions(employeeId, employeeName, month) {
     const tbody = document.getElementById('admListBody');
 
     title.textContent = `${employeeName} \u2014 ${formatMonth(month)}`;
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#718096;">Loading…</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">Loading…</td></tr>';
     modal.style.display = 'flex';
 
     try {
+        const employees = await loadEmployees();
+        const employee = employees.find(e => e.id === employeeId || String(e.id) === String(employeeId));
         const res = await fetch(`${API_BASE_URL}/admissions?employeeId=${employeeId}&month=${month}`);
         const records = await res.json();
-        _admCurrentRecords = Array.isArray(records) ? records : [];
+        _admCurrentRecords = Array.isArray(records)
+            ? records.filter(record => isAdmissionVisibleForEmployee(record, employee))
+            : [];
 
-        if (!records.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
+        if (!_admCurrentRecords.length) {
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
             return;
         }
 
@@ -382,7 +419,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
         const typeColor = { 'one-time': '#3730a3', 'semester': '#92400e', 'annual': '#065f46' };
         const typeBg    = { 'one-time': '#e0e7ff', 'semester': '#fef3c7', 'annual': '#d1fae5' };
 
-        tbody.innerHTML = records
+        tbody.innerHTML = _admCurrentRecords
             .sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate))
             .map((r, i) => {
                 const dt  = r.admissionDate ? new Date(r.admissionDate + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '\u2014';
@@ -411,7 +448,11 @@ async function viewAdmissions(employeeId, employeeName, month) {
                     <td style="padding:10px 12px;font-size:13px;color:#6b7280;">${i + 1}</td>
                     <td style="padding:10px 12px;font-size:13px;">${dt}</td>
                     <td style="padding:10px 12px;font-size:13px;font-weight:600;">${r.customerName || '\u2014'}</td>
-                    <td style="padding:10px 12px;font-size:12px;color:#718096;">${r.customerPhone || '\u2014'}<br><span style="color:#a0aec0;">${r.customerEmail || ''}</span></td>
+                    <td style="padding:10px 12px;font-size:12px;color:#718096;">
+                        ${r.customerPhone || '\u2014'}${r.alternateCustomerPhone ? `<br><span style="color:#9ca3af;">Alt: ${r.alternateCustomerPhone}</span>` : ''}
+                        <br><span style="color:#a0aec0;">${r.customerEmail || ''}</span>${r.alternateCustomerEmail ? `<br><span style="color:#9ca3af;">Alt: ${r.alternateCustomerEmail}</span>` : ''}
+                    </td>
+                    <td style="padding:10px 12px;font-size:12px;color:#4a5568;">${r.course || '\u2014'}</td>
                     <td style="padding:10px 12px;"><span style="background:${bg};color:${clr};font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;">${typeLbl}</span></td>
                     <td style="padding:10px 12px;font-size:12px;color:#4a5568;">${r.universityName || '\u2014'}</td>
                     <td style="padding:10px 12px;font-weight:700;color:#059669;">${rev}</td>
@@ -431,7 +472,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
                 </tr>`;
             }).join('');
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
     }
 }
 
@@ -451,6 +492,9 @@ function openEditAdmissionModal(id) {
     document.getElementById('editAdmCustomerName').value = record.customerName || '';
     document.getElementById('editAdmCustomerPhone').value = record.customerPhone || '';
     document.getElementById('editAdmCustomerEmail').value = record.customerEmail || '';
+    document.getElementById('editAdmAlternatePhone').value = record.alternateCustomerPhone || '';
+    document.getElementById('editAdmAlternateEmail').value = record.alternateCustomerEmail || '';
+    document.getElementById('editAdmCourse').value = record.course || '';
     document.getElementById('editAdmDate').value = record.admissionDate || '';
     document.getElementById('editAdmType').value = record.admissionType || 'one-time';
     document.getElementById('editAdmRevenue').value = formatRupees(record.revenue || 0);
@@ -475,6 +519,9 @@ async function saveAdmissionEdits(event) {
         customerName: document.getElementById('editAdmCustomerName').value.trim(),
         customerPhone: document.getElementById('editAdmCustomerPhone').value.trim(),
         customerEmail: document.getElementById('editAdmCustomerEmail').value.trim(),
+        alternateCustomerPhone: document.getElementById('editAdmAlternatePhone').value.trim(),
+        alternateCustomerEmail: document.getElementById('editAdmAlternateEmail').value.trim(),
+        course: document.getElementById('editAdmCourse').value.trim(),
         admissionDate: document.getElementById('editAdmDate').value,
         admissionType: document.getElementById('editAdmType').value,
         revenue: getRawCurrencyValue(document.getElementById('editAdmRevenue')),

@@ -1110,7 +1110,7 @@ function getSalaryCycleRange(month, hireDate) {
     }
 
     const start = new Date(year, mon - 2, cycleDay);
-    const end = new Date(year, mon - 1, cycleDay - 1);
+    const end = new Date(year, mon - 1, cycleDay);
     end.setHours(23, 59, 59, 999);
     return { start, end, cycleDay };
 }
@@ -1297,6 +1297,14 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month, hireDate = nu
         });
 
     const cycle = getSalaryCycleRange(month, hireDate);
+    const allLeaves = getLeaves();
+    const hasFullDayLeaveOnDate = (dateStr) => allLeaves.some(l => {
+        const isSameEmployee = (l.employeeId === employeeId || l.employeeId === String(employeeId));
+        const isApproved = l.status === 'approved';
+        const inRange = dateStr >= l.startDate && dateStr <= l.endDate;
+        const isHalfDayLeave = l.halfDay === true || l.leaveType === 'Half Day';
+        return isSameEmployee && isApproved && inRange && !isHalfDayLeave;
+    });
 
     // Count late days for this employee
     const [oh, om] = settings.officeStartTime.split(':').map(Number);
@@ -1304,6 +1312,7 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month, hireDate = nu
     docs.forEach(doc => {
         const docDate = new Date((doc.date || '') + 'T00:00:00');
         if (Number.isNaN(docDate.getTime()) || docDate < cycle.start || docDate > cycle.end) return;
+        if (hasFullDayLeaveOnDate(doc.date || '')) return;
         const rec = (doc.records || {})[employeeId];
         if (rec && rec.time) {
             const [eh, em] = rec.time.split(':').map(Number);

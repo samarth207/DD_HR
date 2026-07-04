@@ -1,8 +1,8 @@
-# HR Portal - MongoDB Integration
-
+# DD HR portal - MongoDB Integration
+node scripts/import-amogh-admissions-from-xlsx.js "../CRM sheet data ipload .xlsx" "Amogh"
 ## Database Setup
 
-The HR Portal now uses **MongoDB Atlas** for data storage with a separate database: `HR_PORTAL_DB`
+The DD HR portal now uses **MongoDB Atlas** for data storage with a separate database: `HR_PORTAL_DB`
 
 ### Collections Created:
 1. **employees** - Employee records
@@ -128,8 +128,8 @@ For example in `employees.html`:
 
 1. Start the server: `npm start`
 2. Open your browser to: http://localhost:3000/api/health
-3. You should see: `{"status":"OK","message":"HR Portal API is running"}`
-4. Open any HR Portal page (make sure to include `api.js`)
+3. You should see: `{"status":"OK","message":"DD HR portal API is running"}`
+4. Open any DD HR portal page (make sure to include `api.js`)
 5. Check browser console for connection status
 
 ---

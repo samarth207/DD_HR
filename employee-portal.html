@@ -511,7 +511,7 @@
 <!-- Topbar -->
 <div class="topbar">
     <div class="topbar-brand">
-        <div class="logo-icon"><i class="fas fa-users-cog"></i></div>
+        <div class="logo-icon"><img src="assets/dd-hr-logo.png" alt="DD HR portal logo" style="width:100%;height:100%;object-fit:contain;"></div>
         <span>Employee Portal</span>
     </div>
     <div class="topbar-right">
@@ -749,7 +749,7 @@
             <form id="mySalesForm" onsubmit="submitMySalesRecord(event)">
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">
                     <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Customer Name</label>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Student Name</label>
                         <input id="mySalesCustomerName" required placeholder="Full name" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
                     </div>
                     <div>
@@ -759,6 +759,18 @@
                     <div>
                         <label style="font-size:12px;color:var(--muted);font-weight:700;">Email</label>
                         <input id="mySalesCustomerEmail" type="email" required placeholder="customer@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Number</label>
+                        <input id="mySalesAlternatePhone" placeholder="e.g., 9123456780" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Email</label>
+                        <input id="mySalesAlternateEmail" type="email" placeholder="alternate@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Course</label>
+                        <input id="mySalesCourse" placeholder="e.g., B.Tech CSE" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
                     </div>
                     <div>
                         <label style="font-size:12px;color:var(--muted);font-weight:700;">Admission Date</label>
@@ -801,9 +813,9 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Date</th><th>Customer Name</th><th>Phone</th><th>Email</th><th>Type</th><th>University</th><th>Revenue</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Student Name</th><th>Phone</th><th>Email</th><th>Course</th><th>Type</th><th>University</th><th>Revenue</th><th>Status</th></tr></thead>
                     <tbody id="salesHistoryBody">
-                        <tr><td colspan="8" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                        <tr><td colspan="9" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
                     </tbody>
                 </table>
             </div>

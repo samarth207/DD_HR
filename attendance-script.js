@@ -202,11 +202,9 @@ function countLateInMonth(employeeId, monthStr) {
         if (employee && !isJoinedByDate(employee, dateKey)) return;
         const rec = (attendanceData[dateKey] || {})[employeeId];
         if (rec && rec.time && isLate(rec.time)) {
-            // Skip days where the employee has a half-day leave —
-            // the leave already accounts for the half-day; counting the
-            // late clock-in would double-deduct.
-            const halfDayLeave = getLeaveForDate(employeeId, dateKey);
-            if (halfDayLeave && halfDayLeave.halfDay === true) return;
+            // Skip full-day leave dates. Half-day leave still allows attendance and can be counted.
+            const leaveOnDate = getLeaveForDate(employeeId, dateKey);
+            if (leaveOnDate && leaveOnDate.halfDay !== true) return;
             count++;
         }
     });

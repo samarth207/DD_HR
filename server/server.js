@@ -51,7 +51,7 @@ app.use('/api/admissions', admissionsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'HR Portal API is running', dbConnected: isDBConnected() });
+    res.json({ status: 'OK', message: 'DD HR portal API is running', dbConnected: isDBConnected() });
 });
 
 // Root route - serve index.html
