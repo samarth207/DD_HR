@@ -33,6 +33,19 @@
             background:white; border-radius:12px;
             box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:20px; overflow:hidden;
         }
+        .settings-layout {
+            display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;
+        }
+        .settings-layout .settings-panel,
+        .settings-layout .emp-month-panel {
+            margin-bottom:0;
+        }
+        .popup-launch-btn {
+            padding:14px 20px; display:flex; justify-content:space-between;
+            align-items:center; cursor:pointer; border:none; background:none;
+            width:100%; text-align:left; font-size:14px; font-weight:600; color:#2d3748;
+        }
+        .popup-launch-btn:hover { background:#f7fafc; }
         .settings-toggle {
             padding:14px 20px; display:flex; justify-content:space-between;
             align-items:center; cursor:pointer; border:none; background:none;
@@ -75,6 +88,7 @@
         .att-badge.late     { background:#fef9c3; color:#854d0e; }
         .att-badge.absent   { background:#fee2e2; color:#991b1b; }
         .att-badge.on-leave { background:#dbeafe; color:#1d4ed8; }
+        .att-badge.upcoming { background:#e2e8f0; color:#334155; }
         .att-badge.half-day { background:#fde68a; color:#92400e; }
 
         /* Time input */
@@ -115,6 +129,128 @@
             background:#fef3c7; border:1px solid #fcd34d; color:#92400e;
             border-radius:8px; padding:8px 12px; font-size:12px; margin-top:6px;
             display:flex; align-items:center; gap:8px;
+        }
+
+        /* Monthly employee attendance view */
+        .emp-month-panel {
+            background:white; border-radius:12px;
+            box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:20px; overflow:hidden;
+        }
+        .emp-month-header {
+            padding:13px 18px; background:#f7fafc; border-bottom:1px solid #e2e8f0;
+            display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+        }
+        .emp-month-header h3 { margin:0; font-size:14px; color:#2d3748; }
+        .emp-month-toggle {
+            padding:14px 20px; display:flex; justify-content:space-between;
+            align-items:center; cursor:pointer; border:none; background:none;
+            width:100%; text-align:left; font-size:14px; font-weight:600; color:#2d3748;
+        }
+        .emp-month-toggle:hover { background:#f7fafc; }
+        .emp-month-body { display:none; border-top:1px solid #e2e8f0; }
+        .emp-month-body.open { display:block; }
+        .emp-month-controls {
+            padding:14px 18px; display:grid;
+            grid-template-columns:1.4fr 1fr auto auto; gap:10px; align-items:end;
+        }
+        .emp-month-controls label { font-size:12px; font-weight:600; color:#4a5568; margin-bottom:4px; display:block; }
+        .emp-month-controls select,
+        .emp-month-controls input[type="month"] {
+            width:100%; padding:8px 12px; border:1.5px solid #e2e8f0;
+            border-radius:8px; font-size:13px; background:white;
+        }
+        .emp-month-controls select:focus,
+        .emp-month-controls input[type="month"]:focus {
+            outline:none; border-color:#667eea;
+        }
+        .emp-month-stats {
+            padding:0 18px 14px;
+            display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:10px;
+        }
+        .emp-month-stat {
+            border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fcfdff;
+        }
+        .emp-month-stat .val { font-size:20px; font-weight:700; color:#1a202c; line-height:1; }
+        .emp-month-stat .lbl { font-size:11px; color:#718096; margin-top:4px; text-transform:uppercase; letter-spacing:.4px; }
+        .emp-month-table-wrap { padding:0 18px 18px; overflow-x:auto; }
+        .emp-month-table {
+            width:100%; border-collapse:collapse; min-width:620px;
+            border:1px solid #edf2f7; border-radius:8px; overflow:hidden;
+        }
+        .emp-month-table th {
+            background:#f8fafc; padding:10px 12px; text-align:left;
+            font-size:11px; font-weight:700; text-transform:uppercase;
+            color:#718096; letter-spacing:.5px;
+        }
+        .emp-month-table td {
+            padding:9px 12px; border-top:1px solid #f1f5f9; font-size:13px;
+        }
+        .emp-month-table tr.emp-month-join-row td {
+            background:#fffbeb;
+        }
+        .emp-month-table tr.emp-month-cycle-end-row td {
+            background:#eff6ff;
+        }
+        .emp-month-table tr.emp-month-join-row.emp-month-cycle-end-row td {
+            background:linear-gradient(90deg, #fffbeb 0%, #eff6ff 100%);
+        }
+        .emp-month-join-tag {
+            display:inline-flex; align-items:center; gap:5px;
+            margin-left:8px; padding:2px 8px;
+            border:1px solid #f59e0b; border-radius:999px;
+            background:#fef3c7; color:#92400e;
+            font-size:11px; font-weight:700;
+        }
+        .emp-month-cycle-end-tag {
+            display:inline-flex; align-items:center; gap:5px;
+            margin-left:8px; padding:2px 8px;
+            border:1px solid #93c5fd; border-radius:999px;
+            background:#dbeafe; color:#1e40af;
+            font-size:11px; font-weight:700;
+        }
+        .emp-month-note-join {
+            display:inline-block; margin-left:8px;
+            color:#b45309; font-size:12px; font-weight:600;
+        }
+        .emp-month-note-cycle-end {
+            display:inline-block; margin-left:8px;
+            color:#1d4ed8; font-size:12px; font-weight:600;
+        }
+        .emp-month-empty {
+            padding:14px; text-align:center; color:#718096; font-size:13px;
+        }
+
+        /* Popup modals */
+        .popup-overlay {
+            display:none; position:fixed; inset:0; z-index:1200;
+            background:rgba(15, 23, 42, 0.45);
+            align-items:center; justify-content:center;
+            padding:16px;
+        }
+        .popup-overlay.open { display:flex; }
+        .popup-card {
+            width:min(920px, 100%); max-height:92vh; overflow:auto;
+            background:white; border-radius:14px;
+            box-shadow:0 24px 60px rgba(15, 23, 42, 0.25);
+        }
+        .popup-card.small { width:min(760px, 100%); }
+        .popup-header {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:14px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc;
+            position:sticky; top:0; z-index:1;
+        }
+        .popup-header h3 { margin:0; font-size:15px; color:#1e293b; }
+        .popup-close {
+            border:none; background:#eef2ff; color:#334155;
+            width:34px; height:34px; border-radius:8px; cursor:pointer;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .popup-close:hover { background:#e2e8f0; }
+        .popup-content { padding:16px 18px 18px; }
+
+        @media (max-width: 900px) {
+            .settings-layout { grid-template-columns:1fr; }
+            .emp-month-controls { grid-template-columns:1fr; }
         }
     </style>
 </head>
@@ -189,31 +325,107 @@
             </div>
         </div>
 
-        <!-- Late Policy Settings -->
-        <div class="settings-panel">
-            <button class="settings-toggle" onclick="toggleSettings()">
-                <span><i class="fas fa-cog" style="margin-right:8px;color:#667eea;"></i>Late Policy Configuration</span>
-                <i class="fas fa-chevron-down" id="settingsChevron" style="color:#718096;font-size:12px;transition:transform .2s;"></i>
-            </button>
-            <div class="settings-body" id="settingsBody">
-                <div class="settings-grid">
-                    <div class="sg-group">
-                        <label for="officeStartTime">Office Start Time</label>
-                        <input type="time" id="officeStartTime" value="09:00" onchange="saveAttendanceSettings()">
-                    </div>
-                    <div class="sg-group">
-                        <label for="lateThresholdMins">Grace Period (minutes)</label>
-                        <input type="number" id="lateThresholdMins" value="10" min="0" max="60" onchange="saveAttendanceSettings()">
-                    </div>
-                    <div class="sg-group">
-                        <label for="lateDaysHalfDay">Late Days → 1 Half Day</label>
-                        <input type="number" id="lateDaysHalfDay" value="3" min="1" onchange="saveAttendanceSettings()">
-                    </div>
-                </div>
-                <p id="settingsSummaryText" style="font-size:12px;color:#718096;margin:10px 0 0;"></p>
+        <div class="settings-layout">
+            <!-- Late Policy Settings -->
+            <div class="settings-panel">
+                <button class="popup-launch-btn" onclick="openLatePolicyPopup()">
+                    <span><i class="fas fa-cog" style="margin-right:8px;color:#667eea;"></i>Late Policy Configuration</span>
+                    <i class="fas fa-up-right-from-square" style="color:#718096;font-size:12px;"></i>
+                </button>
+            </div>
+
+            <!-- Single Employee Monthly Attendance -->
+            <div class="emp-month-panel">
+                <button class="popup-launch-btn" onclick="openMonthlyAttendancePopup()">
+                    <span><i class="fas fa-user-check" style="margin-right:8px;color:#667eea;"></i>Single Employee Monthly Attendance</span>
+                    <i class="fas fa-up-right-from-square" style="color:#718096;font-size:12px;"></i>
+                </button>
             </div>
         </div>
 
+        <div class="popup-overlay" id="latePolicyPopup" onclick="closePopupOnBackdrop(event, 'latePolicyPopup')">
+            <div class="popup-card small">
+                <div class="popup-header">
+                    <h3><i class="fas fa-cog" style="margin-right:8px;color:#667eea;"></i>Late Policy Configuration</h3>
+                    <button class="popup-close" onclick="closeLatePolicyPopup()" aria-label="Close Late Policy Popup">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="popup-content">
+                    <div class="settings-grid" style="margin-top:0;">
+                        <div class="sg-group">
+                            <label for="officeStartTime">Office Start Time</label>
+                            <input type="time" id="officeStartTime" value="09:00" onchange="saveAttendanceSettings()">
+                        </div>
+                        <div class="sg-group">
+                            <label for="lateThresholdMins">Grace Period (minutes)</label>
+                            <input type="number" id="lateThresholdMins" value="10" min="0" max="60" onchange="saveAttendanceSettings()">
+                        </div>
+                        <div class="sg-group">
+                            <label for="lateDaysHalfDay">Late Days → 1 Half Day</label>
+                            <input type="number" id="lateDaysHalfDay" value="3" min="1" onchange="saveAttendanceSettings()">
+                        </div>
+                    </div>
+                    <p id="settingsSummaryText" style="font-size:12px;color:#718096;margin:10px 0 0;"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="popup-overlay" id="monthlyAttendancePopup" onclick="closePopupOnBackdrop(event, 'monthlyAttendancePopup')">
+            <div class="popup-card">
+                <div class="popup-header">
+                    <h3><i class="fas fa-user-check" style="margin-right:8px;color:#667eea;"></i>Single Employee Monthly Attendance</h3>
+                    <button class="popup-close" onclick="closeMonthlyAttendancePopup()" aria-label="Close Monthly Attendance Popup">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="popup-content">
+                    <div class="emp-month-controls">
+                        <div>
+                            <label for="monthEmployeeSelect">Employee</label>
+                            <select id="monthEmployeeSelect">
+                                <option value="">Select Employee</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="monthPicker">Month</label>
+                            <input type="month" id="monthPicker">
+                        </div>
+                        <button class="btn btn-primary" onclick="loadSingleEmployeeMonthAttendance()">
+                            <i class="fas fa-search"></i> View
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearSingleEmployeeMonthAttendance()">
+                            <i class="fas fa-eraser"></i> Clear
+                        </button>
+                    </div>
+                    <div class="emp-month-stats" id="monthAttendanceStats" style="display:none;">
+                        <div class="emp-month-stat"><div class="val" id="mStatWorking">0</div><div class="lbl">Working Days</div></div>
+                        <div class="emp-month-stat"><div class="val" id="mStatPresent">0</div><div class="lbl">On Time</div></div>
+                        <div class="emp-month-stat"><div class="val" id="mStatLate">0</div><div class="lbl">Late</div></div>
+                        <div class="emp-month-stat"><div class="val" id="mStatLeave">0</div><div class="lbl">On Leave</div></div>
+                        <div class="emp-month-stat"><div class="val" id="mStatWfh">0</div><div class="lbl">WFH</div></div>
+                        <div class="emp-month-stat"><div class="val" id="mStatAbsent">0</div><div class="lbl">Absent</div></div>
+                    </div>
+                    <div class="emp-month-table-wrap">
+                        <table class="emp-month-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Day</th>
+                                    <th>Status</th>
+                                    <th>Entry Time</th>
+                                    <th>Late By</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthAttendanceBody">
+                                <tr><td colspan="6" class="emp-month-empty">Select employee and month to view attendance</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- Attendance Table -->
         <div class="att-table-wrap">
             <table class="att-table">

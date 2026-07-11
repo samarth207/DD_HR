@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Test Case Guide</title>
+    <style>
+        :root {
+            --bg: linear-gradient(135deg, #fff7ed, #ecfeff 45%, #eef2ff);
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --line: #e2e8f0;
+            --accent: #0369a1;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: clamp(1.7rem, 4vw, 2.4rem);
+        }
+
+        h2 {
+            margin: 0 0 10px;
+            font-size: 1.1rem;
+            color: var(--accent);
+        }
+
+        p, li {
+            line-height: 1.55;
+        }
+
+        ul, ol {
+            margin: 8px 0 0 18px;
+            padding: 0;
+        }
+
+        code {
+            background: #f8fafc;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 2px 6px;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 0.95em;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 10px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .card h3 {
+            margin: 0 0 6px;
+            font-size: 0.98rem;
+            color: #0b5d83;
+        }
+
+        .link-btn {
+            display: inline-block;
+            text-decoration: none;
+            color: #fff;
+            background: linear-gradient(90deg, #0284c7, #0369a1);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-weight: 600;
+            margin-right: 8px;
+            margin-top: 8px;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="panel">
+            <h1>New Test Case Guide</h1>
+            <p class="muted">Simple instructions for adding and running new automated test cases.</p>
+            <a class="link-btn" href="/testing-easy.html">Back to Easy Mode</a>
+            <a class="link-btn" href="/testing-report.html">Open Technical Report</a>
+        </div>
+
+        <div class="panel">
+            <h2>Quick Steps (No Coding)</h2>
+            <ol>
+                <li>Open <code>http://localhost:3000/testing-easy.html</code></li>
+                <li>Fill <strong>Create New Feature Test</strong> form</li>
+                <li>Click <strong>Generate Test File</strong></li>
+                <li>Run <code>npm run test:e2e:report</code></li>
+                <li>Check results on Easy page and Report page</li>
+            </ol>
+        </div>
+
+        <div class="panel">
+            <h2>What To Check For Every New Test</h2>
+            <ol>
+                <li>API response is correct</li>
+                <li>Database values are correct</li>
+                <li>Business rule is correct</li>
+                <li>Expected vs actual values are recorded</li>
+                <li>Cleanup rollback is successful</li>
+            </ol>
+        </div>
+
+        <div class="panel">
+            <h2>What To Enter In The Form (Simple Explanation)</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Module Name</h3>
+                    <p>Business area label like <code>Leave</code>, <code>Attendance</code>, <code>Sales</code>, <code>Salary</code>, <code>Employee</code>.</p>
+                </div>
+                <div class="card">
+                    <h3>HTTP Method</h3>
+                    <p>API action type: <code>POST</code> create, <code>GET</code> read, <code>PUT/PATCH</code> update, <code>DELETE</code> remove.</p>
+                </div>
+                <div class="card">
+                    <h3>Expected Status Code</h3>
+                    <p>Expected response code from your API. Common values: <code>200</code>, <code>201</code>, <code>400</code>, <code>401</code>, <code>403</code>, <code>404</code>.</p>
+                </div>
+                <div class="card">
+                    <h3>API Endpoint</h3>
+                    <p>Endpoint is <strong>custom</strong> based on your feature. It is not fixed. Use real routes like <code>/api/leaves</code>, <code>/api/sales</code>, <code>/api/attendance/settings</code>. Do not keep <code>/api/example</code>.</p>
+                </div>
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h3>JSON Payload</h3>
+                    <p>Input data sent to API. Must be valid JSON. Example:</p>
+                    <pre>{
+  "employeeId": 100001,
+  "leaveType": "Paid Leave",
+  "startDate": "2026-07-20",
+  "endDate": "2026-07-20",
+  "status": "pending"
+}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Are API Endpoints Fixed Or Custom?</h2>
+            <p><strong>Custom.</strong> You should select the endpoint for the feature you are testing.</p>
+            <ul>
+                <li>If you test leave creation, use <code>/api/leaves</code></li>
+                <li>If you test sales update, use <code>/api/sales</code></li>
+                <li>If you test attendance settings, use <code>/api/attendance/settings</code></li>
+            </ul>
+            <p class="muted">So the endpoint changes feature-to-feature.</p>
+        </div>
+
+        <div class="panel">
+            <h2>Expected Status Code (How To Choose)</h2>
+            <ul>
+                <li><code>200</code>: successful request</li>
+                <li><code>201</code>: successful create</li>
+                <li><code>400</code>: request rejected by validation/business rule</li>
+                <li><code>401</code>: not logged in / invalid auth</li>
+                <li><code>403</code>: not allowed</li>
+                <li><code>404</code>: resource/route not found</li>
+            </ul>
+            <p>Choose the code your feature should return when behavior is correct.</p>
+        </div>
+
+        <div class="panel">
+            <h2>Example (Leave Feature)</h2>
+            <p><strong>Case:</strong> Employee applies leave on a holiday and system should reject it.</p>
+            <ul>
+                <li>Module Name: <code>Leave</code></li>
+                <li>HTTP Method: <code>POST</code></li>
+                <li>API Endpoint: <code>/api/leaves</code></li>
+                <li>Expected Status Code: <code>400</code> (rejection is expected)</li>
+                <li>JSON Payload:</li>
+            </ul>
+            <pre>{
+  "employeeId": 100001,
+  "leaveType": "Paid Leave",
+  "startDate": "2026-07-15",
+  "endDate": "2026-07-15",
+  "status": "pending"
+}</pre>
+            <p>If API returns <code>400</code>, this test is considered passed for this scenario.</p>
+        </div>
+
+        <div class="panel">
+            <h2>What Each File Does</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>tests/e2e/automation.e2e.test.js</h3>
+                    <p>Main end-to-end workflows.</p>
+                </div>
+                <div class="card">
+                    <h3>tests/e2e/generated/*.test.js</h3>
+                    <p>New tests generated from form/CLI.</p>
+                </div>
+                <div class="card">
+                    <h3>testing/factories/seed-factory.js</h3>
+                    <p>Creates sample data for tests.</p>
+                </div>
+                <div class="card">
+                    <h3>testing/assertions/validation-engine.js</h3>
+                    <p>Reusable assertions and checks.</p>
+                </div>
+                <div class="card">
+                    <h3>testing/framework/cleanup-manager.js</h3>
+                    <p>Cleans up test data after each case.</p>
+                </div>
+                <div class="card">
+                    <h3>routes/testing.js</h3>
+                    <p>Dashboard/report APIs and case generation API.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Troubleshooting</h2>
+            <ul>
+                <li>If dashboard has no records, run <code>npm run test:e2e:report</code> (not just <code>npm run test:e2e</code>).</li>
+                <li>If server fails from workspace root, run with prefix: <code>npm --prefix "c:\Users\samth\Desktop\DD\HR\server" start</code>.</li>
+                <li>If generated test fails, verify endpoint starts with <code>/api/</code> and payload is valid JSON.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

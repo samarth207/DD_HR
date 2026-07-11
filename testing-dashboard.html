@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Automation Testing Dashboard</title>
+    <style>
+        :root {
+            --bg: radial-gradient(circle at 10% 10%, #fef3c7, #eef2ff 40%, #e0f2fe 100%);
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --good: #047857;
+            --bad: #b91c1c;
+            --warn: #b45309;
+            --line: #e2e8f0;
+            --accent: #0ea5e9;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Georgia, 'Times New Roman', serif;
+            color: var(--text);
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            margin: 0 0 8px;
+        }
+
+        .subtitle { color: var(--muted); margin-bottom: 18px; }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        select, input, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            font-size: 14px;
+        }
+
+        button {
+            border: none;
+            background: linear-gradient(90deg, #0ea5e9, #2563eb);
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+        }
+
+        .label { color: var(--muted); font-size: 13px; }
+        .value { font-size: 1.6rem; font-weight: bold; margin-top: 6px; }
+
+        .good { color: var(--good); }
+        .bad { color: var(--bad); }
+        .warn { color: var(--warn); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid var(--line);
+            font-size: 14px;
+        }
+
+        th { background: #f8fafc; }
+
+        .status-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-passed { background: #dcfce7; color: #166534; }
+        .status-failed { background: #fee2e2; color: #991b1b; }
+        .status-running { background: #fef3c7; color: #92400e; }
+
+        @media (max-width: 700px) {
+            th:nth-child(4), td:nth-child(4),
+            th:nth-child(6), td:nth-child(6) {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Automation Testing Dashboard</h1>
+        <div class="subtitle">Module-level pass/fail insights, run timing, and recent failures.</div>
+        <div style="margin-bottom:12px;">
+            <a href="/testing-easy.html" style="display:inline-block;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,#16a34a,#15803d);color:#fff;text-decoration:none;font-weight:bold;">Open Easy Mode (No Coding)</a>
+        </div>
+
+        <div class="filters">
+            <select id="statusFilter">
+                <option value="">All Status</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="running">Running</option>
+            </select>
+            <input id="fromDate" type="date" />
+            <input id="toDate" type="date" />
+            <button id="refreshBtn">Refresh</button>
+        </div>
+
+        <div class="cards">
+            <div class="card"><div class="label">Total Tests</div><div id="totalTests" class="value">0</div></div>
+            <div class="card"><div class="label">Passed</div><div id="passed" class="value good">0</div></div>
+            <div class="card"><div class="label">Failed</div><div id="failed" class="value bad">0</div></div>
+            <div class="card"><div class="label">Skipped</div><div id="skipped" class="value warn">0</div></div>
+            <div class="card"><div class="label">Execution Time (ms)</div><div id="duration" class="value">0</div></div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Run ID</th>
+                    <th>Status</th>
+                    <th>Total</th>
+                    <th>Passed</th>
+                    <th>Failed</th>
+                    <th>Duration</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody id="summaryBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const els = {
+            totalTests: document.getElementById('totalTests'),
+            passed: document.getElementById('passed'),
+            failed: document.getElementById('failed'),
+            skipped: document.getElementById('skipped'),
+            duration: document.getElementById('duration'),
+            summaryBody: document.getElementById('summaryBody'),
+            statusFilter: document.getElementById('statusFilter'),
+            fromDate: document.getElementById('fromDate'),
+            toDate: document.getElementById('toDate')
+        };
+
+        function statusPill(status) {
+            const cls = `status-pill status-${status || 'running'}`;
+            return `<span class="${cls}">${status || 'running'}</span>`;
+        }
+
+        function sum(rows, key) {
+            return rows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
+        }
+
+        async function loadSummary() {
+            const params = new URLSearchParams();
+            if (els.statusFilter.value) params.set('status', els.statusFilter.value);
+            if (els.fromDate.value) params.set('from', `${els.fromDate.value}T00:00:00.000Z`);
+            if (els.toDate.value) params.set('to', `${els.toDate.value}T23:59:59.999Z`);
+
+            const res = await fetch(`/api/testing/summary?${params.toString()}`);
+            const rows = await res.json();
+
+            els.totalTests.textContent = sum(rows, 'totalTests');
+            els.passed.textContent = sum(rows, 'passed');
+            els.failed.textContent = sum(rows, 'failed');
+            els.skipped.textContent = sum(rows, 'skipped');
+            els.duration.textContent = sum(rows, 'durationMs');
+
+            const recent = rows.slice(0, 50);
+            els.summaryBody.innerHTML = recent.map((row) => `
+                <tr>
+                    <td>${row.runId || '-'}</td>
+                    <td>${statusPill(row.status)}</td>
+                    <td>${row.totalTests ?? 0}</td>
+                    <td>${row.passed ?? 0}</td>
+                    <td>${row.failed ?? 0}</td>
+                    <td>${row.durationMs ?? 0}</td>
+                    <td>${row.createdAt ? new Date(row.createdAt).toLocaleString() : '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', loadSummary);
+        loadSummary();
+    </script>
+</body>
+</html>

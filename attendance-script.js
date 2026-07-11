@@ -18,10 +18,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('attendanceDate').value = today;
     currentDate = today;
 
+    const monthInput = document.getElementById('monthPicker');
+    if (monthInput) monthInput.value = today.substring(0, 7);
+
     await loadAttendanceSettings();
     updateSettingsSummary();
 
     await Promise.all([loadEmployees(), loadLeaves()]);
+    populateMonthlyEmployeeSelect();
 
     // Load records for the current month from API so late-count is accurate
     await loadMonthAttendanceFromAPI(today.substring(0, 7));
@@ -55,9 +59,26 @@ function isLate(entryTime) {
 
 function getMonthStr(dateStr) { return dateStr.substring(0, 7); }
 
+function getEmployeeJoinDate(employee) {
+    return employee?.hireDate || employee?.joinDate || employee?.joiningDate || employee?.dateOfJoining || '';
+}
+
+function isEmployeeCycleMonthEndDate(employee, dateStr) {
+    const joinDate = getEmployeeJoinDate(employee);
+    if (!joinDate || dateStr < joinDate) return false;
+
+    const joinDay = parseInt(joinDate.substring(8, 10), 10);
+    const [year, month] = dateStr.split('-').map(Number);
+    const daysInThisMonth = new Date(year, month, 0).getDate();
+    const cycleDay = Math.min(joinDay, daysInThisMonth);
+
+    return parseInt(dateStr.substring(8, 10), 10) === cycleDay;
+}
+
 function isJoinedByDate(employee, dateStr) {
-    if (!employee?.hireDate) return true;
-    return dateStr >= employee.hireDate;
+    const joinDate = getEmployeeJoinDate(employee);
+    if (!joinDate) return true;
+    return dateStr >= joinDate;
 }
 
 function isWorkFromHomeLeave(leave) {
@@ -111,12 +132,47 @@ function updateSettingsSummary() {
     el.innerHTML = `If an employee is late more than <strong>${attendanceSettings.lateDaysHalfDay}</strong> times in a month by more than <strong>${attendanceSettings.lateThresholdMins}</strong> minutes after <strong>${formatTime12h(attendanceSettings.officeStartTime)}</strong>, it counts as a half day deduction.`;
 }
 
-function toggleSettings() {
-    const body = document.getElementById('settingsBody');
-    const chevron = document.getElementById('settingsChevron');
-    body.classList.toggle('open');
-    chevron.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
+function openLatePolicyPopup() {
+    const popup = document.getElementById('latePolicyPopup');
+    if (popup) popup.classList.add('open');
 }
+
+function closeLatePolicyPopup() {
+    const popup = document.getElementById('latePolicyPopup');
+    if (popup) popup.classList.remove('open');
+}
+
+function openMonthlyAttendancePopup() {
+    const popup = document.getElementById('monthlyAttendancePopup');
+    if (popup) popup.classList.add('open');
+}
+
+function closeMonthlyAttendancePopup() {
+    const popup = document.getElementById('monthlyAttendancePopup');
+    if (popup) popup.classList.remove('open');
+}
+
+function closePopupOnBackdrop(event, popupId) {
+    if (event.target.id !== popupId) return;
+    const popup = document.getElementById(popupId);
+    if (popup) popup.classList.remove('open');
+}
+
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+
+    const latePolicyPopup = document.getElementById('latePolicyPopup');
+    const monthlyAttendancePopup = document.getElementById('monthlyAttendancePopup');
+
+    if (latePolicyPopup?.classList.contains('open')) {
+        latePolicyPopup.classList.remove('open');
+        return;
+    }
+
+    if (monthlyAttendancePopup?.classList.contains('open')) {
+        monthlyAttendancePopup.classList.remove('open');
+    }
+});
 
 // ─── Data Load / Save ─────────────────────────────────────────────────────
 
@@ -190,6 +246,233 @@ function getWorkFromHomeForDate(employeeId, dateStr) {
         dateStr >= l.startDate &&
         dateStr <= l.endDate
     ) || null;
+}
+
+// ─── Single employee monthly view ─────────────────────────────────────────
+
+function populateMonthlyEmployeeSelect() {
+    const select = document.getElementById('monthEmployeeSelect');
+    if (!select) return;
+
+    const previous = select.value;
+    const employees = getEmployees()
+        .slice()
+        .sort((a, b) => (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`));
+
+    select.innerHTML = '<option value="">Select Employee</option>' + employees.map(emp =>
+        `<option value="${emp.id}">${emp.firstName} ${emp.lastName}${emp.status !== 'Active' ? ' (Inactive)' : ''}</option>`
+    ).join('');
+
+    if (previous && employees.some(emp => String(emp.id) === String(previous))) {
+        select.value = previous;
+    }
+}
+
+function getDaysInMonth(monthStr) {
+    const [year, month] = monthStr.split('-').map(Number);
+    const first = new Date(year, month - 1, 1);
+    const last = new Date(year, month, 0);
+    const days = [];
+    for (let d = first.getDate(); d <= last.getDate(); d++) {
+        days.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+    return days;
+}
+
+function classifyEmployeeStatusForDate(employee, employeeId, dateStr, dayRecord) {
+    const leave = getLeaveForDate(employeeId, dateStr);
+    const isHalfDayLeave = leave && leave.halfDay === true;
+    const wfh = getWorkFromHomeForDate(employeeId, dateStr);
+
+    if (leave && !isHalfDayLeave) {
+        return {
+            status: 'on-leave',
+            label: 'On Leave',
+            timeText: '—',
+            lateByText: '—',
+            notes: leave.leaveType || 'Approved Leave'
+        };
+    }
+
+    if (wfh) {
+        return {
+            status: 'wfh',
+            label: 'WFH',
+            timeText: dayRecord?.time ? formatTime12h(dayRecord.time) : '—',
+            lateByText: dayRecord?.time && isLate(dayRecord.time) ? `${minutesAfterOffice(dayRecord.time)} min` : '—',
+            notes: WORK_FROM_HOME_TYPE
+        };
+    }
+
+    if (dayRecord?.time) {
+        const late = isLate(dayRecord.time);
+        const note = isHalfDayLeave
+            ? `Half Day Leave (${leave.halfDaySession === 'Second Half' ? 'Second Half' : 'First Half'})`
+            : '—';
+        return {
+            status: late ? 'late' : 'present',
+            label: late ? 'Late' : 'Present',
+            timeText: formatTime12h(dayRecord.time),
+            lateByText: late ? `${minutesAfterOffice(dayRecord.time)} min` : '—',
+            notes: note
+        };
+    }
+
+    if (isHalfDayLeave) {
+        return {
+            status: 'absent',
+            label: 'Absent',
+            timeText: '—',
+            lateByText: '—',
+            notes: `Half Day Leave (${leave.halfDaySession === 'Second Half' ? 'Second Half' : 'First Half'})`
+        };
+    }
+
+    return {
+        status: 'absent',
+        label: 'Absent',
+        timeText: '—',
+        lateByText: '—',
+        notes: '—'
+    };
+}
+
+async function loadSingleEmployeeMonthAttendance() {
+    const employeeSelect = document.getElementById('monthEmployeeSelect');
+    const monthInput = document.getElementById('monthPicker');
+
+    if (!employeeSelect || !monthInput) return;
+
+    const employeeId = Number(employeeSelect.value);
+    const monthStr = monthInput.value;
+
+    if (!employeeId || !monthStr) {
+        showNotification('Please select an employee and month', 'warning');
+        return;
+    }
+
+    const employee = getEmployees().find(e => e.id === employeeId);
+    if (!employee) {
+        showNotification('Employee not found', 'error');
+        return;
+    }
+
+    await loadMonthAttendanceFromAPI(monthStr);
+    renderSingleEmployeeMonthAttendance(employee, monthStr);
+}
+
+function clearSingleEmployeeMonthAttendance() {
+    const employeeSelect = document.getElementById('monthEmployeeSelect');
+    const monthInput = document.getElementById('monthPicker');
+    const body = document.getElementById('monthAttendanceBody');
+    const stats = document.getElementById('monthAttendanceStats');
+
+    if (employeeSelect) employeeSelect.value = '';
+    if (monthInput) monthInput.value = formatDateKey(new Date()).substring(0, 7);
+    if (stats) stats.style.display = 'none';
+    if (body) {
+        body.innerHTML = '<tr><td colspan="6" class="emp-month-empty">Select employee and month to view attendance</td></tr>';
+    }
+}
+
+function renderSingleEmployeeMonthAttendance(employee, monthStr) {
+    const body = document.getElementById('monthAttendanceBody');
+    const stats = document.getElementById('monthAttendanceStats');
+    if (!body || !stats) return;
+
+    const rows = [];
+    const monthDays = getDaysInMonth(monthStr);
+    const today = formatDateKey(new Date());
+
+    let statWorking = 0;
+    let statPresent = 0;
+    let statLate = 0;
+    let statLeave = 0;
+    let statWfh = 0;
+    let statAbsent = 0;
+    const joinDate = getEmployeeJoinDate(employee);
+    monthDays.forEach(dateStr => {
+        if (!isJoinedByDate(employee, dateStr)) return;
+
+        const isJoinDate = Boolean(joinDate) && dateStr === joinDate;
+        const isCycleMonthEnd = isEmployeeCycleMonthEndDate(employee, dateStr);
+        const isRecurringMonthEnd = isCycleMonthEnd && !isJoinDate;
+        const isFutureDate = dateStr > today;
+        if (isFutureDate && !isJoinDate && !isRecurringMonthEnd) return;
+
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
+        const dateText = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const rowClasses = [
+            isJoinDate ? 'emp-month-join-row' : '',
+            isRecurringMonthEnd ? 'emp-month-cycle-end-row' : ''
+        ].filter(Boolean).join(' ');
+
+        if (isFutureDate && (isJoinDate || isRecurringMonthEnd)) {
+            const specialNotes = [];
+            if (isJoinDate) specialNotes.push('<span class="emp-month-note-join">Joining date</span>');
+            if (isRecurringMonthEnd) specialNotes.push('<span class="emp-month-note-cycle-end">Month-end day</span>');
+            rows.push(`
+            <tr class="${rowClasses}">
+                <td>
+                    ${dateText}
+                    ${isJoinDate ? '<span class="emp-month-join-tag"><i class="fas fa-flag"></i> Joined</span>' : ''}
+                    ${isRecurringMonthEnd ? '<span class="emp-month-cycle-end-tag"><i class="fas fa-calendar-check"></i> Month End</span>' : ''}
+                </td>
+                <td>${dayName}</td>
+                <td><span class="att-badge upcoming"><i class="fas fa-hourglass-half"></i> Upcoming</span></td>
+                <td>—</td>
+                <td>—</td>
+                <td>${specialNotes.join('')}</td>
+            </tr>
+        `);
+            return;
+        }
+
+        const dayRecord = (attendanceData[dateStr] || {})[employee.id] || null;
+        const statusInfo = classifyEmployeeStatusForDate(employee, employee.id, dateStr, dayRecord);
+
+        if (statusInfo.status === 'on-leave') statLeave++;
+        else if (statusInfo.status === 'wfh') { statWfh++; statWorking++; }
+        else if (statusInfo.status === 'present') { statPresent++; statWorking++; }
+        else if (statusInfo.status === 'late') { statLate++; statWorking++; }
+        else statAbsent++;
+
+        const statusClass = statusInfo.status === 'wfh' ? 'on-leave' : statusInfo.status;
+        const specialNotes = [];
+        if (isJoinDate) specialNotes.push('<span class="emp-month-note-join">Joining date</span>');
+        if (isRecurringMonthEnd) specialNotes.push('<span class="emp-month-note-cycle-end">Month-end day</span>');
+        rows.push(`
+            <tr class="${rowClasses}">
+                <td>
+                    ${dateText}
+                    ${isJoinDate ? '<span class="emp-month-join-tag"><i class="fas fa-flag"></i> Joined</span>' : ''}
+                    ${isRecurringMonthEnd ? '<span class="emp-month-cycle-end-tag"><i class="fas fa-calendar-check"></i> Month End</span>' : ''}
+                </td>
+                <td>${dayName}</td>
+                <td><span class="att-badge ${statusClass}">${statusInfo.label}</span></td>
+                <td>${statusInfo.timeText}</td>
+                <td>${statusInfo.lateByText}</td>
+                <td>${statusInfo.notes}${specialNotes.join('')}</td>
+            </tr>
+        `);
+    });
+
+    if (rows.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" class="emp-month-empty">No attendance rows for selected month</td></tr>';
+        stats.style.display = 'none';
+        return;
+    }
+
+    body.innerHTML = rows.join('');
+
+    document.getElementById('mStatWorking').textContent = statWorking;
+    document.getElementById('mStatPresent').textContent = statPresent;
+    document.getElementById('mStatLate').textContent = statLate;
+    document.getElementById('mStatLeave').textContent = statLeave;
+    document.getElementById('mStatWfh').textContent = statWfh;
+    document.getElementById('mStatAbsent').textContent = statAbsent;
+    stats.style.display = 'grid';
 }
 
 // ─── Late / Half-day accounting ────────────────────────────────────────────

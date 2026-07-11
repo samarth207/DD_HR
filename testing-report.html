@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Automation Behavior Report</title>
+    <style>
+        :root {
+            --bg: linear-gradient(120deg, #f0fdf4 0%, #ecfeff 40%, #eff6ff 100%);
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --line: #e2e8f0;
+            --good: #166534;
+            --bad: #991b1b;
+            --warn: #92400e;
+            --accent: #0369a1;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: clamp(1.6rem, 3.8vw, 2.4rem);
+        }
+
+        .subtitle {
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        .toolbar {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        select, input, button {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+            font-size: 14px;
+        }
+
+        button {
+            border: none;
+            background: linear-gradient(90deg, #0284c7, #0369a1);
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .card .label {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+
+        .good { color: var(--good); }
+        .bad { color: var(--bad); }
+        .warn { color: var(--warn); }
+
+        .run-meta {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .case {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .case-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid var(--line);
+            background: #f8fafc;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pill-passed { background: #dcfce7; color: #166534; }
+        .pill-failed { background: #fee2e2; color: #991b1b; }
+        .pill-skipped { background: #fef3c7; color: #92400e; }
+
+        .case-body {
+            padding: 12px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .block {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .block h4 {
+            margin: 0 0 8px;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 280px;
+            overflow: auto;
+            background: #f8fafc;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        details {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px;
+            background: #fff;
+        }
+
+        details + details {
+            margin-top: 8px;
+        }
+
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .muted { color: var(--muted); }
+
+        .empty {
+            background: var(--panel);
+            border: 1px dashed var(--line);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Automation Behavior Report</h1>
+        <div class="subtitle">Inspect what data was sent, what API returned, and what DB/result validations were recorded per test case.</div>
+        <div style="margin-bottom:12px;">
+            <a href="/testing-easy.html" style="display:inline-block;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,#16a34a,#15803d);color:#fff;text-decoration:none;font-weight:bold;">Open Easy Mode (No Coding)</a>
+        </div>
+
+        <div class="toolbar">
+            <select id="runSelect"></select>
+            <select id="moduleFilter">
+                <option value="">All Modules</option>
+            </select>
+            <select id="statusFilter">
+                <option value="">All Status</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="skipped">Skipped</option>
+            </select>
+            <button id="loadBtn">Load Report</button>
+            <button id="exportBtn">Export HTML Snapshot</button>
+        </div>
+
+        <div class="summary" id="summaryCards"></div>
+        <div class="run-meta" id="runMeta">Select a run and click Load Report.</div>
+        <div id="casesWrap" class="empty">No report loaded yet.</div>
+    </div>
+
+    <script>
+        const ui = {
+            runSelect: document.getElementById('runSelect'),
+            moduleFilter: document.getElementById('moduleFilter'),
+            statusFilter: document.getElementById('statusFilter'),
+            loadBtn: document.getElementById('loadBtn'),
+            exportBtn: document.getElementById('exportBtn'),
+            summaryCards: document.getElementById('summaryCards'),
+            runMeta: document.getElementById('runMeta'),
+            casesWrap: document.getElementById('casesWrap')
+        };
+
+        let currentReport = null;
+
+        function formatJson(value) {
+            try {
+                return JSON.stringify(value ?? null, null, 2);
+            } catch (_) {
+                return String(value);
+            }
+        }
+
+        function buildSummary(summary) {
+            const html = [
+                card('Total Cases', summary.total || 0, ''),
+                card('Passed', summary.passed || 0, 'good'),
+                card('Failed', summary.failed || 0, 'bad'),
+                card('Skipped', summary.skipped || 0, 'warn')
+            ].join('');
+            ui.summaryCards.innerHTML = html;
+        }
+
+        function card(label, value, cls) {
+            return `<div class="card"><div class="label">${label}</div><div class="value ${cls}">${value}</div></div>`;
+        }
+
+        function statusPill(status) {
+            const s = (status || 'skipped').toLowerCase();
+            const cls = s === 'passed' ? 'pill-passed' : (s === 'failed' ? 'pill-failed' : 'pill-skipped');
+            return `<span class="pill ${cls}">${s}</span>`;
+        }
+
+        function renderCases(cases) {
+            if (!cases.length) {
+                ui.casesWrap.className = 'empty';
+                ui.casesWrap.innerHTML = 'No cases for selected filters.';
+                return;
+            }
+
+            ui.casesWrap.className = '';
+            ui.casesWrap.innerHTML = cases.map((c) => {
+                const logItems = (c.logs || []).map((l, idx) => {
+                    const req = l.request ?? null;
+                    const resBody = l.responseBody ?? null;
+                    const dbMeta = {
+                        latencyMs: l.latencyMs,
+                        responseStatus: l.responseStatus,
+                        at: l.at,
+                        level: l.level,
+                        message: l.message
+                    };
+                    return `
+                        <details>
+                            <summary>Event ${idx + 1}: ${l.message || 'log'} ${l.responseStatus ? `(status ${l.responseStatus})` : ''}</summary>
+                            <div class="muted" style="margin:6px 0 8px;">${l.at || '-'}</div>
+                            <div class="block"><h4>Request Data Fed</h4><pre>${formatJson(req)}</pre></div>
+                            <div class="block" style="margin-top:8px;"><h4>API Response Retrieved</h4><pre>${formatJson(resBody)}</pre></div>
+                            <div class="block" style="margin-top:8px;"><h4>Event Meta</h4><pre>${formatJson(dbMeta)}</pre></div>
+                        </details>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="case">
+                        <div class="case-head">
+                            <div>
+                                <div><strong>${c.module || 'Module'}</strong> :: ${c.name || 'Case'}</div>
+                                <div class="muted">Case ID: ${c.testCaseId || '-'} | Duration: ${c.executionTimeMs || 0} ms</div>
+                            </div>
+                            <div>${statusPill(c.status)}</div>
+                        </div>
+                        <div class="case-body">
+                            <div class="block"><h4>Expected Result</h4><pre>${formatJson((c.expectedRecord && c.expectedRecord.expected) || c.expectedResult)}</pre></div>
+                            <div class="block"><h4>Actual Result</h4><pre>${formatJson(c.actualResult)}</pre></div>
+                            <div class="block"><h4>API Validation</h4><pre>${formatJson({ apiValidation: c.apiValidation, apiResponse: c.apiResponse })}</pre></div>
+                            <div class="block"><h4>Database Validation / Changes</h4><pre>${formatJson({ databaseValidation: c.databaseValidation, databaseChanges: c.databaseChanges, rollbackStatus: c.rollbackStatus })}</pre></div>
+                            <div class="block"><h4>Business Rule Validation</h4><pre>${formatJson({ businessRuleValidation: c.businessRuleValidation, errorStack: c.errorStack || null })}</pre></div>
+                            <div class="block"><h4>Request/Response Timeline</h4>${logItems || '<div class="muted">No request logs for this case.</div>'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function refreshModuleFilter(modules) {
+            const current = ui.moduleFilter.value;
+            const opts = ['<option value="">All Modules</option>']
+                .concat((modules || []).map((m) => `<option value="${m}">${m}</option>`));
+            ui.moduleFilter.innerHTML = opts.join('');
+            if ((modules || []).includes(current)) ui.moduleFilter.value = current;
+        }
+
+        async function loadRuns() {
+            const res = await fetch('/api/testing/runs');
+            const runs = await res.json();
+            if (!Array.isArray(runs) || !runs.length) {
+                ui.runSelect.innerHTML = '<option value="">No runs found</option>';
+                return;
+            }
+            ui.runSelect.innerHTML = runs.map((r) => `<option value="${r.runId}">${r.runId} | ${r.status || 'running'} | ${r.startTime || '-'}</option>`).join('');
+        }
+
+        async function loadReport() {
+            const runId = ui.runSelect.value;
+            if (!runId) return;
+
+            const params = new URLSearchParams();
+            if (ui.moduleFilter.value) params.set('module', ui.moduleFilter.value);
+            if (ui.statusFilter.value) params.set('status', ui.statusFilter.value);
+
+            const res = await fetch(`/api/testing/runs/${encodeURIComponent(runId)}/full-report?${params.toString()}`);
+            const data = await res.json();
+            currentReport = data;
+
+            if (!data || data.error) {
+                ui.runMeta.textContent = data?.error || 'Failed to load report.';
+                ui.casesWrap.className = 'empty';
+                ui.casesWrap.textContent = 'Failed to load report.';
+                return;
+            }
+
+            buildSummary(data.summary || {});
+            refreshModuleFilter((data.summary && data.summary.modules) || []);
+
+            ui.runMeta.innerHTML = `Run <strong>${data.run.runId}</strong> | Status: <strong>${data.run.status || '-'}</strong> | Start: ${data.run.startTime || '-'} | End: ${data.run.endTime || '-'} | Duration: ${data.run.durationMs || 0} ms`;
+            renderCases(data.cases || []);
+        }
+
+        function exportSnapshotHtml() {
+            if (!currentReport) return;
+            const snapshot = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Testing Report Snapshot</title></head><body><pre>${formatJson(currentReport)}</pre></body></html>`;
+            const blob = new Blob([snapshot], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `testing-report-${currentReport.run.runId}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        ui.loadBtn.addEventListener('click', loadReport);
+        ui.exportBtn.addEventListener('click', exportSnapshotHtml);
+
+        loadRuns();
+    </script>
+</body>
+</html>

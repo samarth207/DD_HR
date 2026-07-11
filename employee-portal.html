@@ -120,9 +120,43 @@
             background: var(--surface); border-radius: 12px; padding: 18px;
             border: 1px solid var(--border); box-shadow: var(--shadow);
         }
+        .kpi.kpi-clickable {
+            cursor: pointer;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+        }
+        .kpi.kpi-clickable:hover,
+        .kpi.kpi-clickable:focus-visible {
+            transform: translateY(-1px);
+            border-color: #cbd5e1;
+            box-shadow: 0 10px 24px rgba(15,23,42,.08);
+            outline: none;
+        }
         .kpi-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
         .kpi-value { font-size: 26px; font-weight: 800; margin: 6px 0 2px; color: var(--text); }
         .kpi-sub { font-size: 12px; color: var(--muted); }
+        .overview-quick-row {
+            display: flex;
+            justify-content: flex-end;
+            margin: -6px 0 16px;
+        }
+        .sales-pair-grid {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        @media (max-width: 760px) {
+            .sales-pair-grid {
+                grid-template-columns: 1fr;
+            }
+            .overview-quick-row {
+                justify-content: stretch;
+            }
+            .overview-quick-row .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
 
         /* ── Table ── */
         .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
@@ -350,6 +384,8 @@
             .piggy-text { min-width: 0; }
             .piggy-lbl { font-size: 9px; }
             .piggy-amt { font-size: 12px; }
+            .piggy-emoji { width: 44px; height: 22px; }
+            .piggy-bank-right i { font-size: 14px; }
             .user-chip {
                 width: 100%;
                 min-width: 0;
@@ -391,6 +427,13 @@
             .kpi-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
             .kpi { padding: 14px; }
             .kpi-value { font-size: 22px; }
+            #overviewKPIs .kpi {
+                max-width: 420px;
+                width: 100%;
+                margin-left: auto;
+                margin-right: auto;
+                text-align: center;
+            }
             .table-wrap { border-radius: 12px; }
             table { font-size: 12px; }
             th, td { padding: 10px 8px; }
@@ -449,14 +492,20 @@
             box-shadow: none; opacity: .65;
         }
         .piggy-emoji {
-            font-size: 22px; line-height: 1;
-            animation: piggyWobble 3s ease-in-out infinite;
-            display: inline-block;
-        }
-        .piggy-emoji i {
-            font-size: 20px;
-            color: #b45309;
+            width: 52px;
+            height: 26px;
             line-height: 1;
+            animation: piggyWobble 3s ease-in-out infinite;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .piggy-emoji img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
         }
         .piggy-widget.piggy-has-amount .piggy-emoji {
             animation: piggyBounce 1.4s ease-in-out infinite;
@@ -477,6 +526,26 @@
         .piggy-widget.piggy-zero .piggy-lbl { color: var(--muted); }
         .piggy-widget.piggy-zero .piggy-amt { color: var(--muted); font-size: 12px; }
         .piggy-status { margin-left: 2px; }
+        .piggy-bank-right {
+            margin-left: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .piggy-bank-right i {
+            font-size: 16px;
+            color: #b45309;
+            line-height: 1;
+        }
+        .piggy-widget.piggy-zero .piggy-bank-right i { color: var(--muted); }
+        .piggy-widget.piggy-has-amount .piggy-bank-right i {
+            animation: piggyBankPulse 1.6s ease-in-out infinite;
+        }
+        @keyframes piggyBankPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.12); }
+        }
         .piggy-paid-tag {
             display: inline-block;
             border-radius: 20px; font-size: 10px; font-weight: 700;
@@ -517,12 +586,13 @@
     <div class="topbar-right">
         <!-- Piggy Bank Incentive Widget -->
         <div class="piggy-widget piggy-zero" id="piggyWidget" title="Your incentive earned this month">
-            <span class="piggy-emoji"><i class="fas fa-piggy-bank" aria-hidden="true"></i></span>
+            <span class="piggy-emoji"><img src="assets/trans.png" alt="DegreeDrishti logo"></span>
             <div class="piggy-text">
                 <div class="piggy-lbl">Incentive</div>
                 <div class="piggy-amt" id="piggyAmt">Loading…</div>
             </div>
             <div class="piggy-status" id="piggyStatus"></div>
+            <span class="piggy-bank-right" aria-hidden="true"><i class="fas fa-piggy-bank"></i></span>
         </div>
         <div class="user-chip">
             <div class="user-avatar" id="avatarInitials">?</div>
@@ -574,16 +644,27 @@
     <div class="tab-section active" id="section-overview">
         <div id="overviewNotify"></div>
         <div class="kpi-grid" id="overviewKPIs">
-            <div class="kpi">
+            <div class="kpi kpi-clickable" role="button" tabindex="0" aria-label="Open leaves section" onclick="openOverviewSection('leaves')" onkeydown="overviewCardKey(event, 'leaves')">
                 <div class="kpi-label">Pending Leaves</div>
                 <div class="kpi-value" id="kpiPending">—</div>
                 <div class="kpi-sub">Awaiting approval</div>
             </div>
-            <div class="kpi">
+            <div class="kpi kpi-clickable" role="button" tabindex="0" aria-label="Open advances section" onclick="openOverviewSection('advances')" onkeydown="overviewCardKey(event, 'advances')">
                 <div class="kpi-label">Outstanding Advance</div>
                 <div class="kpi-value" id="kpiAdvance">—</div>
                 <div class="kpi-sub">To be deducted</div>
             </div>
+            <div class="kpi kpi-clickable" role="button" tabindex="0" aria-label="Open sales section" onclick="openOverviewSection('sales')" onkeydown="overviewCardKey(event, 'sales')">
+                <div class="kpi-label">This Month Sales</div>
+                <div class="kpi-value" id="kpiSalesRecord">—/—</div>
+                <div class="kpi-sub" id="kpiSalesSub">Approved / Target</div>
+            </div>
+        </div>
+
+        <div class="overview-quick-row">
+            <button type="button" class="btn btn-primary" onclick="goToSalesForm()">
+                <i class="fas fa-bolt"></i> Record Sales Now
+            </button>
         </div>
 
         <div class="card">
@@ -608,7 +689,7 @@
             <i class="fas fa-user-clock" style="color:#d97706;font-size:20px;margin-top:2px;"></i>
             <div>
                 <div style="font-weight:700;color:#92400e;font-size:14px;">You are currently on Probation</div>
-                <div style="color:#78350f;font-size:13px;margin-top:4px;">During your probation period, <strong>Paid Leave</strong> is not available. You may only apply for <strong>Unpaid Leave</strong> or <strong>Work From Home</strong>.</div>
+                <div id="probationNoticeText" style="color:#78350f;font-size:13px;margin-top:4px;">During your probation period, <strong>Paid Leave</strong> is not available. You may only apply for <strong>Unpaid Leave</strong> or <strong>Work From Home</strong>.</div>
             </div>
         </div>
 
@@ -752,25 +833,29 @@
                         <label style="font-size:12px;color:var(--muted);font-weight:700;">Student Name</label>
                         <input id="mySalesCustomerName" required placeholder="Full name" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
                     </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Phone Number</label>
-                        <input id="mySalesCustomerPhone" required placeholder="e.g., 9876543210" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    <div class="sales-pair-grid">
+                        <div>
+                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Primary No (Reg. One)</label>
+                            <input id="mySalesCustomerPhone" required placeholder="e.g., 9876543210" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                        </div>
+                        <div>
+                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Number</label>
+                            <input id="mySalesAlternatePhone" required placeholder="e.g., 9123456780" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                        </div>
                     </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Email</label>
-                        <input id="mySalesCustomerEmail" type="email" required placeholder="customer@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                    </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Number</label>
-                        <input id="mySalesAlternatePhone" placeholder="e.g., 9123456780" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                    </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Email</label>
-                        <input id="mySalesAlternateEmail" type="email" placeholder="alternate@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                    <div class="sales-pair-grid">
+                        <div>
+                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Primary Email (Reg. One)</label>
+                            <input id="mySalesCustomerEmail" type="email" required placeholder="primary@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                        </div>
+                        <div>
+                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Email</label>
+                            <input id="mySalesAlternateEmail" type="email" required placeholder="alternate@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                        </div>
                     </div>
                     <div>
                         <label style="font-size:12px;color:var(--muted);font-weight:700;">Course</label>
-                        <input id="mySalesCourse" placeholder="e.g., B.Tech CSE" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                        <input id="mySalesCourse" required placeholder="e.g., B.Tech CSE" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
                     </div>
                     <div>
                         <label style="font-size:12px;color:var(--muted);font-weight:700;">Admission Date</label>
@@ -791,7 +876,7 @@
                     </div>
                     <div style="grid-column:1 / -1;">
                         <label style="font-size:12px;color:var(--muted);font-weight:700;">University / Institute</label>
-                        <input id="mySalesUniversity" placeholder="e.g., Delhi University" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                        <input id="mySalesUniversity" required placeholder="e.g., Delhi University" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
                     </div>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap;">

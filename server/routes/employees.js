@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { getDB, isDBConnected } = require('../db');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
-const MAX_SHORT_EMPLOYEE_ID = 2000;
+const MAX_SHORT_EMPLOYEE_ID = 999999;
 
 // Document types list
 const DOCUMENT_TYPES = [
@@ -74,10 +74,46 @@ async function allocateNextEmployeeId(db) {
     const ids = rows
         .map(r => parseInt(r.id, 10))
         .filter(id => Number.isInteger(id) && id >= 1);
-    // Always use max + 1 — never reuse a deleted employee's ID
-    const nextId = ids.length > 0 ? Math.max(...ids) + 1 : 1;
+
+    const maxExisting = ids.length > 0 ? Math.max(...ids) : 0;
+    const currentSequence = await db.collection('sequences').findOne({ _id: 'employeeId' });
+    if (!currentSequence) {
+        await db.collection('sequences').insertOne({ _id: 'employeeId', value: maxExisting });
+    } else if ((parseInt(currentSequence.value, 10) || 0) < maxExisting) {
+        await db.collection('sequences').updateOne(
+            { _id: 'employeeId' },
+            { $set: { value: maxExisting } }
+        );
+    }
+
+    await db.collection('sequences').updateOne(
+        { _id: 'employeeId' },
+        { $inc: { value: 1 } },
+        { upsert: true }
+    );
+    const seqDoc = await db.collection('sequences').findOne({ _id: 'employeeId' });
+    const nextId = parseInt(seqDoc?.value, 10) || 1;
     if (nextId > MAX_SHORT_EMPLOYEE_ID) return null;
     return nextId;
+}
+
+async function syncEmployeeSequence(db, usedId) {
+    const numericId = parseInt(usedId, 10);
+    if (!Number.isInteger(numericId) || numericId < 1) return;
+
+    const currentSequence = await db.collection('sequences').findOne({ _id: 'employeeId' });
+    if (!currentSequence) {
+        await db.collection('sequences').insertOne({ _id: 'employeeId', value: numericId });
+        return;
+    }
+
+    const currentValue = parseInt(currentSequence.value, 10) || 0;
+    if (numericId > currentValue) {
+        await db.collection('sequences').updateOne(
+            { _id: 'employeeId' },
+            { $set: { value: numericId } }
+        );
+    }
 }
 
 // Get all employees
@@ -364,6 +400,8 @@ router.post('/', async (req, res) => {
             }
         }
         employee.id = requestedId;
+
+        await syncEmployeeSequence(db, employee.id);
         
         // Check if email already exists
         const existing = await db.collection('employees').findOne({ email: employee.email });
@@ -396,9 +434,18 @@ router.put('/:id', async (req, res) => {
         const db = getDB();
         const employeeId = parseInt(req.params.id);
         const updates = { ...req.body };
+
+        const existingEmployee = await db.collection('employees').findOne({ id: employeeId });
+        if (!existingEmployee) {
+            return res.status(404).json({ error: 'Employee not found' });
+        }
         
         // Remove _id from updates as it's immutable in MongoDB
         delete updates._id;
+
+        if (typeof updates.email === 'string') updates.email = updates.email.trim().toLowerCase();
+        if (typeof updates.companyEmail === 'string') updates.companyEmail = updates.companyEmail.trim().toLowerCase();
+        if (typeof updates.phone === 'string') updates.phone = updates.phone.trim();
         
         // If email is being updated, check it doesn't already exist for another employee
         if (updates.email) {
@@ -410,16 +457,20 @@ router.put('/:id', async (req, res) => {
                 return res.status(400).json({ error: 'Email already exists' });
             }
         }
+
+        const phoneChanged = typeof updates.phone === 'string' && updates.phone.length > 0 && updates.phone !== (existingEmployee.phone || '').trim();
+        if (phoneChanged) {
+            const salt = crypto.randomBytes(32).toString('hex');
+            const hash = crypto.scryptSync(updates.phone, salt, 64).toString('hex');
+            updates.passwordHash = hash;
+            updates.passwordSalt = salt;
+        }
         
         const result = await db.collection('employees').updateOne(
             { id: employeeId },
             { $set: updates }
         );
-        
-        if (result.matchedCount === 0) {
-            return res.status(404).json({ error: 'Employee not found' });
-        }
-        
+
         res.json({ success: true, message: 'Employee updated' });
     } catch (error) {
         res.status(500).json({ error: error.message });

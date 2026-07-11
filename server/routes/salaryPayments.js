@@ -302,6 +302,31 @@ router.get('/', async (req, res) => {
     }
 });
 
+// GET /api/salary-payments/preview?employeeId=1&month=6&year=2026
+router.get('/preview', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const employeeId = parseInt(req.query.employeeId, 10);
+        const month = parseInt(req.query.month, 10);
+        const year = parseInt(req.query.year, 10);
+
+        if (!employeeId || !month || !year) {
+            return res.status(400).json({ error: 'employeeId, month and year are required' });
+        }
+
+        const employee = await getEmployeeById(db, employeeId);
+        if (!employee) {
+            return res.status(404).json({ error: 'Employee not found' });
+        }
+
+        const breakup = await getSalaryBreakup(db, employee, { employeeId, month, year });
+        return res.json({ success: true, breakup });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 // POST /api/salary-payments  — mark salary as paid
 // Body: { employeeId, month, year }
 router.post('/', async (req, res) => {

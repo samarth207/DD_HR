@@ -4,9 +4,27 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME;
+const collectionSuffix = process.env.COLLECTION_SUFFIX || '';
 
 let client;
 let db;
+let dbOverride;
+
+function resolveCollectionName(name) {
+    if (!collectionSuffix) return name;
+    if (name.startsWith('Testing')) return name;
+    return `${name}${collectionSuffix}`;
+}
+
+function withCollectionIsolation(rawDb) {
+    if (!rawDb || !collectionSuffix) return rawDb;
+    return {
+        ...rawDb,
+        collection(name, options) {
+            return rawDb.collection(resolveCollectionName(name), options);
+        }
+    };
+}
 
 async function connectDB(retries = 3, delay = 2000) {
     const opts = {
@@ -74,10 +92,20 @@ async function createIndexes() {
 }
 
 function getDB() {
-    return db; // may be null if not connected
+    if (dbOverride) return dbOverride;
+    return withCollectionIsolation(db); // may be null if not connected
+}
+
+function getRawDB() {
+    return db;
+}
+
+function setDBForTesting(testDb) {
+    dbOverride = testDb;
 }
 
 function isDBConnected() {
+    if (dbOverride) return true;
     return db !== null && db !== undefined;
 }
 
@@ -88,4 +116,12 @@ async function closeDB() {
     }
 }
 
-module.exports = { connectDB, getDB, isDBConnected, closeDB };
+module.exports = {
+    connectDB,
+    getDB,
+    getRawDB,
+    isDBConnected,
+    closeDB,
+    setDBForTesting,
+    resolveCollectionName
+};

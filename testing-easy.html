@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Testing Easy Mode</title>
+    <style>
+        :root {
+            --bg: linear-gradient(135deg, #fff7ed, #ecfeff 45%, #eef2ff);
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #475569;
+            --line: #e2e8f0;
+            --ok: #166534;
+            --bad: #991b1b;
+            --accent: #0369a1;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 18px;
+        }
+
+        .wrap { max-width: 1100px; margin: 0 auto; }
+
+        h1 { margin: 0 0 6px; font-size: clamp(1.6rem, 4vw, 2.3rem); }
+
+        .sub { color: var(--muted); margin: 0 0 14px; }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .status-ok { color: var(--ok); font-weight: 700; }
+        .status-bad { color: var(--bad); font-weight: 700; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff;
+        }
+
+        .lbl { color: var(--muted); font-size: 12px; }
+        .val { font-size: 1.4rem; font-weight: 700; margin-top: 6px; }
+
+        button, .link-btn {
+            border: none;
+            background: linear-gradient(90deg, #0284c7, #0369a1);
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 8px;
+            margin-top: 8px;
+        }
+
+        .muted { color: var(--muted); }
+
+        pre {
+            background: #f8fafc;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px;
+            overflow: auto;
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th, td { border: 1px solid var(--line); padding: 8px; text-align: left; }
+        th { background: #f8fafc; }
+
+        .steps p { margin: 8px 0; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        .gen-result {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--muted);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Testing Easy Mode</h1>
+        <p class="sub">Built for non-technical users. This page explains test outcome in simple language.</p>
+
+        <div class="panel steps">
+            <p><strong>Step 1:</strong> Run this command in server folder: <code>npm run test:e2e:report</code></p>
+            <p><strong>Step 2:</strong> Click <strong>Refresh Results</strong> below.</p>
+            <p><strong>Step 3:</strong> Read simple status and Sales/Target checks.</p>
+            <button id="copyCmdBtn">Copy Run Command</button>
+            <button id="refreshBtn">Refresh Results</button>
+            <a class="link-btn" href="/testing-dashboard.html">Open Dashboard</a>
+            <a class="link-btn" href="/testing-report.html">Open Full Technical Report</a>
+            <a class="link-btn" href="/testing-guide.html" target="_blank" rel="noopener noreferrer">Open New Test Case Guide</a>
+        </div>
+
+        <div class="panel">
+            <h3>Create New Feature Test (No Coding)</h3>
+            <p class="muted">Fill this form and click Generate Test File. A ready test file is created automatically.</p>
+            <div class="form-grid">
+                <div>
+                    <label>Feature Name</label>
+                    <input id="featureName" value="WFH Restriction" />
+                </div>
+                <div>
+                    <label>Module Name</label>
+                    <input id="moduleName" value="Leave" />
+                </div>
+                <div>
+                    <label>HTTP Method</label>
+                    <select id="httpMethod">
+                        <option value="post" selected>POST</option>
+                        <option value="get">GET</option>
+                        <option value="put">PUT</option>
+                        <option value="patch">PATCH</option>
+                        <option value="delete">DELETE</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Expected Status Code</label>
+                    <input id="expectedStatus" type="number" value="200" />
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div style="grid-column: 1 / -1;">
+                    <label>API Endpoint</label>
+                    <input id="apiEndpoint" value="/api/example" />
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label>JSON Payload</label>
+                    <textarea id="payloadJson">{
+  "example": "value"
+}</textarea>
+                </div>
+            </div>
+
+            <button id="generateCaseBtn">Generate Test File</button>
+            <div id="generateResult" class="gen-result">No file generated yet.</div>
+        </div>
+
+        <div class="panel">
+            <div id="plainStatus" class="muted">Loading latest test summary...</div>
+            <div id="runMeta" class="muted" style="margin-top:6px;"></div>
+        </div>
+
+        <div class="panel">
+            <div class="grid" id="kpiCards"></div>
+        </div>
+
+        <div class="panel">
+            <h3>Sales and Target Verification</h3>
+            <div id="salesWrap" class="muted">No sales insights yet.</div>
+        </div>
+
+        <div class="panel">
+            <h3>What Data Was Fed and Checked</h3>
+            <pre id="timelinePre">No timeline yet.</pre>
+        </div>
+
+        <div class="panel">
+            <h3>Failed Tests (If Any)</h3>
+            <pre id="failedPre">No failures.</pre>
+        </div>
+    </div>
+
+    <script>
+        const el = {
+            plainStatus: document.getElementById('plainStatus'),
+            runMeta: document.getElementById('runMeta'),
+            kpiCards: document.getElementById('kpiCards'),
+            salesWrap: document.getElementById('salesWrap'),
+            timelinePre: document.getElementById('timelinePre'),
+            failedPre: document.getElementById('failedPre'),
+            refreshBtn: document.getElementById('refreshBtn'),
+            copyCmdBtn: document.getElementById('copyCmdBtn'),
+            featureName: document.getElementById('featureName'),
+            moduleName: document.getElementById('moduleName'),
+            httpMethod: document.getElementById('httpMethod'),
+            expectedStatus: document.getElementById('expectedStatus'),
+            apiEndpoint: document.getElementById('apiEndpoint'),
+            payloadJson: document.getElementById('payloadJson'),
+            generateCaseBtn: document.getElementById('generateCaseBtn'),
+            generateResult: document.getElementById('generateResult')
+        };
+
+        function card(label, value) {
+            return `<div class="card"><div class="lbl">${label}</div><div class="val">${value}</div></div>`;
+        }
+
+        async function loadEasySummary() {
+            const resp = await fetch('/api/testing/latest-easy-summary');
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                el.plainStatus.className = 'status-bad';
+                el.plainStatus.textContent = data.error || 'Could not load summary.';
+                return;
+            }
+
+            const isPassed = String(data.status).toLowerCase() === 'passed';
+            el.plainStatus.className = isPassed ? 'status-ok' : 'status-bad';
+            el.plainStatus.textContent = data.plainStatus;
+            el.runMeta.textContent = `Run: ${data.runId} | Status: ${data.status}`;
+
+            const points = data.keyPoints || [];
+            const total = points.find((p) => p.startsWith('Total tests'))?.split(': ')[1] || '-';
+            const passed = points.find((p) => p.startsWith('Passed'))?.split(': ')[1] || '-';
+            const failedCount = points.find((p) => p.startsWith('Failed'))?.split(': ')[1] || '-';
+            const modules = points.find((p) => p.startsWith('Modules covered'))?.split(': ')[1] || '-';
+
+            el.kpiCards.innerHTML = [
+                card('Total Tests', total),
+                card('Passed', passed),
+                card('Failed', failedCount),
+                card('Modules', modules)
+            ].join('');
+
+            const sales = data.salesInsights || [];
+            if (!sales.length) {
+                el.salesWrap.innerHTML = '<div class="muted">No sales test found in latest run.</div>';
+            } else {
+                const rows = sales.map((s) => `
+                    <tr>
+                        <td>${s.caseName || '-'}</td>
+                        <td>${s.salesTarget ?? '-'}</td>
+                        <td>${s.salesAchieved ?? '-'}</td>
+                        <td>${s.revenueTarget ?? '-'}</td>
+                        <td>${s.revenueAchieved ?? '-'}</td>
+                    </tr>
+                `).join('');
+                el.salesWrap.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Test Case</th>
+                                <th>Sales Target</th>
+                                <th>Sales Achieved</th>
+                                <th>Revenue Target</th>
+                                <th>Revenue Achieved</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                `;
+            }
+
+            const timelineText = (data.timeline || [])
+                .map((t, i) => `${i + 1}. ${t.module} -> ${t.test} -> ${t.status.toUpperCase()} (${t.timeMs} ms)`)
+                .join('\n');
+            el.timelinePre.textContent = timelineText || 'No timeline data.';
+
+            const failedCases = data.failedCases || [];
+            el.failedPre.textContent = failedCases.length ? JSON.stringify(failedCases, null, 2) : 'No failures in latest run.';
+        }
+
+        el.refreshBtn.addEventListener('click', loadEasySummary);
+        el.copyCmdBtn.addEventListener('click', async () => {
+            await navigator.clipboard.writeText('npm run test:e2e:report');
+            el.copyCmdBtn.textContent = 'Command Copied';
+            setTimeout(() => { el.copyCmdBtn.textContent = 'Copy Run Command'; }, 1500);
+        });
+
+        el.generateCaseBtn.addEventListener('click', async () => {
+            el.generateResult.textContent = 'Generating file...';
+
+            const body = {
+                featureName: el.featureName.value.trim(),
+                moduleName: el.moduleName.value.trim(),
+                method: el.httpMethod.value,
+                endpoint: el.apiEndpoint.value.trim(),
+                expectedStatus: Number(el.expectedStatus.value),
+                payload: el.payloadJson.value
+            };
+
+            try {
+                const resp = await fetch('/api/testing/generate-case', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                    el.generateResult.textContent = `Error: ${data.error || 'Failed to generate file'}`;
+                    return;
+                }
+
+                el.generateResult.textContent = `Success. Test file created at:\n${data.relativePath}\n\nNext:\n1) Run npm run test:e2e\n2) Run npm run test:e2e:report for dashboard data`;
+            } catch (error) {
+                el.generateResult.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        loadEasySummary();
+    </script>
+</body>
+</html>

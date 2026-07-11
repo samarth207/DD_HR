@@ -6,6 +6,34 @@ requireEmployee(); // redirect to login.html if not authenticated
 const API = API_BASE_URL;
 const auth = JSON.parse(localStorage.getItem('hrPortalAuth') || '{}');
 const EMP_ID = auth.employeeId;
+let employeeProfile = {};
+
+function isSalesDepartment(department) {
+    return String(department || '').trim().toLowerCase().includes('sales');
+}
+
+function applyLeaveTypePolicy(profile = {}) {
+    const leaveTypeSelect = document.getElementById('leaveType');
+    if (!leaveTypeSelect) return;
+
+    const isSalesEmp = isSalesDepartment(profile.department);
+    const wfhOption = Array.from(leaveTypeSelect.options).find(opt => opt.value === 'Work From Home');
+
+    if (isSalesEmp && wfhOption) {
+        wfhOption.remove();
+    }
+
+    if (isSalesEmp && leaveTypeSelect.value === 'Work From Home') {
+        leaveTypeSelect.value = 'Unpaid Leave';
+    }
+
+    const probationNoticeText = document.getElementById('probationNoticeText');
+    if (probationNoticeText && profile.isOnProbation) {
+        probationNoticeText.innerHTML = isSalesEmp
+            ? 'During your probation period, <strong>Paid Leave</strong> is not available. You may only apply for <strong>Unpaid Leave</strong>.'
+            : 'During your probation period, <strong>Paid Leave</strong> is not available. You may only apply for <strong>Unpaid Leave</strong> or <strong>Work From Home</strong>.';
+    }
+}
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -216,6 +244,29 @@ function toggleLeavePolicy() {
     btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
 }
 
+function openOverviewSection(name) {
+    showTab(name);
+}
+
+function overviewCardKey(event, targetSection) {
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openOverviewSection(targetSection);
+    }
+}
+
+function goToSalesForm() {
+    showTab('sales');
+    // Allow section to render before scrolling to the form card.
+    setTimeout(() => {
+        const form = document.getElementById('mySalesForm');
+        if (!form) return;
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const firstInput = document.getElementById('mySalesCustomerName');
+        if (firstInput) firstInput.focus();
+    }, 60);
+}
+
 // â”€â”€ Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function loadProfile() {
@@ -227,6 +278,8 @@ async function loadProfile() {
         document.getElementById('avatarInitials').textContent = initials;
         document.getElementById('topbarName').textContent = me.name || '';
         document.getElementById('topbarRole').textContent = `${me.position || ''} \u00B7 ${me.department || ''}`;
+        employeeProfile = { ...employeeProfile, ...me };
+        applyLeaveTypePolicy(employeeProfile);
         return me;
     } catch { return {}; }
 }
@@ -235,9 +288,12 @@ async function loadProfile() {
 
 async function loadOverview() {
     try {
-        const [empData, leavesData] = await Promise.all([
+        const currentMonth = monthKey(new Date());
+        const [empData, leavesData, allSalesData, admissions] = await Promise.all([
             apiFetch(`/employees/${EMP_ID}`),
-            apiFetch('/leaves')
+            apiFetch('/leaves'),
+            apiFetch('/sales').catch(() => ({})),
+            apiFetch(`/admissions?employeeId=${EMP_ID}&month=${currentMonth}`).catch(() => [])
         ]);
         const myLeaves = (leavesData.leaves || leavesData || []).filter(l => l.employeeId === EMP_ID);
         const pending  = myLeaves.filter(l => l.status === 'pending').length;
@@ -250,6 +306,29 @@ async function loadOverview() {
         const outstanding = advances.filter(a => !a.repaid).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
         document.getElementById('kpiAdvance').textContent = fmtRupees(outstanding);
 
+        // This month sales record: achieved/target
+        const empSales = (allSalesData[currentMonth] || {})[EMP_ID]
+            || (allSalesData[currentMonth] || {})[String(EMP_ID)]
+            || {};
+        const salesTarget = parseInt(empSales.salesTarget, 10) || 0;
+        const admissionsList = Array.isArray(admissions)
+            ? admissions.filter(admission => isAdmissionVisibleForEmployee(admission, empData))
+            : [];
+        const achievedSales = admissionsList.filter(a => (a.status || 'approved') === 'approved').length;
+
+        const salesRecordEl = document.getElementById('kpiSalesRecord');
+        const salesSubEl = document.getElementById('kpiSalesSub');
+        if (salesRecordEl) {
+            salesRecordEl.textContent = salesTarget > 0
+                ? `${achievedSales}/${salesTarget}`
+                : `${achievedSales}/—`;
+        }
+        if (salesSubEl) {
+            salesSubEl.textContent = salesTarget > 0
+                ? 'Approved / Target this month'
+                : 'Target not set for this month';
+        }
+
         // Recent leaves table
         const recent = [...myLeaves].sort((a, b) => new Date(b.startDate) - new Date(a.startDate)).slice(0, 5);
         const tbody = document.getElementById('recentLeavesBody');
@@ -258,7 +337,7 @@ async function loadOverview() {
         } else {
             tbody.innerHTML = recent.map(l => `
                 <tr>
-                    <td>${l.leaveType || 'â€”'}</td>
+                    <td>${l.leaveType || '—'}</td>
                     <td>${fmt(l.startDate)}</td>
                     <td>${fmt(l.endDate)}</td>
                     <td>${calcDays(l.startDate, l.endDate, l.halfDay === true || l.leaveType === 'Half Day')}</td>
@@ -304,6 +383,11 @@ async function submitLeave(event) {
     const isHalfDay = document.getElementById('halfDayCheckEmp')?.checked || false;
     const halfDaySession = isHalfDay ? (document.getElementById('halfDaySessionEmp')?.value || 'First Half') : null;
 
+    if (isSalesDepartment(employeeProfile.department) && type === 'Work From Home') {
+        notify('leaveNotify', 'Work From Home is not available for Sales department employees.', 'error');
+        return;
+    }
+
     // Employees can only apply for a single day at a time.
     if (!start) { notify('leaveNotify', 'Please select a leave date.', 'error'); return; }
     if (end && end !== start) { notify('leaveNotify', 'Only single-day leave requests are allowed. Please select one day.', 'error'); return; }
@@ -312,7 +396,7 @@ async function submitLeave(event) {
     if (endEl2) endEl2.value = start;
     const syncedEnd = start;
 
-    // Overlap check â€” cannot apply on a date that has an existing non-rejected leave
+    // Overlap check — cannot apply on a date that has an existing non-rejected leave
     try {
         const leavesData = await apiFetch('/leaves');
         const myLeaves = (leavesData.leaves || leavesData || []).filter(l => l.employeeId === EMP_ID && l.status !== 'rejected');
@@ -374,6 +458,8 @@ async function submitLeave(event) {
 async function loadProbationStatus() {
     try {
         const emp = await apiFetch(`/employees/${EMP_ID}`);
+        employeeProfile = { ...employeeProfile, ...emp };
+        applyLeaveTypePolicy(employeeProfile);
         const notice = document.getElementById('probationNotice');
         if (notice) {
             notice.style.display = emp.isOnProbation ? 'flex' : 'none';
@@ -648,9 +734,8 @@ async function loadMySales() {
     tbody.innerHTML = '<tr><td colspan="8" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
-        const employees = await loadEmployees();
-        const currentEmployee = employees.find(emp => emp.id === EMP_ID || String(emp.id) === String(EMP_ID)) || null;
-        const [data, config, allSalesData, admissions] = await Promise.all([
+        const [currentEmployee, data, config, allSalesData, admissions] = await Promise.all([
+            apiFetch(`/employees/${EMP_ID}`).catch(() => null),
             apiFetch('/incentives/data'),
             apiFetch('/incentives/config').catch(() => ({})),
             apiFetch('/sales').catch(() => ({})),
@@ -823,12 +908,12 @@ async function loadMySales() {
             .sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate))
             .map(a => `<tr>
                 <td>${fmt(a.admissionDate)}</td>
-                <td style="font-weight:600;">${a.customerName || 'â€”'}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.customerPhone || 'â€”'}${a.alternateCustomerPhone ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerPhone}</span>` : ''}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.customerEmail || 'â€”'}${a.alternateCustomerEmail ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerEmail}</span>` : ''}</td>
-                <td style="color:var(--muted);font-size:12px;">${a.course || 'â€”'}</td>
-                <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || 'â€”'}</span></td>
-                <td style="color:var(--muted);font-size:12px;">${a.universityName || 'â€“'}</td>
+                <td style="font-weight:600;">${a.customerName || '—'}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.customerPhone || '—'}${a.alternateCustomerPhone ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerPhone}</span>` : ''}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.customerEmail || '—'}${a.alternateCustomerEmail ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerEmail}</span>` : ''}</td>
+                <td style="color:var(--muted);font-size:12px;">${a.course || '—'}</td>
+                <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || '—'}</span></td>
+                <td style="color:var(--muted);font-size:12px;">${a.universityName || '—'}</td>
                 <td style="color:var(--green);font-weight:700;">${fmtRupees(a.revenue || 0)}</td>
                 <td>${(a.status || 'approved') === 'approved'
                     ? '<span class="badge badge-green" style="font-size:10px;">Approved</span>'
@@ -838,6 +923,7 @@ async function loadMySales() {
                     ${admissionReviewMeta(a)}</td>
             </tr>`).join('');
     } catch (e) {
+        console.error('Sales load error:', e);
         tbody.innerHTML = '<tr><td colspan="9" class="no-data">Failed to load sales data</td></tr>';
     }
 }
@@ -858,7 +944,7 @@ async function submitMySalesRecord(event) {
     const universityName = document.getElementById('mySalesUniversity').value.trim();
     const revenue = parseFloat(String(revenueRaw).replace(/[^0-9.]/g, '')) || 0;
 
-    if (!customerName || !customerPhone || !customerEmail || !admissionDate || !admissionType || revenue <= 0) {
+    if (!customerName || !customerPhone || !customerEmail || !alternateCustomerPhone || !alternateCustomerEmail || !course || !admissionDate || !admissionType || !universityName || revenue <= 0) {
         notify('salesNotify', 'Please fill all required fields with valid values.', 'error');
         return;
     }
@@ -1292,7 +1378,7 @@ async function loadAttSettings() {
     }
 }
 function fmt12h(t) {
-    if (!t) return 'â€”';
+    if (!t) return '—';
     const [h, m] = t.split(':').map(Number);
     return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
@@ -1512,6 +1598,9 @@ window.toggleLeavePolicy = toggleLeavePolicy;
 window.toggleHalfDaySessionEmp = toggleHalfDaySessionEmp;
 window.toggleSalaryBreakupVisibility = toggleSalaryBreakupVisibility;
 window.toggleSalaryHistoryVisibility = toggleSalaryHistoryVisibility;
+window.openOverviewSection = openOverviewSection;
+window.overviewCardKey = overviewCardKey;
+window.goToSalesForm = goToSalesForm;
 window.openMyDocPicker = openMyDocPicker;
 window.lockMyDocument = lockMyDocument;
 window.deleteMyDocument = deleteMyDocument;

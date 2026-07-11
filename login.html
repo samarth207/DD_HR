@@ -137,7 +137,7 @@
             margin-bottom: 8px;
         }
         .input-wrap { position: relative; }
-        .input-wrap i {
+        .input-wrap > i.field-icon {
             position: absolute;
             left: 14px;
             top: 50%;
@@ -177,6 +177,15 @@
             pointer-events: all;
         }
         .input-wrap .eye-btn:hover { color: #2f537a; }
+        .input-wrap .eye-btn i {
+            position: static;
+            left: auto;
+            top: auto;
+            transform: none;
+            color: inherit;
+            pointer-events: none;
+            font-size: 14px;
+        }
 
         .error-msg {
             background: #fff1f2;
@@ -267,10 +276,10 @@
             <div class="form-group">
                 <label>Admin Password</label>
                 <div class="input-wrap">
-                    <i class="fas fa-lock"></i>
+                    <i class="fas fa-lock field-icon"></i>
                     <input type="password" id="adminPassword" placeholder="Enter admin password"
                         autocomplete="current-password" onkeydown="if(event.key==='Enter')doAdminLogin()">
-                    <button class="eye-btn" onclick="togglePwd('adminPassword',this)" tabindex="-1">
+                    <button type="button" class="eye-btn" onclick="return togglePwd('adminPassword', this, event)" tabindex="-1" aria-label="Show or hide admin password">
                         <i class="fas fa-eye"></i>
                     </button>
                 </div>
@@ -288,7 +297,7 @@
             <div class="form-group">
                 <label>Personal Email</label>
                 <div class="input-wrap">
-                    <i class="fas fa-envelope"></i>
+                    <i class="fas fa-envelope field-icon"></i>
                     <input type="email" id="empEmail" placeholder="your@email.com"
                         autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('empPhone').focus()">
                 </div>
@@ -296,10 +305,10 @@
             <div class="form-group">
                 <label>Password <span style="color:#7f92ab;font-weight:600;">(default: your phone number)</span></label>
                 <div class="input-wrap">
-                    <i class="fas fa-lock"></i>
+                    <i class="fas fa-lock field-icon"></i>
                     <input type="password" id="empPhone" placeholder="Enter your password"
                         autocomplete="current-password" onkeydown="if(event.key==='Enter')doEmployeeLogin()">
-                    <button class="eye-btn" onclick="togglePwd('empPhone',this)" tabindex="-1">
+                    <button type="button" class="eye-btn" onclick="return togglePwd('empPhone', this, event)" tabindex="-1" aria-label="Show or hide employee password">
                         <i class="fas fa-eye"></i>
                     </button>
                 </div>
@@ -334,11 +343,17 @@
         document.getElementById('employeePanel').classList.toggle('active', role === 'employee');
     }
 
-    function togglePwd(inputId, btn) {
+    function togglePwd(inputId, btn, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
         const inp = document.getElementById(inputId);
+        if (!inp) return false;
         const icon = btn.querySelector('i');
         if (inp.type === 'password') { inp.type = 'text'; icon.className = 'fas fa-eye-slash'; }
         else { inp.type = 'password'; icon.className = 'fas fa-eye'; }
+        return false;
     }
 
     function showError(panelId, msg) {
