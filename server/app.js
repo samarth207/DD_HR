@@ -3,6 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const { isDBConnected } = require('./db');
+const { requireAuth } = require('./middleware/authz');
 
 function createApp(options = {}) {
     const {
@@ -25,7 +26,6 @@ function createApp(options = {}) {
     const holidaysRoutes = require('./routes/holidays');
     const salesRoutes = require('./routes/sales');
     const incentivesRoutes = require('./routes/incentives');
-    const logsRoutes = require('./routes/logs');
     const accountRoutes = require('./routes/account');
     const attendanceRoutes = require('./routes/attendance');
     const salaryPaymentsRoutes = require('./routes/salaryPayments');
@@ -36,16 +36,17 @@ function createApp(options = {}) {
     if (includeAuthRoutes) authRoutes = require('./routes/auth');
     if (includeAdmissionsRoutes) admissionsRoutes = require('./routes/admissions');
     const testingRoutes = require('./routes/testing');
+    const authGuard = includeAuthRoutes ? requireAuth : (req, res, next) => next();
 
-    app.use('/api/employees', employeesRoutes);
+    app.use('/api/employees', authGuard, employeesRoutes);
     app.use('/api/leaves', leavesRoutes);
     app.use('/api/holidays', holidaysRoutes);
     app.use('/api/sales', salesRoutes);
-    app.use('/api/incentives', incentivesRoutes);
-    app.use('/api/logs', logsRoutes);
+    // Critical security hardening: require valid auth token for payroll-related APIs.
+    app.use('/api/incentives', authGuard, incentivesRoutes);
     app.use('/api/account', accountRoutes);
-    app.use('/api/attendance', attendanceRoutes);
-    app.use('/api/salary-payments', salaryPaymentsRoutes);
+    app.use('/api/attendance', authGuard, attendanceRoutes);
+    app.use('/api/salary-payments', authGuard, salaryPaymentsRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/analytics', analyticsRoutes);
     if (authRoutes) app.use('/api/auth', authRoutes);

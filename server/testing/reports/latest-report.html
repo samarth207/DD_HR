@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HR Portal QA Report</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #f5f7fb; color: #1f2937; }
+    header { background: #111827; color: #fff; padding: 20px 24px; }
+    header h1 { margin: 0 0 4px; font-size: 24px; }
+    header p { margin: 0; color: #cbd5e1; }
+    main { padding: 20px 24px 40px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+    .card h3 { margin: 0 0 8px; font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; }
+    .card p { margin: 0; font-size: 24px; font-weight: 700; }
+    .good { color: #047857; }
+    .bad { color: #b91c1c; }
+    .suite { margin-top: 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; }
+    .suite h2 { margin: 0 0 8px; font-size: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px; vertical-align: top; }
+    th { background: #f3f4f6; text-align: left; }
+    pre { margin: 8px 0 0; background: #0f172a; color: #e2e8f0; padding: 10px; border-radius: 6px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HR Portal Automated QA Report</h1>
+    <p>Generated at 1/8/2026, 4:55:31 pm</p>
+  </header>
+  <main>
+    
+    <section class="cards">
+      <div class="card"><h3>Status</h3><p class="good">PASSED</p></div>
+      <div class="card"><h3>Total Tests</h3><p>20</p></div>
+      <div class="card"><h3>Passed</h3><p class="good">20</p></div>
+      <div class="card"><h3>Failed</h3><p class="">0</p></div>
+      <div class="card"><h3>Pending</h3><p>0</p></div>
+      <div class="card"><h3>Duration</h3><p>11.68s</p></div>
+    </section>
+  
+    
+      <section class="suite">
+        <h2>C:\Users\samth\Desktop\DD\HR\server\tests\e2e\automation.e2e.test.js</h2>
+        <p>Passed: <strong class="good">7</strong> | Failed: <strong class="">0</strong> | Duration: 9.13s</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Group</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          <tr>
+            <td>Employee IDs remain sequential and are never recycled</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>248ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Leave on holiday is rejected</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>94ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Paid leave is rejected during probation</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>68ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Sandwich leave is calculated correctly</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>2084ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Sales tracking updates month summary correctly</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>982ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Late policy affects salary calculation with Rs1 strict validation</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>328ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Cascade delete removes employee-linked business records</td>
+            <td>HR Portal Automation Framework (isolated)</td>
+            <td class="good">passed</td>
+            <td>2941ms</td>
+          </tr>
+          
+        
+          </tbody>
+        </table>
+      </section>
+    
+
+      <section class="suite">
+        <h2>C:\Users\samth\Desktop\DD\HR\server\tests\integration\qa.integration.test.js</h2>
+        <p>Passed: <strong class="good">8</strong> | Failed: <strong class="">0</strong> | Duration: 2.46s</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Group</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          <tr>
+            <td>API validation: health and base resources are reachable</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>22ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Payroll validation: preview returns canonical breakup with expected fields</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>22ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Salary slip validation: mark-paid response preserves salaryPeriod + breakup contract</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>713ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Attendance validation: monthly summary includes salaryPeriod + late half day projection</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>15ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Leave validation: paid leave is blocked during probation</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>8ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Dashboard validation: KPI source queries are consistent and aggregate-safe</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>9ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Regression validation: late policy applies salary deduction only, not leave balance mutation</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>300ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>Edge case validation: invalid/unknown payroll preview inputs are guarded</td>
+            <td>Integration/API QA Suite (realistic seeded data)</td>
+            <td class="good">passed</td>
+            <td>12ms</td>
+          </tr>
+          
+        
+          </tbody>
+        </table>
+      </section>
+    
+
+      <section class="suite">
+        <h2>C:\Users\samth\Desktop\DD\HR\server\tests\unit\salary-cycle-utils.unit.test.js</h2>
+        <p>Passed: <strong class="good">3</strong> | Failed: <strong class="">0</strong> | Duration: 0.05s</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Group</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          <tr>
+            <td>first salary month is prorated from hire date to month end</td>
+            <td>Unit: salary-cycle-utils</td>
+            <td class="good">passed</td>
+            <td>1ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>non-first salary month uses full calendar month</td>
+            <td>Unit: salary-cycle-utils</td>
+            <td class="good">passed</td>
+            <td>1ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>invalid month key returns null</td>
+            <td>Unit: salary-cycle-utils</td>
+            <td class="good">passed</td>
+            <td>0ms</td>
+          </tr>
+          
+        
+          </tbody>
+        </table>
+      </section>
+    
+
+      <section class="suite">
+        <h2>C:\Users\samth\Desktop\DD\HR\server\tests\unit\payroll-math.unit.test.js</h2>
+        <p>Passed: <strong class="good">2</strong> | Failed: <strong class="">0</strong> | Duration: 0.04s</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Test</th>
+              <th>Group</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+          <tr>
+            <td>calculates deductions and net salary correctly for late + unpaid + incentives</td>
+            <td>Unit: payroll salary formula helper</td>
+            <td class="good">passed</td>
+            <td>1ms</td>
+          </tr>
+          
+        
+          <tr>
+            <td>net salary is floored at zero</td>
+            <td>Unit: payroll salary formula helper</td>
+            <td class="good">passed</td>
+            <td>0ms</td>
+          </tr>
+          
+        
+          </tbody>
+        </table>
+      </section>
+    
+  </main>
+</body>
+</html>

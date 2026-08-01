@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "migrate:salary-period": "node scripts/migrate-salary-period-fields.js",
     "test:email": "node scripts/test-email.js",
+    "test:qa": "node -e \"require('fs').mkdirSync('testing/reports',{recursive:true})\" && jest --runInBand --config jest.qa.config.js --json --outputFile=testing/reports/jest-results.json && node scripts/generate-qa-html-report.js",
     "test:e2e": "jest --runInBand --config jest.e2e.config.js",
     "test:automation": "npm run test:e2e",
     "test:e2e:report": "cross-env PERSIST_TEST_REPORTS=true jest --runInBand --config jest.e2e.config.js",

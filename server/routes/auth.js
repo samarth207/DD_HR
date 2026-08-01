@@ -271,7 +271,6 @@ router.get('/me', async (req, res) => {
             department: emp.department,
             position: emp.position,
             salary: emp.salary,
-            salaryDay: emp.salaryDay,
             leaveBalance: emp.leaveBalance,
             hireDate: emp.hireDate || null
         });

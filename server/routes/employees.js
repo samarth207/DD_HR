@@ -5,9 +5,47 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getDB, isDBConnected } = require('../db');
+const salaryCycleUtils = require('../../salary-cycle-utils');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 const MAX_SHORT_EMPLOYEE_ID = 999999;
+
+function extractEmployeeIdFromPath(pathname) {
+    const match = String(pathname || '').match(/^\/(\d+)(?:\/|$)/);
+    return match ? parseInt(match[1], 10) : null;
+}
+
+function isEmployeeSelfRequest(req) {
+    if (req.auth?.role !== 'employee') return false;
+    const pathEmployeeId = extractEmployeeIdFromPath(req.path);
+    return Number.isInteger(pathEmployeeId) && pathEmployeeId === parseInt(req.auth.employeeId, 10);
+}
+
+// Critical security guard for employee-sensitive APIs.
+// Admin can access all routes; employee can only access own record/salary/documents.
+router.use((req, res, next) => {
+    // Backward compatibility for test harnesses where auth middleware is disabled at app level.
+    if (!req.auth) return next();
+    if (req.auth.role === 'admin') return next();
+    if (req.auth.role !== 'employee') return res.status(403).json({ error: 'Forbidden' });
+
+    if (req.method === 'GET' && req.path === '/document-types') return next();
+
+    const isSelf = isEmployeeSelfRequest(req);
+    if (!isSelf) return res.status(403).json({ error: 'Forbidden' });
+
+    const isSelfProfile = req.method === 'GET' && /^\/\d+$/.test(req.path);
+    const isSelfSalaryTillDate = req.method === 'GET' && /^\/\d+\/salary-till-date$/.test(req.path);
+    const isSelfDocsRead = req.method === 'GET' && /^\/\d+\/documents$/.test(req.path);
+    const isSelfDocsUpload = req.method === 'POST' && /^\/\d+\/documents$/.test(req.path);
+    const isSelfDocsDelete = req.method === 'DELETE' && /^\/\d+\/documents\/[^/]+$/.test(req.path);
+
+    if (isSelfProfile || isSelfSalaryTillDate || isSelfDocsRead || isSelfDocsUpload || isSelfDocsDelete) {
+        return next();
+    }
+
+    return res.status(403).json({ error: 'Forbidden' });
+});
 
 // Document types list
 const DOCUMENT_TYPES = [
@@ -148,8 +186,9 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/employees/:id/salary-till-date
-// Calculates the pro-rated salary from the start of the current month (or joining date
-// if the employee joined this month) up to today, including bonus/incentive adjustments.
+// Calculates salary under centralized monthly cycle policy:
+// first salary month is join-date -> month-end, then 1st -> month-end.
+// Result is calculated up to today with bonus/incentive adjustments.
 router.get('/:id/salary-till-date', async (req, res) => {
     if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
@@ -163,25 +202,25 @@ router.get('/:id/salary-till-date', async (req, res) => {
         const month = today.getMonth();
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const monthStart = new Date(year, month, 1);
-        const monthEnd = new Date(year, month + 1, 0); monthEnd.setHours(23, 59, 59, 999);
+        const monthCycle = salaryCycleUtils.getSalaryCycleForMonth(monthStr, employee.hireDate || null);
+        const daysInMonth = monthCycle ? monthCycle.totalDaysInMonth : new Date(year, month + 1, 0).getDate();
+        const monthStart = monthCycle ? new Date(monthCycle.monthStart) : new Date(year, month, 1);
+        const monthEnd = monthCycle ? new Date(monthCycle.monthEnd) : new Date(year, month + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
 
         const gross = parseFloat(employee.salary) || 0;
         const dailyRate = gross / daysInMonth;
 
-        // Determine effective start: joining date if hired this month, else 1st
-        let effectiveStart = monthStart;
+        // New policy: salary month is centralized via helper.
+        // Joining date affects only the first salary month prorated window.
+        let effectiveStart = monthCycle ? new Date(monthCycle.cycleStart) : monthStart;
         let joiningNote = null;
-        if (employee.hireDate) {
-            const hd = new Date(employee.hireDate + 'T00:00:00');
-            if (hd.getFullYear() === year && hd.getMonth() === month) {
-                effectiveStart = hd;
-                joiningNote = employee.hireDate;
-            }
+        if (monthCycle?.isFirstSalaryMonth && employee.hireDate) {
+            joiningNote = employee.hireDate;
         }
 
-        const daysWorked = Math.floor((today - effectiveStart) / 86400000) + 1;
+        // Guard against future joining dates in the same month.
+        const daysWorked = Math.max(0, Math.floor((today - effectiveStart) / 86400000) + 1);
         const proRatedGross = Math.round(dailyRate * daysWorked * 100) / 100;
 
         // Unpaid leaves in the period
@@ -499,6 +538,8 @@ router.delete('/:id', async (req, res) => {
             db.collection('salary_advances').deleteMany({ employeeId }),
             // Salary payments (dedicated collection)
             db.collection('salary_payments').deleteMany({ employeeId }),
+            // Modern salary payments collection
+            db.collection('salaryPayments').deleteMany({ employeeId }),
             // Monthly incentives — key is "${month}_${employeeId}"
             db.collection('monthly_incentives').deleteMany({
                 key: { $regex: `_${employeeId}$` }

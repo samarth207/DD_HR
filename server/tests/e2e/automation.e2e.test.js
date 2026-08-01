@@ -386,7 +386,7 @@ describe('HR Portal Automation Framework (isolated)', () => {
                     await db.collection('appSettings').deleteOne({ _id: 'attendanceSettings' });
                 });
 
-                const lateDates = ['2026-05-14', '2026-05-15', '2026-05-16'];
+                const lateDates = ['2026-06-14', '2026-06-15', '2026-06-16'];
                 for (const date of lateDates) {
                     const attendance = {};
                     attendance[String(employeeId)] = { status: 'Present', time: '10:00' };

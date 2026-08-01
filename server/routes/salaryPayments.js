@@ -2,10 +2,34 @@ const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
+const salaryCycleUtils = require('../../salary-cycle-utils');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
 const UNPAID_LEAVE_TYPES = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternity Leave']);
+
+// Critical security guard:
+// - Admin has full payroll access.
+// - Employee can only read own salary preview for employee dashboard breakup.
+router.use((req, res, next) => {
+    // Backward compatibility for test harnesses where auth middleware is disabled at app level.
+    if (!req.auth) return next();
+
+    if (req.auth.role === 'admin') return next();
+
+    if (req.auth.role === 'employee' && req.method === 'GET' && req.path === '/preview') {
+        const requestedEmployeeId = parseInt(req.query.employeeId, 10);
+        const authEmployeeId = parseInt(req.auth.employeeId, 10);
+        if (!requestedEmployeeId || !authEmployeeId) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        return requestedEmployeeId === authEmployeeId
+            ? next()
+            : res.status(403).json({ error: 'Forbidden' });
+    }
+
+    return res.status(403).json({ error: 'Forbidden' });
+});
 
 function formatRupees(value) {
     return `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -21,26 +45,6 @@ function parseDateOnly(dateStr) {
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function getCycleDayFromHireDate(hireDate) {
-    const hd = parseDateOnly(hireDate);
-    if (!hd) return null;
-    return Math.min(hd.getDate(), 28);
-}
-
-function getSalaryCycleRange(month, year, hireDate) {
-    const cycleDay = getCycleDayFromHireDate(hireDate);
-    if (!cycleDay) {
-        const start = new Date(year, month - 1, 1);
-        const end = new Date(year, month, 0);
-        end.setHours(23, 59, 59, 999);
-        return { start, end, cycleDay: null };
-    }
-    const start = new Date(year, month - 2, cycleDay);
-    const end = new Date(year, month - 1, cycleDay);
-    end.setHours(23, 59, 59, 999);
-    return { start, end, cycleDay };
-}
-
 function isLateEntry(time, settings) {
     if (!time || !settings?.officeStartTime) return false;
     const [officeHour, officeMinute] = String(settings.officeStartTime).split(':').map(Number);
@@ -53,65 +57,165 @@ async function getAttendanceSettings(db) {
     return doc || { officeStartTime: '09:00', lateThresholdMins: 10, lateDaysHalfDay: 3 };
 }
 
-async function getAttendanceDocsForMonths(db, months) {
-    if (!months.length) return [];
-    return db.collection('attendance').find({
-        $or: months.map(month => ({ date: { $regex: `^${month}` } }))
-    }).sort({ date: 1 }).toArray();
+function getMonthKeyFromDate(dateObj) {
+    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthRangeInclusive(startMonthKey, endMonthKey) {
+    const [startYear, startMonth] = String(startMonthKey).split('-').map(Number);
+    const [endYear, endMonth] = String(endMonthKey).split('-').map(Number);
+    if (!startYear || !startMonth || !endYear || !endMonth) return [];
+
+    const start = new Date(startYear, startMonth - 1, 1);
+    const end = new Date(endYear, endMonth - 1, 1);
+    const keys = [];
+
+    for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
+        keys.push(getMonthKeyFromDate(d));
+    }
+
+    return keys;
+}
+
+async function getLegacyPaidMonthsForEmployee(db, employeeId, currentMonthKey, advances) {
+    const datedAdvances = advances.filter(advance => typeof advance.date === 'string' && advance.date.length >= 7);
+    if (!datedAdvances.length) return new Set();
+
+    const earliestAdvanceMonth = datedAdvances
+        .map(advance => advance.date.substring(0, 7))
+        .sort()[0];
+
+    if (!earliestAdvanceMonth || earliestAdvanceMonth >= currentMonthKey) return new Set();
+
+    const monthKeys = getMonthRangeInclusive(earliestAdvanceMonth, currentMonthKey)
+        .filter(monthKey => monthKey < currentMonthKey)
+        .map(monthKey => `${monthKey}_${employeeId}`);
+
+    if (!monthKeys.length) return new Set();
+
+    const legacyRows = await db.collection('salary_payments')
+        .find({ key: { $in: monthKeys }, paid: true }, { projection: { key: 1 } })
+        .toArray();
+
+    const paidMonths = new Set();
+    for (const row of legacyRows) {
+        const key = row?.key;
+        if (!key || typeof key !== 'string') continue;
+        const month = key.substring(0, 7);
+        if (month) paidMonths.add(month);
+    }
+
+    return paidMonths;
 }
 
 async function getSalaryBreakup(db, employee, record) {
     const month = parseInt(record.month, 10);
     const year = parseInt(record.year, 10);
     const monthKey = getMonthKey(month, year);
-    const prevMonthKey = month === 1
-        ? `${year - 1}-12`
-        : `${year}-${String(month - 1).padStart(2, '0')}`;
-
-    const [monthlyRecords, dailyBonuses, salaryAdvances, legacySalaryPayments] = await Promise.all([
-        db.collection('monthly_incentives').find({}).toArray(),
-        db.collection('daily_bonuses').find({}).toArray(),
-        db.collection('salary_advances').find({}).toArray(),
-        db.collection('salary_payments').find({}).toArray()
-    ]);
-
-    const salaryPaymentsMap = {};
-    legacySalaryPayments.forEach(item => {
-        if (item?.key) {
-            salaryPaymentsMap[item.key] = {
-                paid: item.paid,
-                paidDate: item.paidDate,
-                grossSalary: item.grossSalary,
-                deductions: item.deductions,
-                netSalary: item.netSalary
-            };
-        }
-    });
 
     const payKey = `${monthKey}_${employee.id}`;
-    const payRecord = salaryPaymentsMap[payKey] || null;
+    const [legacyPayRecord, modernPayRecord] = await Promise.all([
+        db.collection('salary_payments').findOne(
+            { key: payKey },
+            { projection: { paid: 1, paidDate: 1, grossSalary: 1, deductions: 1, netSalary: 1 } }
+        ),
+        db.collection('salaryPayments').findOne(
+            { employeeId: employee.id, month, year },
+            { projection: { grossSalary: 1, deductions: 1, netSalary: 1, paidAt: 1 } }
+        )
+    ]);
+
+    const payRecord = legacyPayRecord
+        ? {
+            paid: legacyPayRecord.paid,
+            paidDate: legacyPayRecord.paidDate,
+            grossSalary: legacyPayRecord.grossSalary,
+            deductions: legacyPayRecord.deductions,
+            netSalary: legacyPayRecord.netSalary
+        }
+        : (modernPayRecord ? {
+            paid: true,
+            paidDate: modernPayRecord.paidAt,
+            grossSalary: modernPayRecord.grossSalary,
+            deductions: modernPayRecord.deductions,
+            netSalary: modernPayRecord.netSalary
+        } : null);
+
     const grossSalary = payRecord?.grossSalary ? parseFloat(payRecord.grossSalary) : (parseFloat(employee.salary) || 0);
     const dailyRate = grossSalary / 30;
 
-    const cycle = getSalaryCycleRange(month, year, employee.hireDate);
-    const monthStart = cycle.start;
-    const monthEnd = cycle.end;
+    const cycle = salaryCycleUtils.getSalaryCycleForMonth(monthKey, employee.hireDate);
+    const monthStart = cycle ? cycle.cycleStart : new Date(year, month - 1, 1);
+    const monthEnd = cycle ? cycle.cycleEnd : new Date(year, month, 0);
+    monthEnd.setHours(23, 59, 59, 999);
+    const cycleStartStr = monthStart.toISOString().split('T')[0];
+    const cycleEndStr = monthEnd.toISOString().split('T')[0];
 
     let effectiveGross = grossSalary;
     let joiningDays = 0;
-    if (employee.hireDate) {
-        const hireDate = new Date(`${employee.hireDate}T00:00:00`);
-        if (hireDate > monthStart && hireDate <= monthEnd) {
-            joiningDays = Math.floor((monthEnd - hireDate) / 86400000) + 1;
-            effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
-        }
+    // New policy: recurring salary cycle is always month start -> month end.
+    // Joining date affects only first-month salary proration.
+    if (cycle?.isFirstSalaryMonth) {
+        joiningDays = cycle.proratedDays;
+        effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
     }
 
-    const leaves = await db.collection('leaves').find({
-        employeeId: employee.id,
-        status: 'approved',
-        leaveType: { $in: [...UNPAID_LEAVE_TYPES] }
-    }).toArray();
+    const employeeIdFilter = { $in: [employee.id, String(employee.id)] };
+    const monthStartDateStr = `${monthKey}-01`;
+    const monthEndDateStr = cycleEndStr;
+
+    const [monthlyIncentiveRecord, dailyBonuses, salaryAdvances, attendanceSettings, attendanceDocs, leaves, paidModernRows] = await Promise.all([
+        db.collection('monthly_incentives').findOne(
+            { key: payKey, paid: true },
+            { projection: { amount: 1, paid: 1 } }
+        ),
+        db.collection('daily_bonuses').find(
+            {
+                employeeId: employeeIdFilter,
+                date: { $gte: monthStartDateStr, $lte: monthEndDateStr }
+            },
+            { projection: { amount: 1, date: 1, employeeId: 1 } }
+        ).toArray(),
+        db.collection('salary_advances').find(
+            {
+                employeeId: employeeIdFilter,
+                status: { $ne: 'Repaid' },
+                repaid: { $ne: true }
+            },
+            { projection: { amount: 1, date: 1, status: 1, repaid: 1 } }
+        ).toArray(),
+        getAttendanceSettings(db),
+        db.collection('attendance').find(
+            { date: { $gte: cycleStartStr, $lte: cycleEndStr } },
+            {
+                projection: {
+                    date: 1,
+                    [`records.${employee.id}`]: 1,
+                    [`records.${String(employee.id)}`]: 1
+                }
+            }
+        ).sort({ date: 1 }).toArray(),
+        db.collection('leaves').find(
+            {
+                employeeId: employee.id,
+                status: 'approved',
+                leaveType: { $in: [...UNPAID_LEAVE_TYPES] },
+                startDate: { $lte: cycleEndStr },
+                endDate: { $gte: cycleStartStr }
+            },
+            { projection: { startDate: 1, endDate: 1, halfDay: 1, leaveType: 1, sandwichDays: 1, status: 1, employeeId: 1 } }
+        ).toArray(),
+        db.collection('salaryPayments').find(
+            {
+                employeeId: employee.id,
+                $or: [
+                    { year: { $lt: year } },
+                    { year, month: { $lt: month } }
+                ]
+            },
+            { projection: { year: 1, month: 1 } }
+        ).toArray()
+    ]);
 
     let unpaidLeaveDays = 0;
     for (const leave of leaves) {
@@ -131,8 +235,6 @@ async function getSalaryBreakup(db, employee, record) {
     }
     const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
 
-    const attendanceSettings = await getAttendanceSettings(db);
-    const attendanceDocs = await getAttendanceDocsForMonths(db, [monthKey, prevMonthKey]);
     const hasFullDayLeaveOnDate = (dateStr) => leaves.some(leave => {
         const sameEmployee = leave.employeeId === employee.id || leave.employeeId === String(employee.id);
         const approved = leave.status === 'approved';
@@ -151,11 +253,19 @@ async function getSalaryBreakup(db, employee, record) {
     const lateDays = Math.floor(lateCount / (Number(attendanceSettings.lateDaysHalfDay) || 3)) * 0.5;
     const lateAttendanceDeduction = Math.round(lateDays * dailyRate * 100) / 100;
 
-    const monthlyRecord = monthlyRecords.find(item => item?.key === payKey);
-    const monthlyIncentive = monthlyRecord && monthlyRecord.paid ? (parseFloat(monthlyRecord.amount) || 0) : 0;
+    // New payroll reporting fields under centralized cycle policy.
+    const leaveDeduction = unpaidLeaveDeduction;
+    const lateDeduction = lateAttendanceDeduction;
+    const halfDayDeduction = lateAttendanceDeduction;
+    const lopDays = Math.round((unpaidLeaveDays + lateDays) * 100) / 100;
+    const lopDeduction = Math.round((leaveDeduction + lateDeduction) * 100) / 100;
+
+    const monthlyIncentive = monthlyIncentiveRecord && monthlyIncentiveRecord.paid
+        ? (parseFloat(monthlyIncentiveRecord.amount) || 0)
+        : 0;
 
     const visibleDailyBonuses = dailyBonuses
-        .filter(bonus => (bonus.employeeId === employee.id || bonus.employeeId === String(employee.id)) && typeof bonus.date === 'string' && bonus.date.startsWith(monthKey))
+        .filter(bonus => typeof bonus.date === 'string' && bonus.date.startsWith(monthKey))
         .filter(bonus => {
             const todayStr = new Date().toISOString().split('T')[0];
             const currentMonth = getMonthKey(new Date().getMonth() + 1, new Date().getFullYear());
@@ -163,17 +273,27 @@ async function getSalaryBreakup(db, employee, record) {
         });
     const dailyBonusTotal = visibleDailyBonuses.reduce((sum, bonus) => sum + (parseFloat(bonus.amount) || 0), 0);
 
+    const paidModernMonths = new Set(
+        paidModernRows
+            .map(row => {
+                const rowYear = parseInt(row?.year, 10);
+                const rowMonth = parseInt(row?.month, 10);
+                if (!rowYear || !rowMonth) return null;
+                return getMonthKey(rowMonth, rowYear);
+            })
+            .filter(Boolean)
+            .filter(m => m < monthKey)
+    );
+
+    const paidLegacyMonths = await getLegacyPaidMonthsForEmployee(db, employee.id, monthKey, salaryAdvances);
+
     const outstandingAdvances = salaryAdvances.filter(advance => {
-        if (!(advance.employeeId === employee.id || advance.employeeId === String(employee.id))) return false;
-        if (advance.status === 'Repaid' || advance.repaid) return false;
         if (!advance.date) return true;
         const advanceMonth = advance.date.substring(0, 7);
-        const alreadyDeducted = Object.entries(salaryPaymentsMap).some(([key, val]) => {
-            if (!val?.paid) return false;
-            const payMonth = key.substring(0, 7);
-            const payEmp = key.substring(key.indexOf('_') + 1);
-            return String(payEmp) === String(employee.id) && payMonth >= advanceMonth && payMonth < monthKey;
-        });
+        const alreadyDeducted = [
+            ...paidModernMonths,
+            ...paidLegacyMonths
+        ].some(payMonth => payMonth >= advanceMonth && payMonth < monthKey);
         return !alreadyDeducted;
     });
     const advanceDeduction = outstandingAdvances.reduce((sum, advance) => sum + (parseFloat(advance.amount) || 0), 0);
@@ -182,18 +302,34 @@ async function getSalaryBreakup(db, employee, record) {
     const totalDeductions = advanceDeduction + unpaidLeaveDeduction + lateAttendanceDeduction;
     const netSalary = Math.max(0, totalEarnings - totalDeductions);
 
+    // Unified salary period model for reports/salary slip rendering.
+    const salaryPeriod = {
+        start: cycleStartStr,
+        end: cycleEndStr,
+        isFirstSalaryMonth: Boolean(cycle?.isFirstSalaryMonth)
+    };
+
     return {
         payKey,
         monthKey,
         grossSalary,
         dailyRate,
         joiningDays,
+        isFirstSalaryMonth: Boolean(cycle?.isFirstSalaryMonth),
+        cycleStart: cycleStartStr,
+        cycleEnd: cycleEndStr,
+        salaryPeriod,
         effectiveGross,
         unpaidLeaveDays,
         unpaidLeaveDeduction,
         lateCount,
         lateDays,
         lateAttendanceDeduction,
+        leaveDeduction,
+        lateDeduction,
+        halfDayDeduction,
+        lopDays,
+        lopDeduction,
         monthlyIncentive,
         dailyBonusTotal,
         advanceDeduction,
@@ -220,6 +356,7 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
         '',
         `Your salary for ${monthLabel} has been credited.`,
         '',
+        `Salary Period: ${breakup.salaryPeriod.start} to ${breakup.salaryPeriod.end}`,
         `Employee ID: ${employee.id}`,
         `Department: ${employee.department || '—'}`,
         `Designation: ${employee.position || employee.designation || '—'}`,
@@ -231,6 +368,8 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
         `Daily Bonuses: ${formatRupees(breakup.dailyBonusTotal)}`,
         `Unpaid Leave Deduction: -${formatRupees(breakup.unpaidLeaveDeduction)}`,
         `Late Attendance Deduction: -${formatRupees(breakup.lateAttendanceDeduction)}`,
+        `LOP Days: ${breakup.lopDays}`,
+        `LOP Deduction (included in leave + late): -${formatRupees(breakup.lopDeduction)}`,
         `Outstanding Advance Deduction: -${formatRupees(breakup.advanceDeduction)}`,
         `Total Deductions: -${formatRupees(breakup.totalDeductions)}`,
         `Net Salary: ${formatRupees(breakup.netSalary)}`,
@@ -266,6 +405,7 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
                         <tr><td colspan="2" style="padding:10px 0;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
                         ${row('Unpaid Leave Deduction', formatRupees(breakup.unpaidLeaveDeduction), true)}
                         ${row('Late Attendance Deduction', formatRupees(breakup.lateAttendanceDeduction), true)}
+                        ${row('LOP Deduction (included in leave + late)', formatRupees(breakup.lopDeduction), false)}
                         ${row('Outstanding Advance Deduction', formatRupees(breakup.advanceDeduction), true)}
                         ${row('Total Deductions', formatRupees(breakup.totalDeductions), true)}
                         <tr><td colspan="2" style="padding:10px 0;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
@@ -276,9 +416,11 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
                     </table>
                     <div style="margin-top:18px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;font-size:13px;color:#475569;">
                         <div><strong>Paid At:</strong> ${new Date(record.paidAt).toLocaleString()}</div>
+                        <div><strong>Payroll Cycle:</strong> ${breakup.cycleStart} to ${breakup.cycleEnd}</div>
                         <div><strong>Working Days:</strong> ${breakup.joiningDays > 0 ? `${breakup.joiningDays} joined-days` : 'full month'}</div>
                         <div><strong>Leave Deductions:</strong> ${breakup.unpaidLeaveDays} day(s)</div>
                         <div><strong>Late Attendance:</strong> ${breakup.lateCount} late day(s)</div>
+                        <div><strong>LOP:</strong> ${breakup.lopDays} day(s)</div>
                     </div>
                     <p style="margin:18px 0 0;color:#334155;">Regards,<br/>DegreeDrishti HR</p>
                 </div>
@@ -321,7 +463,7 @@ router.get('/preview', async (req, res) => {
         }
 
         const breakup = await getSalaryBreakup(db, employee, { employeeId, month, year });
-        return res.json({ success: true, breakup });
+        return res.json({ success: true, salaryPeriod: breakup.salaryPeriod, breakup });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
@@ -343,20 +485,83 @@ router.post('/', async (req, res) => {
             year:  parseInt(year),
             paidAt: new Date().toISOString()
         };
-        // Upsert so repeated marks are idempotent
-        await db.collection('salaryPayments').updateOne(
-            { employeeId: record.employeeId, month: record.month, year: record.year },
-            { $set: record },
-            { upsert: true }
-        );
-
         const employee = await getEmployeeById(db, record.employeeId);
-        if (employee) {
-            const breakup = await getSalaryBreakup(db, employee, record);
-            await sendSalaryPaidNotification(record, employee, breakup);
+        if (!employee) {
+            return res.status(404).json({ error: 'Employee not found' });
         }
 
-        res.status(201).json({ success: true, record });
+        const breakup = await getSalaryBreakup(db, employee, record);
+        const monthKey = breakup.monthKey;
+        const legacyKey = `${monthKey}_${record.employeeId}`;
+
+        const modernFilter = { employeeId: record.employeeId, month: record.month, year: record.year };
+        const legacyFilter = { key: legacyKey };
+        const prevModern = await db.collection('salaryPayments').findOne(modernFilter);
+        const prevLegacy = await db.collection('salary_payments').findOne(legacyFilter);
+
+        // Dual-write compatibility: update modern + legacy payroll stores together.
+        // If either write fails, restore previous state to avoid partial inconsistencies.
+        try {
+            await db.collection('salaryPayments').updateOne(
+                modernFilter,
+                {
+                    $set: {
+                        ...record,
+                        monthKey: breakup.monthKey,
+                        cycleStart: breakup.cycleStart,
+                        cycleEnd: breakup.cycleEnd,
+                        isFirstSalaryMonth: breakup.isFirstSalaryMonth,
+                        salaryPeriod: breakup.salaryPeriod,
+                        grossSalary: breakup.grossSalary,
+                        deductions: breakup.totalDeductions,
+                        netSalary: breakup.netSalary,
+                        updatedAt: new Date().toISOString()
+                    }
+                },
+                { upsert: true }
+            );
+
+            await db.collection('salary_payments').updateOne(
+                legacyFilter,
+                {
+                    $set: {
+                        key: legacyKey,
+                        paid: true,
+                        paidDate: record.paidAt,
+                        grossSalary: breakup.grossSalary,
+                        deductions: breakup.totalDeductions,
+                        netSalary: breakup.netSalary,
+                        monthKey: breakup.monthKey,
+                        cycleStart: breakup.cycleStart,
+                        cycleEnd: breakup.cycleEnd,
+                        isFirstSalaryMonth: breakup.isFirstSalaryMonth,
+                        salaryPeriod: breakup.salaryPeriod,
+                        updatedAt: new Date().toISOString()
+                    }
+                },
+                { upsert: true }
+            );
+        } catch (writeErr) {
+            if (prevModern) {
+                const { _id, ...modernDoc } = prevModern;
+                await db.collection('salaryPayments').updateOne(modernFilter, { $set: modernDoc }, { upsert: true });
+            } else {
+                await db.collection('salaryPayments').deleteOne(modernFilter);
+            }
+
+            if (prevLegacy) {
+                const { _id, ...legacyDoc } = prevLegacy;
+                await db.collection('salary_payments').updateOne(legacyFilter, { $set: legacyDoc }, { upsert: true });
+            } else {
+                await db.collection('salary_payments').deleteOne(legacyFilter);
+            }
+
+            throw writeErr;
+        }
+
+        await sendSalaryPaidNotification(record, employee, breakup);
+
+        res.status(201).json({ success: true, record, salaryPeriod: breakup?.salaryPeriod || null, breakup });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -369,11 +574,18 @@ router.delete('/', async (req, res) => {
     try {
         const db = getDB();
         const { employeeId, month, year } = req.body;
+        const employeeIdNum = parseInt(employeeId);
+        const monthNum = parseInt(month);
+        const yearNum = parseInt(year);
+        const monthKey = `${yearNum}-${String(monthNum).padStart(2, '0')}`;
+        const legacyKey = `${monthKey}_${employeeIdNum}`;
+
         await db.collection('salaryPayments').deleteOne({
-            employeeId: parseInt(employeeId),
-            month: parseInt(month),
-            year:  parseInt(year)
+            employeeId: employeeIdNum,
+            month: monthNum,
+            year:  yearNum
         });
+        await db.collection('salary_payments').deleteOne({ key: legacyKey });
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });

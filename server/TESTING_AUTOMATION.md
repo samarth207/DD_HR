@@ -17,6 +17,10 @@ The automation suite is isolated from production by design:
 ## Commands
 
 ```bash
+npm run test:qa
+# complete QA suite: unit + integration + API + E2E business validation
+# auto-generates HTML report at server/testing/reports/latest-report.html
+
 npm run test:e2e
 # alias
 npm run test:automation
@@ -68,6 +72,33 @@ For each test case:
 4. Compares expected vs actual results
 5. Persists logs/results/summary in testing collections
 6. Rolls back seeded data with cleanup helpers
+
+## QA Coverage Matrix
+
+`npm run test:qa` executes layered validation with realistic seeded data:
+
+- Unit Tests
+- Integration Tests
+- API Tests
+- Payroll Validation Tests
+- Attendance Validation Tests
+- Leave Validation Tests
+- Salary Slip Validation Tests (payroll response contract used by slip/email rendering)
+- Dashboard Validation Tests
+- Regression Tests (critical business logic guards)
+- Edge Case Tests
+
+Seed generation is automatic in test helpers/factories and does not require manual data prep.
+
+## HTML Report Artifact
+
+After every `npm run test:qa` execution, a static HTML report is generated:
+
+- `server/testing/reports/latest-report.html`
+
+Machine-readable Jest output is also stored at:
+
+- `server/testing/reports/jest-results.json`
 
 ## Implemented E2E Scenarios
 

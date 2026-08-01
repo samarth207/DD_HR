@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
+const salaryCycleUtils = require('../../salary-cycle-utils');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
@@ -126,33 +127,19 @@ function getPaidLeaveBalance(employee) {
     return legacyTotal || DEFAULT_PAID_LEAVE;
 }
 
-// Returns the salary-cycle window that contains dateStr, anchored on cycleDay (hire-date day).
-function getCycleWindowForDate(dateStr, cycleDay) {
-    const d = parseDate(dateStr);
-    if (!d || !cycleDay) return null;
-    const year = d.getFullYear(), month = d.getMonth(), day = d.getDate();
-    let start, end;
-    if (day > cycleDay) {
-        start = new Date(year, month, cycleDay);
-        end   = new Date(year, month + 1, cycleDay);
-    } else {
-        start = new Date(year, month - 1, cycleDay);
-        end   = new Date(year, month, cycleDay);
-    }
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
-}
-
-// Enforces the 1-paid-leave-per-cycle rule.
+// Enforces the 1-paid-leave-per-cycle rule under centralized policy:
+// first salary month is join-date -> month-end, then 1st -> month-end.
 // excludeLeaveId – set to the current leave id when updating so self is not counted.
 async function checkOnePaidLeavePerCycle(db, employeeId, leaveStartDate, excludeLeaveId) {
     const employee = await db.collection('employees').findOne({ id: employeeId });
-    if (!employee || !employee.hireDate) return { ok: true };
-    const hireDay = Math.min(new Date(employee.hireDate + 'T00:00:00').getDate(), 28);
-    const cycle = getCycleWindowForDate(leaveStartDate, hireDay);
+    if (!employee) return { ok: true };
+
+    const monthKey = String(leaveStartDate || '').substring(0, 7);
+    const cycle = salaryCycleUtils.getSalaryCycleForMonth(monthKey, employee.hireDate || null);
     if (!cycle) return { ok: true };
-    const cycleStartStr = toDateStr(cycle.start);
-    const cycleEndStr   = toDateStr(cycle.end);
+
+    const cycleStartStr = toDateStr(cycle.cycleStart);
+    const cycleEndStr   = toDateStr(cycle.cycleEnd);
     const query = {
         employeeId,
         status: { $ne: 'rejected' },
@@ -165,7 +152,7 @@ async function checkOnePaidLeavePerCycle(db, employeeId, leaveStartDate, exclude
     if (existing) {
         return {
             ok: false,
-            message: `Only 1 paid leave is allowed per salary cycle (${cycleStartStr} to ${cycleEndStr}). A paid leave already exists from ${existing.startDate} to ${existing.endDate} in this cycle.`,
+            message: `Only 1 paid leave is allowed per monthly salary cycle (${cycleStartStr} to ${cycleEndStr}). A paid leave already exists from ${existing.startDate} to ${existing.endDate} in this cycle.`,
             paidLeaveLimit: true
         };
     }
@@ -249,6 +236,100 @@ router.get('/employee/:id', async (req, res) => {
             employeeId: parseInt(req.params.id) 
         }).sort({ startDate: -1 }).toArray();
         res.json(leaves);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET /api/leaves/report/monthly?employeeId=1&month=YYYY-MM
+// Provides leave summary aligned with centralized salary-cycle policy.
+router.get('/report/monthly', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const employeeId = parseInt(req.query.employeeId, 10);
+        const month = String(req.query.month || '');
+        if (!employeeId || !month) {
+            return res.status(400).json({ error: 'employeeId and month are required' });
+        }
+
+        const employee = await db.collection('employees').findOne({ id: employeeId });
+        if (!employee) {
+            return res.status(404).json({ error: 'Employee not found' });
+        }
+
+        const cycle = salaryCycleUtils.getSalaryCycleForMonth(month, employee.hireDate || null);
+        if (!cycle) {
+            return res.status(400).json({ error: 'Invalid month format. Use YYYY-MM.' });
+        }
+
+        const cycleStartStr = toDateStr(cycle.cycleStart);
+        const cycleEndStr = toDateStr(cycle.cycleEnd);
+        const leaves = await db.collection('leaves').find({
+            employeeId,
+            status: { $ne: 'rejected' },
+            startDate: { $lte: cycleEndStr },
+            endDate: { $gte: cycleStartStr }
+        }).toArray();
+
+        let paidLeaveDays = 0;
+        let unpaidLeaveDays = 0;
+        let workFromHomeDays = 0;
+        let halfDayCount = 0;
+        let totalLeaveDays = 0;
+
+        for (const leave of leaves) {
+            const isHalfDay = leave.halfDay === true || leave.leaveType === 'Half Day';
+            const leaveStart = parseDate(leave.startDate);
+            const leaveEnd = parseDate(leave.endDate);
+            if (!leaveStart || !leaveEnd) continue;
+
+            const overlapStart = leaveStart < cycle.cycleStart ? cycle.cycleStart : leaveStart;
+            const overlapEnd = leaveEnd > cycle.cycleEnd ? cycle.cycleEnd : leaveEnd;
+            if (overlapStart > overlapEnd) continue;
+
+            const overlapDays = isHalfDay
+                ? 0.5
+                : (Math.floor((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1);
+
+            const sandwichDays = !isHalfDay ? (leave.sandwichDays || 0) : 0;
+            const countedDays = overlapDays + sandwichDays;
+
+            if (isWorkFromHomeLeave(leave.leaveType)) {
+                workFromHomeDays += countedDays;
+                continue;
+            }
+
+            totalLeaveDays += countedDays;
+            if (isHalfDay) halfDayCount++;
+
+            if (UNPAID_LEAVE_TYPES.has(leave.leaveType)) {
+                unpaidLeaveDays += countedDays;
+            } else {
+                paidLeaveDays += countedDays;
+            }
+        }
+
+        res.json({
+            employeeId,
+            month,
+            cycleStart: cycleStartStr,
+            cycleEnd: cycleEndStr,
+            isFirstSalaryMonth: cycle.isFirstSalaryMonth,
+            // Keep explicit salaryPeriod for reporting surfaces and clients.
+            salaryPeriod: {
+                start: cycleStartStr,
+                end: cycleEndStr,
+                isFirstSalaryMonth: cycle.isFirstSalaryMonth
+            },
+            summary: {
+                totalLeaveDays,
+                paidLeaveDays,
+                unpaidLeaveDays,
+                workFromHomeDays,
+                halfDayCount
+            }
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

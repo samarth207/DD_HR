@@ -73,6 +73,7 @@ async function createIndexes() {
         await db.collection('leaves').createIndex({ id: 1 }, { unique: true });
         await db.collection('leaves').createIndex({ employeeId: 1 });
         await db.collection('leaves').createIndex({ status: 1 });
+        await db.collection('leaves').createIndex({ employeeId: 1, status: 1, leaveType: 1, startDate: 1, endDate: 1 });
         
         await db.collection('holidays').createIndex({ id: 1 }, { unique: true });
         await db.collection('holidays').createIndex({ date: 1 });
@@ -81,9 +82,18 @@ async function createIndexes() {
         
         await db.collection('incentives').createIndex({ employeeId: 1 });
         await db.collection('incentives').createIndex({ type: 1 });
-        
-        await db.collection('logs').createIndex({ timestamp: -1 });
-        await db.collection('logs').createIndex({ type: 1 });
+
+        // Payroll/performance indexes
+        await db.collection('attendance').createIndex({ date: 1 });
+        await db.collection('salaryPayments').createIndex({ employeeId: 1, month: 1, year: 1 }, { unique: true });
+        await db.collection('salaryPayments').createIndex({ month: 1, year: 1 });
+        await db.collection('salaryPayments').createIndex({ employeeId: 1, year: 1, month: 1 });
+        await db.collection('salary_payments').createIndex({ key: 1 }, { unique: true });
+        await db.collection('salary_payments').createIndex({ paid: 1, key: 1 });
+        await db.collection('monthly_incentives').createIndex({ key: 1 }, { unique: true });
+        await db.collection('monthly_incentives').createIndex({ paid: 1, key: 1 });
+        await db.collection('daily_bonuses').createIndex({ employeeId: 1, date: 1 });
+        await db.collection('salary_advances').createIndex({ employeeId: 1, status: 1, repaid: 1, date: 1 });
         
         console.log('✅ Database indexes created');
     } catch (error) {
