@@ -1,0 +1,24 @@
+flowchart TB
+    A[Authentication Process]
+    B[Employee Management]
+    C[Attendance Process]
+    D[Leave Process]
+    E[Payroll Process]
+    F[Sales and Incentives]
+    G[Logs and Reports]
+
+    DB[(MongoDB)]
+    FS[(File Storage)]
+    EM[[Email Service]]
+
+    A --> DB
+    B --> DB
+    B --> FS
+    C --> DB
+    D --> DB
+    D --> EM
+    E --> DB
+    E --> EM
+    F --> DB
+    F --> EM
+    G --> DB

@@ -30,6 +30,7 @@ function createApp(options = {}) {
     const attendanceRoutes = require('./routes/attendance');
     const salaryPaymentsRoutes = require('./routes/salaryPayments');
     const adminRoutes = require('./routes/admin');
+    const analyticsRoutes = require('./routes/analytics');
     let authRoutes = null;
     let admissionsRoutes = null;
     if (includeAuthRoutes) authRoutes = require('./routes/auth');
@@ -46,6 +47,7 @@ function createApp(options = {}) {
     app.use('/api/attendance', attendanceRoutes);
     app.use('/api/salary-payments', salaryPaymentsRoutes);
     app.use('/api/admin', adminRoutes);
+    app.use('/api/analytics', analyticsRoutes);
     if (authRoutes) app.use('/api/auth', authRoutes);
     if (admissionsRoutes) app.use('/api/admissions', admissionsRoutes);
     app.use('/api/testing', testingRoutes);

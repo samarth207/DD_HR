@@ -1,0 +1,57 @@
+flowchart LR
+    Admin((Admin))
+    HR((HR))
+    Employee((Employee))
+    Manager((Manager))
+    SuperAdmin((Super Admin))
+    External((External APIs))
+
+    UC1[Login]
+    UC2[Manage Employees]
+    UC3[Track Attendance]
+    UC4[Apply Leave]
+    UC5[Approve Leave]
+    UC6[Manage Holidays]
+    UC7[Manage Sales]
+    UC8[Configure Incentives]
+    UC9[Run Payroll]
+    UC10[View Reports]
+    UC11[Manage Logs]
+    UC12[Send Email]
+    UC13[Store Files]
+
+    Admin --> UC1
+    Admin --> UC2
+    Admin --> UC3
+    Admin --> UC5
+    Admin --> UC6
+    Admin --> UC7
+    Admin --> UC8
+    Admin --> UC9
+    Admin --> UC10
+    Admin --> UC11
+
+    HR --> UC2
+    HR --> UC3
+    HR --> UC4
+    HR --> UC5
+    HR --> UC6
+    HR --> UC8
+    HR --> UC9
+    HR --> UC10
+
+    Employee --> UC1
+    Employee --> UC4
+    Employee --> UC10
+
+    Manager --> UC3
+    Manager --> UC5
+    Manager --> UC7
+    Manager --> UC10
+
+    SuperAdmin --> UC11
+    SuperAdmin --> UC9
+    SuperAdmin --> UC2
+
+    External --> UC12
+    External --> UC13

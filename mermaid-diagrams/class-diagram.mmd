@@ -1,0 +1,115 @@
+classDiagram
+    class AuthService {
+        +loginAdmin(password)
+        +loginEmployee(email, password)
+        +verifyToken(token)
+        +changePassword()
+        +resetEmployeePassword()
+    }
+
+    class EmployeeService {
+        +listEmployees()
+        +getEmployee(id)
+        +createEmployee(data)
+        +updateEmployee(id, data)
+        +deleteEmployee(id)
+        +uploadDocument(id, file)
+    }
+
+    class AttendanceService {
+        +getSettings()
+        +saveSettings()
+        +getDay(date)
+        +saveDay(date, records)
+        +getMonth(month)
+    }
+
+    class LeaveService {
+        +listLeaves()
+        +listEmployeeLeaves(id)
+        +createLeave(data)
+        +updateLeave(id, data)
+        +deleteLeave(id)
+        +validateLeaveRules()
+    }
+
+    class PayrollService {
+        +previewSalary(employeeId, month, year)
+        +markSalaryPaid(employeeId, month, year)
+        +undoSalaryPaid(key)
+        +calculateDeductions()
+    }
+
+    class SalesService {
+        +listSales()
+        +listMonthlySales(month)
+        +saveSales(data)
+        +notifyTargetChange()
+    }
+
+    class IncentiveService {
+        +getConfig()
+        +saveConfig()
+        +saveMonthlyIncentive()
+        +addDailyBonus()
+        +addAdvance()
+        +updateAdvance()
+    }
+
+    class LogService {
+        +listLogs()
+        +addLog()
+        +clearLogs()
+    }
+
+    class NotificationService {
+        +sendLeaveApproved()
+        +sendLeaveRejected()
+        +sendTargetAssigned()
+        +sendSalaryCredited()
+    }
+
+    class FileStorage {
+        +saveEmployeeDocument()
+        +deleteEmployeeDocument()
+        +resolveUploadPath()
+    }
+
+    class BaseRepository {
+        <<interface>>
+        +find()
+        +findOne()
+        +insertOne()
+        +updateOne()
+        +deleteOne()
+    }
+
+    class EmployeeRepository
+    class LeaveRepository
+    class AttendanceRepository
+    class SalesRepository
+    class IncentiveRepository
+    class PayrollRepository
+    class LogRepository
+
+    BaseRepository <|.. EmployeeRepository
+    BaseRepository <|.. LeaveRepository
+    BaseRepository <|.. AttendanceRepository
+    BaseRepository <|.. SalesRepository
+    BaseRepository <|.. IncentiveRepository
+    BaseRepository <|.. PayrollRepository
+    BaseRepository <|.. LogRepository
+
+    AuthService --> EmployeeService
+    AuthService --> LogService
+    EmployeeService --> FileStorage
+    EmployeeService --> LogService
+    LeaveService --> NotificationService
+    LeaveService --> LogService
+    PayrollService --> AttendanceService
+    PayrollService --> LeaveService
+    PayrollService --> IncentiveService
+    PayrollService --> NotificationService
+    SalesService --> NotificationService
+    SalesService --> LogService
+    IncentiveService --> NotificationService

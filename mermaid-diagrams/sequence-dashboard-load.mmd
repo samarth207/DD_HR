@@ -1,0 +1,16 @@
+sequenceDiagram
+    actor User
+    participant Frontend
+    participant EmployeeAPI
+    participant AttendanceAPI
+    participant LeaveAPI
+    participant SalesAPI
+    participant PayrollAPI
+
+    User->>Frontend: Open dashboard
+    Frontend->>EmployeeAPI: GET employee summary
+    Frontend->>AttendanceAPI: GET recent attendance
+    Frontend->>LeaveAPI: GET leave summary
+    Frontend->>SalesAPI: GET sales summary
+    Frontend->>PayrollAPI: GET salary preview
+    Frontend-->>User: Render dashboard widgets

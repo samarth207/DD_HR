@@ -1,0 +1,13 @@
+sequenceDiagram
+    actor Admin
+    participant Frontend
+    participant EmployeeAPI
+    participant Database
+    participant Logs
+
+    Admin->>Frontend: Create employee
+    Frontend->>EmployeeAPI: POST /api/employees
+    EmployeeAPI->>Database: Insert employee record
+    EmployeeAPI->>Logs: Add audit event
+    EmployeeAPI-->>Frontend: Success response
+    Frontend-->>Admin: Employee created

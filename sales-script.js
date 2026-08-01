@@ -342,6 +342,130 @@ function closeSalesModal() {
 }
 
 // Record sales (individual admission)
+
+// ─── Fee Breakdown Functions ─────────────────────────────────────────────────
+function updateFeeModelLabel() {
+    const model = document.getElementById('admFeeModel').value;
+    const label = document.getElementById('admDiscountLabel');
+    
+    if (!model) {
+        label.textContent = 'Discount (%)';
+        return;
+    }
+    
+    switch(model) {
+        case 'semester-wise':
+            label.textContent = 'Initial Discount per Semester (%)';
+            break;
+        case 'annual-wise':
+            label.textContent = 'Initial Discount per Year (%)';
+            break;
+        case 'full-fees-wise':
+            label.textContent = 'Discount on Total Fees (%)';
+            break;
+    }
+}
+
+function calculateAdmissionFeeBreakdown() {
+    const duration = parseFloat(document.getElementById('admDuration').value);
+    const totalFees = parseFloat(document.getElementById('admTotalFees').value);
+    const model = document.getElementById('admFeeModel').value;
+    const discount = parseFloat(document.getElementById('admInitialDiscount').value);
+
+    if (!model) {
+        alert('Please select a discount model');
+        return;
+    }
+
+    if (!duration || duration < 1 || !totalFees || totalFees <= 0) {
+        alert('Please enter valid duration and total fees');
+        return;
+    }
+
+    if (isNaN(discount) || discount < 0 || discount > 100) {
+        alert('Please enter valid discount (0-100)');
+        return;
+    }
+
+    let periods = [];
+
+    if (model === 'semester-wise') {
+        const totalSemesters = Math.round(duration * 2);
+        const feePerSemester = totalFees / totalSemesters;
+        for (let i = 1; i <= totalSemesters; i++) {
+            const originalFee = feePerSemester;
+            const discountAmount = (originalFee * discount) / 100;
+            const calculatedFee = originalFee - discountAmount;
+            periods.push({
+                label: `Semester ${i}`,
+                originalFees: originalFee,
+                discountPercent: discount,
+                discountAmount: discountAmount,
+                calculatedFees: calculatedFee,
+                feesPaid: 0,
+                balanceDue: calculatedFee
+            });
+        }
+    } else if (model === 'annual-wise') {
+        const feePerYear = totalFees / duration;
+        for (let i = 1; i <= duration; i++) {
+            const originalFee = feePerYear;
+            const discountAmount = (originalFee * discount) / 100;
+            const calculatedFee = originalFee - discountAmount;
+            periods.push({
+                label: `Year ${i}`,
+                originalFees: originalFee,
+                discountPercent: discount,
+                discountAmount: discountAmount,
+                calculatedFees: calculatedFee,
+                feesPaid: 0,
+                balanceDue: calculatedFee
+            });
+        }
+    } else if (model === 'full-fees-wise') {
+        const totalSemesters = Math.round(duration * 2);
+        const totalDiscountAmount = (totalFees * discount) / 100;
+        const totalCalculatedFees = totalFees - totalDiscountAmount;
+        const feePerSemester = totalCalculatedFees / totalSemesters;
+        for (let i = 1; i <= totalSemesters; i++) {
+            periods.push({
+                label: `Semester ${i}`,
+                originalFees: totalFees / totalSemesters,
+                discountPercent: discount,
+                discountAmount: totalDiscountAmount / totalSemesters,
+                calculatedFees: feePerSemester,
+                feesPaid: 0,
+                balanceDue: feePerSemester
+            });
+        }
+    }
+
+    // Display table
+    const tbody = document.getElementById('admFeeTableBody');
+    tbody.innerHTML = periods.map((p, idx) => `
+        <tr>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;">${idx + 1}</td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;"><strong>${p.label}</strong></td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;"><input type="number" min="0" max="100" step="0.01" value="${p.discountPercent.toFixed(2)}" style="width:50px;padding:4px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;"></td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;">₹${p.originalFees.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;">-₹${p.discountAmount.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;"><strong>₹${p.calculatedFees.toLocaleString('en-IN', {maximumFractionDigits: 2})}</strong></td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;"><input type="number" min="0" step="0.01" value="0" style="width:60px;padding:4px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;"></td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;">₹${p.balanceDue.toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+        </tr>
+    `).join('');
+
+    document.getElementById('admFeeBreakdownTable').style.display = 'block';
+    document.getElementById('admFeeBreakdownData').value = JSON.stringify({
+        model: model,
+        duration: duration,
+        totalFees: totalFees,
+        initialDiscount: discount,
+        periods: periods
+    });
+}
+
+// ─── Sales Recording ─────────────────────────────────────────────────────────
 async function recordSales(event) {
     event.preventDefault();
     
@@ -357,11 +481,13 @@ async function recordSales(event) {
     const admissionDate   = document.getElementById('admDate').value;
     const admissionType   = document.getElementById('admType').value;
     const revenue         = getRawCurrencyValue(document.getElementById('admRevenue'));
+    const feeBreakdownDataStr = document.getElementById('admFeeBreakdownData').value;
+    const feeBreakdownData = feeBreakdownDataStr ? JSON.parse(feeBreakdownDataStr) : null;
     
     const response = await fetch(`${API_BASE_URL}/admissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, alternateCustomerPhone, alternateCustomerEmail, course, universityName, admissionDate, admissionType, revenue, status: 'approved', submittedBy: 'admin' })
+        body: JSON.stringify({ employeeId, month, customerName, customerPhone, customerEmail, alternateCustomerPhone, alternateCustomerEmail, course, universityName, admissionDate, admissionType, revenue, status: 'approved', submittedBy: 'admin', feeBreakdownData })
     });
     
     if (!response.ok) {
@@ -699,6 +825,8 @@ window.saveTarget = saveTarget;
 window.openSalesModal = openSalesModal;
 window.closeSalesModal = closeSalesModal;
 window.recordSales = recordSales;
+window.updateFeeModelLabel = updateFeeModelLabel;
+window.calculateAdmissionFeeBreakdown = calculateAdmissionFeeBreakdown;
 window.loadSalesData = loadSalesData;
 window.viewAdmissions = viewAdmissions;
 window.deleteAdmission = deleteAdmission;

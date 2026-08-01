@@ -1,0 +1,16 @@
+sequenceDiagram
+    actor Employee
+    actor HR
+    participant Frontend
+    participant LeaveAPI
+    participant Database
+    participant NotificationService
+
+    Employee->>Frontend: Submit leave request
+    Frontend->>LeaveAPI: POST /api/leaves
+    LeaveAPI->>Database: Validate and save
+    HR->>Frontend: Review request
+    Frontend->>LeaveAPI: PUT /api/leaves/:id
+    LeaveAPI->>Database: Update status to approved
+    LeaveAPI->>NotificationService: Send approval email
+    NotificationService-->>Employee: Approval received

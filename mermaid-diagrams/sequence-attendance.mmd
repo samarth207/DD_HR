@@ -1,0 +1,11 @@
+sequenceDiagram
+    actor HR
+    participant Frontend
+    participant AttendanceAPI
+    participant Database
+
+    HR->>Frontend: Open attendance grid
+    Frontend->>AttendanceAPI: GET /api/attendance/:date
+    AttendanceAPI->>Database: Read attendance document
+    Database-->>AttendanceAPI: Attendance data
+    AttendanceAPI-->>Frontend: Render records

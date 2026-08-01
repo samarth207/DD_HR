@@ -1,0 +1,16 @@
+erDiagram
+    EMPLOYEES ||--o{ LEAVES : requests
+    EMPLOYEES ||--o{ ATTENDANCE : marked_in
+    EMPLOYEES ||--o{ SALES : performance
+    EMPLOYEES ||--o{ INCENTIVES : earns
+    EMPLOYEES ||--o{ SALARY_ADVANCES : receives
+    EMPLOYEES ||--o{ SALARY_PAYMENTS : paid
+    EMPLOYEES ||--o{ DOCUMENTS : owns
+    EMPLOYEES ||--o{ ADMISSIONS : creates
+    HOLIDAYS ||--o{ LEAVES : blocks
+    APP_SETTINGS ||--|| ATTENDANCE_SETTINGS : stores
+    ACCOUNT ||--|| SETTINGS : configures
+    LOGS ||--o{ AUDIT_EVENTS : stores
+    TESTING_RUNS ||--o{ TESTING_RESULTS : produces
+    TESTING_RUNS ||--o{ TESTING_LOGS : produces
+    TESTING_RUNS ||--o{ TESTING_EXPECTED : validates

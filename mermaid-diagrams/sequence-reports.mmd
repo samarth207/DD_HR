@@ -1,0 +1,11 @@
+sequenceDiagram
+    actor Manager
+    participant Frontend
+    participant ReportAPI
+    participant Database
+
+    Manager->>Frontend: Open report screen
+    Frontend->>ReportAPI: GET report data
+    ReportAPI->>Database: Aggregate data
+    Database-->>ReportAPI: Results
+    ReportAPI-->>Frontend: Render charts and tables

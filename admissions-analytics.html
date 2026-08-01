@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DD HR portal - Admissions Analytics</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f0f2f8; }
+        .sidebar { background: linear-gradient(180deg,#1a1f36 0%,#111827 100%); border-right: none; }
+        .logo { background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.07); padding: 22px 20px; }
+        .logo-icon { width:40px;height:40px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0; }
+        .logo h2 { font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px; }
+        .logo small { font-size:11px;color:rgba(255,255,255,.4);font-weight:400; }
+        .nav-section-title { font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);padding:18px 20px 6px; }
+        .nav-item { border-radius:0;border-left:3px solid transparent;color:rgba(255,255,255,.55);font-size:13.5px;font-weight:500;transition:all .18s; }
+        .nav-item:hover { background:rgba(255,255,255,.06);color:rgba(255,255,255,.9);border-left-color:rgba(99,102,241,.5); }
+        .nav-item.active { background:rgba(99,102,241,.18);color:#fff;border-left-color:#6366f1; }
+        .nav-item i { width:18px;font-size:15px; }
+        .sidebar-footer { padding:16px 20px;border-top:1px solid rgba(255,255,255,.07);margin-top:auto; }
+        .sidebar-user { display:flex;align-items:center;gap:10px; }
+        .sidebar-avatar { width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700; }
+        .sidebar-user-info p { font-size:13px;color:#fff;font-weight:600;margin:0; }
+        .sidebar-user-info span { font-size:11px;color:rgba(255,255,255,.4); }
+        .main-content { background:#f0f2f8;padding:28px 32px; }
+
+        /* Page Header */
+        .page-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px; }
+        .page-header-left h1 { font-size:22px;font-weight:800;color:#111827;letter-spacing:-.4px;margin:0; }
+        .page-header-left p { font-size:13px;color:#6b7280;margin:3px 0 0; }
+        .page-header-right { display:flex;align-items:center;gap:10px;flex-wrap:wrap; }
+
+        /* KPI Cards */
+        .kpi-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px; }
+        .kpi-card { border-radius:16px;padding:20px 22px 16px;position:relative;overflow:hidden;cursor:default;transition:transform .2s,box-shadow .2s; }
+        .kpi-card:hover { transform:translateY(-3px);box-shadow:0 16px 40px rgba(0,0,0,.13); }
+        .kpi-card::before { content:'';position:absolute;right:-20px;top:-20px;width:100px;height:100px;border-radius:50%;opacity:.12;background:#fff; }
+        .kpi-card::after  { content:'';position:absolute;right:10px;top:10px;width:60px;height:60px;border-radius:50%;opacity:.08;background:#fff; }
+        .kpi-c1 { background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%); }
+        .kpi-c2 { background:linear-gradient(135deg,#10b981 0%,#059669 100%); }
+        .kpi-c3 { background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%); }
+        .kpi-c4 { background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%); }
+        .kpi-c5 { background:linear-gradient(135deg,#ec4899 0%,#db2777 100%); }
+        .kpi-c6 { background:linear-gradient(135deg,#06b6d4 0%,#0891b2 100%); }
+        .kpi-c7 { background:linear-gradient(135deg,#84cc16 0%,#65a30d 100%); }
+        .kpi-c8 { background:linear-gradient(135deg,#f97316 0%,#ea580c 100%); }
+        .kpi-label { font-size:11px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px; }
+        .kpi-value { font-size:32px;font-weight:800;color:#fff;line-height:1;margin-bottom:8px; }
+        .kpi-footer { display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.7); }
+        .kpi-icon-bg { position:absolute;right:18px;top:50%;transform:translateY(-50%);width:48px;height:48px;background:rgba(255,255,255,.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;z-index:1; }
+
+        /* Card */
+        .dash-card { background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px; }
+        .card-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px; }
+        .card-title { font-size:15px;font-weight:700;color:#111827;margin:0;display:flex;align-items:center;gap:8px; }
+        .card-title i { color:#6366f1; }
+
+        /* Filters */
+        .filter-bar { display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px; }
+        .filter-bar select,
+        .filter-bar input { padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;color:#374151;background:#fff;font-family:'Inter',sans-serif;cursor:pointer;outline:none;transition:border-color .15s; }
+        .filter-bar select:focus,
+        .filter-bar input:focus { border-color:#6366f1; }
+        .filter-bar input[type="text"] { min-width:200px; }
+
+        /* Btn */
+        .btn { display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:10px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif; }
+        .btn-primary { background:#6366f1;color:#fff; }
+        .btn-primary:hover { background:#4f46e5; }
+        .btn-success { background:#10b981;color:#fff; }
+        .btn-success:hover { background:#059669; }
+        .btn-outline { background:#fff;color:#374151;border:1.5px solid #e5e7eb; }
+        .btn-outline:hover { border-color:#6366f1;color:#6366f1; }
+        .btn-sm { padding:6px 12px;font-size:12px; }
+        .btn-danger { background:#ef4444;color:#fff; }
+
+        /* Charts Grid */
+        .charts-grid-2 { display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px; }
+        .charts-grid-3 { display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px; }
+        .chart-wrap { position:relative;height:300px; }
+        .chart-wrap canvas { max-height:300px; }
+
+        /* Insights */
+        .insights-list { display:flex;flex-direction:column;gap:10px; }
+        .insight-item { display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-radius:12px;font-size:13.5px;line-height:1.5; }
+        .insight-item.positive { background:#ecfdf5;border-left:4px solid #10b981;color:#065f46; }
+        .insight-item.warning  { background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e; }
+        .insight-item.danger   { background:#fef2f2;border-left:4px solid #ef4444;color:#991b1b; }
+        .insight-item.info     { background:#eff6ff;border-left:4px solid #3b82f6;color:#1e40af; }
+        .insight-item.neutral  { background:#f9fafb;border-left:4px solid #9ca3af;color:#374151; }
+        .insight-icon { font-size:18px;margin-top:1px;flex-shrink:0; }
+
+        /* Table */
+        .table-wrap { overflow-x:auto; }
+        table { width:100%;border-collapse:collapse;font-size:13px; }
+        th { padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #f3f4f6;background:#fafafa; }
+        td { padding:11px 14px;color:#374151;border-bottom:1px solid #f3f4f6;vertical-align:middle; }
+        tr:last-child td { border-bottom:none; }
+        tr:hover td { background:#fafafa; }
+        .badge { display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700; }
+        .badge-green { background:#d1fae5;color:#065f46; }
+        .badge-blue  { background:#dbeafe;color:#1d4ed8; }
+        .badge-purple { background:#ede9fe;color:#6d28d9; }
+
+        /* Performance card highlight */
+        .perf-row-best td { background:#ecfdf5 !important; }
+        .perf-row-low td  { background:#fef2f2 !important; }
+
+        /* Export bar */
+        .export-bar { display:flex;gap:8px;flex-wrap:wrap; }
+
+        /* Company stats extra rows */
+        .kpi-grid-2 { grid-template-columns:repeat(4,1fr); }
+        .kpi-grid-3 { display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px; }
+
+        /* Skeleton loader */
+        .skeleton { background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:8px; }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* Growth badge */
+        .growth-up   { color:#10b981;font-weight:700;font-size:13px; }
+        .growth-down { color:#ef4444;font-weight:700;font-size:13px; }
+        .growth-flat { color:#9ca3af;font-weight:600;font-size:13px; }
+
+        /* Group-by toggle */
+        .toggle-group { display:inline-flex;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden; }
+        .toggle-btn { padding:6px 14px;background:#fff;border:none;font-size:12px;font-weight:600;color:#6b7280;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif; }
+        .toggle-btn.active { background:#6366f1;color:#fff; }
+
+        /* Empty state */
+        .empty-state { text-align:center;padding:48px 20px;color:#9ca3af; }
+        .empty-state i { font-size:36px;display:block;margin-bottom:12px;opacity:.4; }
+        .empty-state p { font-size:14px;margin:0; }
+
+        /* Pagination */
+        .pagination { display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap; }
+        .pagination button { padding:6px 12px;border-radius:8px;border:1.5px solid #e5e7eb;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;transition:all .15s; }
+        .pagination button:hover { border-color:#6366f1;color:#6366f1; }
+        .pagination button.active { background:#6366f1;border-color:#6366f1;color:#fff; }
+        .pagination span { font-size:13px;color:#6b7280; }
+
+        /* Responsive */
+        @media(max-width:1200px){
+            .kpi-grid,.kpi-grid-3 { grid-template-columns:repeat(2,1fr); }
+            .charts-grid-2,.charts-grid-3 { grid-template-columns:1fr; }
+        }
+        @media(max-width:768px){
+            .main-content { padding:16px; }
+            .kpi-grid,.kpi-grid-3 { grid-template-columns:1fr 1fr; }
+            .page-header { flex-direction:column;align-items:flex-start; }
+            .filter-bar { flex-direction:column;align-items:stretch; }
+            .filter-bar select,.filter-bar input { width:100%; }
+        }
+        @media(max-width:480px){
+            .kpi-grid,.kpi-grid-3 { grid-template-columns:1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar" style="display:flex;flex-direction:column;">
+        <div class="logo" style="display:flex;align-items:center;gap:12px;">
+            <div class="logo-icon"><img src="assets/dd-hr-logo.png" alt="DD HR portal logo" style="width:100%;height:100%;object-fit:contain;"></div>
+            <div>
+                <h2 style="margin:0;">DD HR portal</h2>
+                <small>Management System</small>
+            </div>
+        </div>
+        <nav class="nav-menu" style="flex:1;">
+            <div class="nav-section-title">Main Menu</div>
+            <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="employees.html" class="nav-item"><i class="fas fa-users"></i><span>Employees</span></a>
+            <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+            <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+            <a href="admissions-analytics.html" class="nav-item active"><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
+            <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+            <div class="nav-section-title">Leave</div>
+            <a href="leave-management.html" class="nav-item"><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
+            <a href="leave-calendar.html" class="nav-item"><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
+            <a href="holidays.html" class="nav-item"><i class="fas fa-calendar-day"></i><span>Holidays</span></a>
+            <div class="nav-section-title">Tools</div>
+            <a href="chatbot.html" class="nav-item"><i class="fas fa-robot"></i><span>AI Assistant</span></a>
+            <a href="account.html" class="nav-item"><i class="fas fa-user-circle"></i><span>Account Details</span></a>
+            <a href="logs.html" class="nav-item"><i class="fas fa-history"></i><span>Activity Logs</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-avatar">HR</div>
+                <div class="sidebar-user-info">
+                    <p>HR Admin</p>
+                    <span>Administrator</span>
+                </div>
+            </div>
+            <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-header-left">
+                <h1><i class="fas fa-chart-bar" style="color:#6366f1;margin-right:8px;"></i>Admissions Analytics</h1>
+                <p id="pageSubtitle">Loading analytics data…</p>
+            </div>
+            <div class="page-header-right">
+                <div class="export-bar">
+                    <button class="btn btn-outline btn-sm" onclick="exportCSV()"><i class="fas fa-file-csv"></i> CSV</button>
+                    <button class="btn btn-outline btn-sm" onclick="exportExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+                    <button class="btn btn-outline btn-sm" onclick="exportPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+                    <button class="btn btn-outline btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Filters -->
+        <div class="dash-card" style="margin-bottom:20px;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-filter"></i> Filters</span>
+                <button class="btn btn-outline btn-sm" onclick="resetFilters()"><i class="fas fa-undo"></i> Reset</button>
+            </div>
+            <div class="filter-bar">
+                <select id="fYear" onchange="applyFilters()">
+                    <option value="">All Years</option>
+                </select>
+                <select id="fMonth" onchange="applyFilters()">
+                    <option value="">All Months</option>
+                    <option value="01">January</option><option value="02">February</option>
+                    <option value="03">March</option><option value="04">April</option>
+                    <option value="05">May</option><option value="06">June</option>
+                    <option value="07">July</option><option value="08">August</option>
+                    <option value="09">September</option><option value="10">October</option>
+                    <option value="11">November</option><option value="12">December</option>
+                </select>
+                <select id="fEmployee" onchange="applyFilters()">
+                    <option value="">All Employees</option>
+                </select>
+                <select id="fDept" onchange="applyFilters()">
+                    <option value="">All Departments</option>
+                </select>
+                <input type="date" id="fStartDate" onchange="applyFilters()" placeholder="Start Date" title="Start Date">
+                <input type="date" id="fEndDate" onchange="applyFilters()" placeholder="End Date" title="End Date">
+            </div>
+        </div>
+
+        <!-- ── COMPANY OVERVIEW KPIs ── -->
+        <div class="kpi-grid" id="kpiGrid">
+            <div class="kpi-card kpi-c1"><div class="kpi-label">Total Employees</div><div class="kpi-value" id="kTotalEmp">–</div><div class="kpi-footer"><i class="fas fa-users"></i><span>Registered</span></div><div class="kpi-icon-bg"><i class="fas fa-users"></i></div></div>
+            <div class="kpi-card kpi-c2"><div class="kpi-label">Total Admissions</div><div class="kpi-value" id="kTotalAdm">–</div><div class="kpi-footer"><i class="fas fa-check-circle"></i><span>All time approved</span></div><div class="kpi-icon-bg"><i class="fas fa-graduation-cap"></i></div></div>
+            <div class="kpi-card kpi-c3"><div class="kpi-label">This Month</div><div class="kpi-value" id="kThisMonth">–</div><div class="kpi-footer" id="kGrowthFooter"><i class="fas fa-arrow-up"></i><span>vs last month</span></div><div class="kpi-icon-bg"><i class="fas fa-calendar"></i></div></div>
+            <div class="kpi-card kpi-c4"><div class="kpi-label">Today</div><div class="kpi-value" id="kToday">–</div><div class="kpi-footer"><i class="fas fa-clock"></i><span>Admissions today</span></div><div class="kpi-icon-bg"><i class="fas fa-sun"></i></div></div>
+        </div>
+        <div class="kpi-grid kpi-grid-3">
+            <div class="kpi-card kpi-c5"><div class="kpi-label">Revenue Generated</div><div class="kpi-value" id="kRevenue" style="font-size:22px;">–</div><div class="kpi-footer"><i class="fas fa-rupee-sign"></i><span>Total approved revenue</span></div><div class="kpi-icon-bg"><i class="fas fa-coins"></i></div></div>
+            <div class="kpi-card kpi-c6"><div class="kpi-label">Avg / Employee</div><div class="kpi-value" id="kAvgEmp">–</div><div class="kpi-footer"><i class="fas fa-chart-bar"></i><span>This month avg</span></div><div class="kpi-icon-bg"><i class="fas fa-user-chart"></i></div></div>
+            <div class="kpi-card kpi-c7"><div class="kpi-label">Target Completion</div><div class="kpi-value" id="kTarget">–</div><div class="kpi-footer"><i class="fas fa-bullseye"></i><span>Monthly target %</span></div><div class="kpi-icon-bg"><i class="fas fa-target"></i></div></div>
+            <div class="kpi-card kpi-c8"><div class="kpi-label">Performance Score</div><div class="kpi-value" id="kScore">–</div><div class="kpi-footer"><i class="fas fa-star"></i><span>Overall company</span></div><div class="kpi-icon-bg"><i class="fas fa-trophy"></i></div></div>
+        </div>
+
+        <!-- Company Insight Cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;" id="companyInsightCards">
+            <div class="dash-card" style="margin:0;border-left:4px solid #10b981;">
+                <div style="font-size:11px;text-transform:uppercase;font-weight:700;color:#6b7280;letter-spacing:.05em;margin-bottom:4px;">Best Performer This Month</div>
+                <div style="font-size:16px;font-weight:800;color:#111827;" id="kBestEmp">–</div>
+                <div style="font-size:12px;color:#10b981;font-weight:600;" id="kBestCount"></div>
+            </div>
+            <div class="dash-card" style="margin:0;border-left:4px solid #f59e0b;">
+                <div style="font-size:11px;text-transform:uppercase;font-weight:700;color:#6b7280;letter-spacing:.05em;margin-bottom:4px;">Pending Admissions</div>
+                <div style="font-size:16px;font-weight:800;color:#111827;" id="kPending">–</div>
+                <div style="font-size:12px;color:#f59e0b;font-weight:600;">Awaiting approval</div>
+            </div>
+            <div class="dash-card" style="margin:0;border-left:4px solid #6366f1;">
+                <div style="font-size:11px;text-transform:uppercase;font-weight:700;color:#6b7280;letter-spacing:.05em;margin-bottom:4px;">Month-over-Month Growth</div>
+                <div style="font-size:16px;font-weight:800;color:#111827;" id="kGrowth">–</div>
+                <div style="font-size:12px;color:#6b7280;font-weight:600;" id="kGrowthSub"></div>
+            </div>
+        </div>
+
+        <!-- ── INSIGHTS ── -->
+        <div class="dash-card" style="margin-bottom:20px;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-lightbulb"></i> Automatic Insights</span>
+                <button class="btn btn-outline btn-sm" onclick="loadInsights()"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+            <div id="insightsList" class="insights-list">
+                <div class="skeleton" style="height:48px;margin-bottom:8px;"></div>
+                <div class="skeleton" style="height:48px;margin-bottom:8px;"></div>
+                <div class="skeleton" style="height:48px;"></div>
+            </div>
+        </div>
+
+        <!-- ── CHARTS ROW 1: Month-wise + Employee-wise ── -->
+        <div class="charts-grid-2">
+            <div class="dash-card" style="margin:0;">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-chart-bar"></i> Admissions Month-Wise</span>
+                    <select id="chartYearFilter" onchange="reloadCharts()" style="padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;font-family:'Inter',sans-serif;outline:none;cursor:pointer;"></select>
+                </div>
+                <div class="chart-wrap"><canvas id="chartMonthWise"></canvas></div>
+            </div>
+            <div class="dash-card" style="margin:0;">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-bars"></i> Admissions Employee-Wise</span>
+                </div>
+                <div class="chart-wrap"><canvas id="chartEmpWise"></canvas></div>
+            </div>
+        </div>
+
+        <!-- ── CHARTS ROW 2: Growth + Pie ── -->
+        <div class="charts-grid-3" style="margin-top:20px;">
+            <div class="dash-card" style="margin:0;">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-chart-line"></i> Monthly Company Growth</span>
+                    <div class="toggle-group" id="growthToggle">
+                        <button class="toggle-btn active" data-val="monthly" onclick="setGrowthGroup('monthly',this)">Monthly</button>
+                        <button class="toggle-btn" data-val="quarterly" onclick="setGrowthGroup('quarterly',this)">Quarterly</button>
+                        <button class="toggle-btn" data-val="yearly" onclick="setGrowthGroup('yearly',this)">Yearly</button>
+                    </div>
+                </div>
+                <div class="chart-wrap" style="height:260px;"><canvas id="chartGrowth"></canvas></div>
+            </div>
+            <div class="dash-card" style="margin:0;">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-crown"></i> Top Performers</span>
+                </div>
+                <div class="chart-wrap" style="height:260px;"><canvas id="chartTopPerf"></canvas></div>
+            </div>
+        </div>
+
+        <!-- ── CHART ROW 3: Trend Area Chart ── -->
+        <div class="dash-card" style="margin-top:20px;margin-bottom:20px;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-chart-area"></i> Admission Trend (Area Chart)</span>
+            </div>
+            <div class="chart-wrap" style="height:260px;"><canvas id="chartTrend"></canvas></div>
+        </div>
+
+        <!-- ── EMPLOYEE-WISE REPORT TABLE ── -->
+        <div class="dash-card">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-table"></i> Employee-Wise Report</span>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <input type="text" id="tableSearch" placeholder="Search name or ID…" oninput="onTableSearch()" style="padding:7px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:'Inter',sans-serif;outline:none;min-width:180px;">
+                    <select id="tableSort" onchange="loadTable()" style="padding:7px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px;font-family:'Inter',sans-serif;outline:none;cursor:pointer;">
+                        <option value="highest">Highest Admissions</option>
+                        <option value="lowest">Lowest Admissions</option>
+                        <option value="revenue">Highest Revenue</option>
+                        <option value="newest">Newest</option>
+                        <option value="oldest">Oldest</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table id="empTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Employee</th>
+                            <th>Department</th>
+                            <th>Total</th>
+                            <th>This Month</th>
+                            <th>Last Month</th>
+                            <th>This Year</th>
+                            <th>Revenue</th>
+                            <th>Avg/Mo</th>
+                            <th>Best Month</th>
+                            <th>Last Admission</th>
+                        </tr>
+                    </thead>
+                    <tbody id="empTableBody">
+                        <tr><td colspan="11" style="text-align:center;padding:32px;color:#9ca3af;">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="tablePagination"></div>
+        </div>
+
+    </main>
+</div>
+
+<script src="auth-guard.js"></script>
+<script src="config.js"></script>
+<script>
+requireAdmin();
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let charts = {};
+let growthGroup = 'monthly';
+let currentPage = 1;
+let totalRows = 0;
+const PAGE_SIZE = 25;
+let searchDebounce = null;
+let allEmployees = [];
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CHART_COLORS = ['#6366f1','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#ef4444','#3b82f6'];
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+(async function init() {
+    populateYearFilters();
+    await Promise.all([loadEmployees(), loadDepartments()]);
+    await Promise.all([loadCompanyStats(), loadInsights(), loadCharts()]);
+    await loadTable();
+    document.getElementById('pageSubtitle').textContent = 'Live admission analytics dashboard — data auto-loaded.';
+})();
+
+function populateYearFilters() {
+    const now = new Date();
+    const yr = now.getFullYear();
+    const years = [yr, yr-1, yr-2, yr-3].filter(y => y > 2020);
+    const fYear = document.getElementById('fYear');
+    const cYear = document.getElementById('chartYearFilter');
+    years.forEach(y => {
+        fYear.insertAdjacentHTML('beforeend', `<option value="${y}">${y}</option>`);
+        cYear.insertAdjacentHTML('beforeend', `<option value="${y}" ${y === yr ? 'selected' : ''}>${y}</option>`);
+    });
+    fYear.value = '';
+}
+
+async function loadEmployees() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/employees`, { headers: authHeaders() });
+        if (!res.ok) return;
+        allEmployees = await res.json();
+        const sel = document.getElementById('fEmployee');
+        allEmployees.forEach(e => {
+            const name = `${e.firstName||''} ${e.lastName||''}`.trim();
+            sel.insertAdjacentHTML('beforeend', `<option value="${e.id}">${name} (${e.id})</option>`);
+        });
+    } catch {}
+}
+
+async function loadDepartments() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/analytics/departments`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const { departments } = await res.json();
+        const sel = document.getElementById('fDept');
+        departments.forEach(d => sel.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
+    } catch {}
+}
+
+function authHeaders() {
+    return {};
+}
+
+function getFilters() {
+    const year  = document.getElementById('fYear').value;
+    const month = document.getElementById('fMonth').value;
+    const emp   = document.getElementById('fEmployee').value;
+    const dept  = document.getElementById('fDept').value;
+    const sd    = document.getElementById('fStartDate').value;
+    const ed    = document.getElementById('fEndDate').value;
+    return { year, month, emp, dept, sd, ed };
+}
+
+function buildFilterQS(extra = {}) {
+    const { year, month, emp, dept, sd, ed } = getFilters();
+    const p = new URLSearchParams();
+    if (year && !month)  p.set('year', year);
+    if (year && month)   p.set('month', `${year}-${month}`);
+    if (!year && month)  p.set('month', `${new Date().getFullYear()}-${month}`);
+    if (emp)   p.set('employeeId', emp);
+    if (dept)  p.set('department', dept);
+    if (sd && ed) { p.set('startDate', sd); p.set('endDate', ed); }
+    Object.entries(extra).forEach(([k,v]) => p.set(k, v));
+    return p.toString();
+}
+
+function applyFilters() {
+    currentPage = 1;
+    Promise.all([loadCompanyStats(), loadCharts(), loadTable()]);
+}
+
+function resetFilters() {
+    ['fYear','fMonth','fEmployee','fDept'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('fStartDate').value = '';
+    document.getElementById('fEndDate').value = '';
+    currentPage = 1;
+    applyFilters();
+}
+
+function reloadCharts() { loadCharts(); }
+function setGrowthGroup(val, btn) {
+    growthGroup = val;
+    document.querySelectorAll('#growthToggle .toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadCharts();
+}
+
+// ─── Company Stats ─────────────────────────────────────────────────────────
+async function loadCompanyStats() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/analytics/company`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const d = await res.json();
+
+        setText('kTotalEmp', d.totalEmployees ?? '–');
+        setText('kTotalAdm', d.totalAdmissions ?? '–');
+        setText('kThisMonth', d.admissionsThisMonth ?? '–');
+        setText('kToday', d.admissionsToday ?? '–');
+        setText('kRevenue', d.totalRevenue != null ? `₹${d.totalRevenue.toLocaleString('en-IN')}` : '–');
+        setText('kAvgEmp', d.avgPerEmployee ?? '–');
+        setText('kTarget', d.targetCompletion != null ? `${d.targetCompletion}%` : 'N/A');
+        setText('kScore', d.performanceScore != null ? `${d.performanceScore}` : '–');
+        setText('kBestEmp', d.bestEmployee ?? '–');
+        setText('kBestCount', d.bestEmployeeCount > 0 ? `${d.bestEmployeeCount} admissions this month` : '');
+        setText('kPending', d.pendingAdmissions ?? '–');
+
+        const growthEl = document.getElementById('kGrowth');
+        const growthSub = document.getElementById('kGrowthSub');
+        if (d.growth != null) {
+            const arrow = d.growth > 0 ? '↑' : d.growth < 0 ? '↓' : '→';
+            const cls = d.growth > 0 ? 'growth-up' : d.growth < 0 ? 'growth-down' : 'growth-flat';
+            growthEl.innerHTML = `<span class="${cls}">${arrow} ${Math.abs(d.growth)}%</span>`;
+            growthSub.textContent = d.growth > 0 ? 'Compared to last month' : d.growth < 0 ? 'Declined vs last month' : 'No change vs last month';
+        }
+
+        const footer = document.getElementById('kGrowthFooter');
+        if (d.growth != null) {
+            const arrow = d.growth > 0 ? 'fa-arrow-up' : d.growth < 0 ? 'fa-arrow-down' : 'fa-minus';
+            const clr = d.growth > 0 ? '#10b981' : d.growth < 0 ? '#ef4444' : '#9ca3af';
+            footer.innerHTML = `<i class="fas ${arrow}" style="color:${clr}"></i><span>${Math.abs(d.growth)}% vs last month</span>`;
+        }
+    } catch (e) { console.error('Company stats error:', e); }
+}
+
+// ─── Insights ──────────────────────────────────────────────────────────────
+async function loadInsights() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/analytics/insights`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const { insights } = await res.json();
+        const container = document.getElementById('insightsList');
+        if (!insights.length) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-lightbulb"></i><p>No insights available yet. Add more admission data.</p></div>';
+            return;
+        }
+        container.innerHTML = insights.map(i =>
+            `<div class="insight-item ${i.type}"><span class="insight-icon">${i.icon}</span><span>${i.text}</span></div>`
+        ).join('');
+    } catch (e) { console.error('Insights error:', e); }
+}
+
+// ─── Charts ────────────────────────────────────────────────────────────────
+async function loadCharts() {
+    try {
+        const chartYear = document.getElementById('chartYearFilter').value;
+        const { emp, dept, sd, ed } = getFilters();
+        const p = new URLSearchParams({ groupBy: growthGroup });
+        if (chartYear) p.set('year', chartYear);
+        if (emp)  p.set('employeeId', emp);
+        if (dept) p.set('department', dept);
+        if (sd && ed) { p.set('startDate', sd); p.set('endDate', ed); }
+
+        const res = await fetch(`${API_BASE_URL}/analytics/charts?${p}`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        buildMonthWiseChart(data.monthWise);
+        buildEmpWiseChart(data.empWise);
+        buildGrowthChart(data.growth);
+        buildTopPerfChart(data.topPerformers);
+        buildTrendChart(data.trend);
+    } catch (e) { console.error('Charts error:', e); }
+}
+
+function destroyChart(id) {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function buildMonthWiseChart({ labels, data }) {
+    destroyChart('monthWise');
+    const ctx = document.getElementById('chartMonthWise').getContext('2d');
+    charts.monthWise = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ label: 'Admissions', data, backgroundColor: CHART_COLORS[0], borderRadius: 8, borderSkipped: false }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+            scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } }, x: { grid: { display: false } } }
+        }
+    });
+}
+
+function buildEmpWiseChart({ labels, data }) {
+    destroyChart('empWise');
+    if (!labels.length) return;
+    const ctx = document.getElementById('chartEmpWise').getContext('2d');
+    charts.empWise = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{ label: 'Admissions', data, backgroundColor: CHART_COLORS, borderRadius: 6 }]
+        },
+        options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true, grid: { color: '#f3f4f6' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } }
+        }
+    });
+}
+
+function buildGrowthChart(growthData) {
+    destroyChart('growth');
+    if (!growthData || !growthData.length) return;
+    const ctx = document.getElementById('chartGrowth').getContext('2d');
+    charts.growth = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: growthData.map(g => g.label),
+            datasets: [
+                { label: 'Admissions', data: growthData.map(g => g.admissions), borderColor: CHART_COLORS[0], backgroundColor: hexAlpha(CHART_COLORS[0], 0.1), tension: 0.4, fill: true, pointBackgroundColor: CHART_COLORS[0], pointRadius: 4 },
+                { label: 'Revenue (₹)', data: growthData.map(g => g.revenue), borderColor: CHART_COLORS[1], backgroundColor: hexAlpha(CHART_COLORS[1], 0.08), tension: 0.4, fill: false, pointBackgroundColor: CHART_COLORS[1], pointRadius: 4, yAxisID: 'y1' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { font: { size: 12 } } }, tooltip: { mode: 'index', intersect: false } },
+            scales: {
+                y:  { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: 'Admissions' } },
+                y1: { beginAtZero: true, position: 'right', grid: { display: false }, title: { display: true, text: 'Revenue (₹)' } },
+                x:  { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function buildTopPerfChart({ labels, data }) {
+    destroyChart('topPerf');
+    if (!labels.length) return;
+    const ctx = document.getElementById('chartTopPerf').getContext('2d');
+    charts.topPerf = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: CHART_COLORS, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            plugins: {
+                legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } },
+                tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} admissions` } }
+            }
+        }
+    });
+}
+
+function buildTrendChart(trendData) {
+    destroyChart('trend');
+    if (!trendData || !trendData.length) return;
+    const ctx = document.getElementById('chartTrend').getContext('2d');
+    charts.trend = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: trendData.map(t => t.label),
+            datasets: [{
+                label: 'Admissions',
+                data: trendData.map(t => t.admissions),
+                borderColor: CHART_COLORS[0],
+                backgroundColor: hexAlpha(CHART_COLORS[0], 0.15),
+                tension: 0.4, fill: true,
+                pointBackgroundColor: CHART_COLORS[0], pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+            scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 12, font: { size: 11 } } } }
+        }
+    });
+}
+
+// ─── Table ─────────────────────────────────────────────────────────────────
+async function loadTable() {
+    const search = document.getElementById('tableSearch').value.trim();
+    const sort   = document.getElementById('tableSort').value;
+    const qs = buildFilterQS({ sort, page: currentPage, limit: PAGE_SIZE, search });
+
+    document.getElementById('empTableBody').innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:#9ca3af;">Loading…</td></tr>`;
+    try {
+        const res = await fetch(`${API_BASE_URL}/analytics/admissions?${qs}`, { headers: authHeaders() });
+        if (!res.ok) throw new Error('API error');
+        const { data, total } = await res.json();
+        totalRows = total;
+        renderTable(data);
+        renderPagination(total);
+    } catch (e) {
+        document.getElementById('empTableBody').innerHTML = `<tr><td colspan="11" style="text-align:center;padding:32px;color:#ef4444;">Failed to load data.</td></tr>`;
+    }
+}
+
+function renderTable(rows) {
+    const tbody = document.getElementById('empTableBody');
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><i class="fas fa-inbox"></i><p>No admissions found for the selected filters.</p></div></td></tr>`;
+        return;
+    }
+    const maxAdm = Math.max(...rows.map(r => r.totalAdmissions));
+    const minAdm = Math.min(...rows.map(r => r.totalAdmissions));
+    tbody.innerHTML = rows.map((r, i) => {
+        const isBest = r.totalAdmissions === maxAdm && maxAdm > 0;
+        const isLow  = r.totalAdmissions === minAdm && rows.length > 1;
+        const rowCls = isBest ? 'perf-row-best' : isLow ? 'perf-row-low' : '';
+        const bestMonthLabel = r.bestMonth ? formatMonth(r.bestMonth) : '–';
+        const lastDate = r.lastAdmissionDate ? r.lastAdmissionDate : '–';
+        const offset = (currentPage - 1) * PAGE_SIZE;
+        return `<tr class="${rowCls}">
+            <td><span style="font-size:12px;color:#9ca3af;">${offset + i + 1}</span></td>
+            <td>
+                <div style="font-weight:700;color:#111827;">${esc(r.employeeName)}</div>
+                <div style="font-size:11px;color:#9ca3af;">ID: ${r.employeeId}</div>
+            </td>
+            <td><span class="badge badge-blue">${esc(r.department)}</span></td>
+            <td><strong style="font-size:15px;">${r.totalAdmissions}</strong></td>
+            <td><span class="${r.admissionsThisMonth > 0 ? 'badge badge-green' : ''}">${r.admissionsThisMonth}</span></td>
+            <td>${r.admissionsLastMonth}</td>
+            <td>${r.admissionsThisYear}</td>
+            <td>${r.totalRevenue > 0 ? `₹${r.totalRevenue.toLocaleString('en-IN')}` : '–'}</td>
+            <td>${r.avgPerMonth}</td>
+            <td><span style="font-size:12px;color:#6b7280;">${bestMonthLabel}</span></td>
+            <td><span style="font-size:12px;color:#6b7280;">${lastDate}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderPagination(total) {
+    const pages = Math.ceil(total / PAGE_SIZE);
+    const container = document.getElementById('tablePagination');
+    if (pages <= 1) { container.innerHTML = ''; return; }
+    let html = `<span>Page ${currentPage} of ${pages} (${total} records)</span>`;
+    if (currentPage > 1) html += `<button onclick="gotoPage(${currentPage-1})">‹ Prev</button>`;
+    const start = Math.max(1, currentPage - 2);
+    const end   = Math.min(pages, start + 4);
+    for (let p = start; p <= end; p++) {
+        html += `<button class="${p === currentPage ? 'active' : ''}" onclick="gotoPage(${p})">${p}</button>`;
+    }
+    if (currentPage < pages) html += `<button onclick="gotoPage(${currentPage+1})">Next ›</button>`;
+    container.innerHTML = html;
+}
+
+function gotoPage(p) { currentPage = p; loadTable(); }
+
+function onTableSearch() {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => { currentPage = 1; loadTable(); }, 350);
+}
+
+// ─── Export ────────────────────────────────────────────────────────────────
+async function getFullTableData() {
+    const sort = document.getElementById('tableSort').value;
+    const qs = buildFilterQS({ sort, page: 1, limit: 9999 });
+    const res = await fetch(`${API_BASE_URL}/analytics/admissions?${qs}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch data');
+    const { data } = await res.json();
+    return data;
+}
+
+async function exportCSV() {
+    try {
+        const rows = await getFullTableData();
+        const header = ['Employee Name','Employee ID','Department','Total Admissions','This Month','Last Month','This Year','Revenue','Avg/Month','Best Month','Last Admission'];
+        const lines = [header.join(','), ...rows.map(r => [
+            `"${r.employeeName}"`, r.employeeId, `"${r.department}"`,
+            r.totalAdmissions, r.admissionsThisMonth, r.admissionsLastMonth,
+            r.admissionsThisYear, r.totalRevenue, r.avgPerMonth,
+            r.bestMonth ? formatMonth(r.bestMonth) : '', r.lastAdmissionDate || ''
+        ].join(','))];
+        downloadFile('admissions-analytics.csv', lines.join('\n'), 'text/csv');
+    } catch (e) { alert('Export failed: ' + e.message); }
+}
+
+async function exportExcel() {
+    try {
+        const rows = await getFullTableData();
+        const header = 'Employee Name\tEmployee ID\tDepartment\tTotal Admissions\tThis Month\tLast Month\tThis Year\tRevenue\tAvg/Month\tBest Month\tLast Admission';
+        const lines = [header, ...rows.map(r => [
+            r.employeeName, r.employeeId, r.department,
+            r.totalAdmissions, r.admissionsThisMonth, r.admissionsLastMonth,
+            r.admissionsThisYear, r.totalRevenue, r.avgPerMonth,
+            r.bestMonth ? formatMonth(r.bestMonth) : '', r.lastAdmissionDate || ''
+        ].join('\t'))];
+        downloadFile('admissions-analytics.xls', lines.join('\n'), 'application/vnd.ms-excel');
+    } catch (e) { alert('Export failed: ' + e.message); }
+}
+
+async function exportPDF() {
+    window.print();
+}
+
+function downloadFile(name, content, type) {
+    const blob = new Blob([content], { type });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function hexAlpha(hex, alpha) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+function formatMonth(m) {
+    if (!m) return '–';
+    const [y, mo] = m.split('-');
+    return `${MONTH_NAMES[parseInt(mo)-1] || mo} ${y}`;
+}
+</script>
+</body>
+</html>

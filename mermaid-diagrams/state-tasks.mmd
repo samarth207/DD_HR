@@ -1,0 +1,7 @@
+stateDiagram-v2
+    [*] --> Open
+    Open --> InProgress
+    InProgress --> Blocked
+    Blocked --> InProgress
+    InProgress --> Done
+    Done --> [*]

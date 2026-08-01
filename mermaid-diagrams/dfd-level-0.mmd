@@ -1,0 +1,17 @@
+flowchart LR
+    U1[Admin]
+    U2[Employee]
+    P0((DD HR System))
+    D1[(MongoDB)]
+    D2[(File Storage)]
+    E1[[Email Service]]
+
+    U1 --> P0
+    U2 --> P0
+    P0 --> D1
+    P0 --> D2
+    P0 --> E1
+    D1 --> P0
+    D2 --> P0
+    E1 --> U1
+    E1 --> U2

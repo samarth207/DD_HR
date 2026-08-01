@@ -1,0 +1,21 @@
+flowchart TB
+    Browser[Browser]
+    Mobile[Mobile App]
+    CDN[CDN]
+    LB[Load Balancer]
+    BE[Backend Server]
+    DB[(Database Server)]
+    FS[(File Storage)]
+    Cloud[Cloud Hosting]
+    SSL[SSL/TLS]
+    Domain[Custom Domain]
+
+    Browser --> Domain
+    Mobile --> Domain
+    Domain --> SSL
+    SSL --> CDN
+    CDN --> LB
+    LB --> BE
+    BE --> DB
+    BE --> FS
+    BE --> Cloud

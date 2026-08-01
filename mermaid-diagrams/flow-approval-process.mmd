@@ -1,0 +1,9 @@
+flowchart TD
+    A[Request Submitted] --> B[Validate Input]
+    B --> C[Queue for Review]
+    C --> D[Approver Opens Queue]
+    D --> E{Approve?}
+    E -->|Yes| F[Commit Approval]
+    E -->|No| G[Commit Rejection]
+    F --> H[Notify User]
+    G --> H

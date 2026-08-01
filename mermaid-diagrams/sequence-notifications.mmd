@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant Module
+    participant NotificationService
+    participant EmailService
+    participant User
+
+    Module->>NotificationService: Event occurs
+    NotificationService->>EmailService: Send email
+    EmailService-->>User: Notification delivered

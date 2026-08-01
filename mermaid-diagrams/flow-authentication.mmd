@@ -1,0 +1,12 @@
+flowchart TD
+    A[Open Login Screen] --> B{Select Role}
+    B -->|Admin| C[Validate Admin Password]
+    B -->|Employee| D[Validate Email + Password]
+    C --> E{Valid?}
+    D --> F{Valid?}
+    E -->|Yes| G[Issue Admin Token]
+    E -->|No| H[Show Error]
+    F -->|Yes| I[Issue Employee Token]
+    F -->|No| H
+    G --> J[Redirect to Admin Dashboard]
+    I --> K[Redirect to Employee Portal]

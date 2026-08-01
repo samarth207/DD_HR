@@ -1,0 +1,53 @@
+flowchart TB
+    subgraph Frontend
+        F1[Login UI]
+        F2[Dashboard]
+        F3[Employees UI]
+        F4[Attendance UI]
+        F5[Leaves UI]
+        F6[Payroll UI]
+        F7[Reports UI]
+    end
+
+    subgraph Backend
+        B1[Auth Service]
+        B2[Employee Service]
+        B3[Attendance Service]
+        B4[Leave Service]
+        B5[Sales Service]
+        B6[Incentive Service]
+        B7[Logs Service]
+        B8[Testing Service]
+    end
+
+    DB[(MongoDB)]
+    FS[(File Storage)]
+    NS[[Notification Service]]
+    EXT[[External APIs]]
+
+    F1 --> B1
+    F2 --> B2
+    F2 --> B3
+    F2 --> B4
+    F2 --> B5
+    F2 --> B6
+    F3 --> B2
+    F4 --> B3
+    F5 --> B4
+    F6 --> B6
+    F6 --> B5
+    F7 --> B8
+
+    B1 --> DB
+    B2 --> DB
+    B2 --> FS
+    B3 --> DB
+    B4 --> DB
+    B4 --> NS
+    B5 --> DB
+    B5 --> NS
+    B6 --> DB
+    B6 --> NS
+    B7 --> DB
+    B8 --> DB
+    NS --> EXT

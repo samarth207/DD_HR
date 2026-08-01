@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> Unmarked
+    Unmarked --> Present
+    Unmarked --> Late
+    Unmarked --> Absent
+    Late --> HalfDay
+    Present --> Finalized
+    Late --> Finalized
+    Absent --> Finalized

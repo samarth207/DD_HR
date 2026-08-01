@@ -1,0 +1,15 @@
+sequenceDiagram
+    actor Admin
+    participant Frontend
+    participant AdminAPI
+    participant API
+    participant Database
+    participant Logs
+
+    Admin->>Frontend: Request delete
+    Frontend->>AdminAPI: Verify delete password
+    AdminAPI-->>Frontend: Verified
+    Frontend->>API: DELETE record
+    API->>Database: Delete document
+    API->>Logs: Write activity log
+    API-->>Frontend: Deleted

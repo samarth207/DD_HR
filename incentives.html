@@ -347,6 +347,7 @@
                 <a href="employees.html" class="nav-item "><i class="fas fa-users"></i><span>Employees</span></a>
                 <a href="attendance.html" class="nav-item "><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
                 <a href="sales-tracking.html" class="nav-item "><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+                <a href="admissions-analytics.html" class="nav-item "><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
                 <a href="incentives.html" class="nav-item active"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
                 <div class="nav-section-title">Leave</div>
                 <a href="leave-management.html" class="nav-item "><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
@@ -392,6 +393,9 @@
                 </button>
                 <button class="tab-button" onclick="switchTab('advances')">
                     <i class="fas fa-money-bill-wave"></i> Salary Advances
+                </button>
+                <button class="tab-button" onclick="switchTab('incentive-payments')">
+                    <i class="fas fa-hand-holding-usd"></i> Incentive Payments
                 </button>
             </div>
 
@@ -533,8 +537,180 @@
                     <!-- Populated by JS -->
                 </div>
             </div>
+
+            <!-- ── Incentive Payments Tab ── -->
+            <div id="incentive-payments-tab" class="tab-content">
+                <style>
+                    .ip-summary-cards { display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px; }
+                    .ip-kpi { background:#fff;border-radius:12px;padding:16px 20px;box-shadow:0 2px 8px rgba(0,0,0,.06);border-left:4px solid #6366f1;flex:1;min-width:140px; }
+                    .ip-kpi.green { border-left-color:#10b981; }
+                    .ip-kpi.amber { border-left-color:#f59e0b; }
+                    .ip-kpi h4 { font-size:11px;color:#718096;margin:0 0 4px;text-transform:uppercase;font-weight:700;letter-spacing:.5px; }
+                    .ip-kpi .val { font-size:22px;font-weight:800;color:#1a202c; }
+                    .ip-filter-bar { display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px; }
+                    .ip-filter-bar select { padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;cursor:pointer;outline:none; }
+                    .ip-table-wrap { overflow-x:auto; }
+                    .ip-table { width:100%;border-collapse:collapse;font-size:13px; }
+                    .ip-table th { padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #f3f4f6;background:#fafafa; }
+                    .ip-table td { padding:11px 14px;color:#374151;border-bottom:1px solid #f3f4f6;vertical-align:middle; }
+                    .ip-table tr:last-child td { border-bottom:none; }
+                    .ip-table tr:hover td { background:#f9fafb; }
+                    .status-paid    { display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#d1fae5;color:#065f46; }
+                    .status-pending { display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#fef3c7;color:#92400e; }
+                    .ip-empty { text-align:center;padding:48px;color:#9ca3af; }
+                    .ip-empty i { font-size:36px;display:block;margin-bottom:12px;opacity:.4; }
+                    .ip-email-logs { margin-top:32px; }
+                    .ip-email-logs table th,
+                    .ip-email-logs table td { padding:9px 12px;font-size:12.5px; }
+                    .email-sent   { color:#059669;font-weight:700; }
+                    .email-failed { color:#dc2626;font-weight:700; }
+                    .email-skipped{ color:#9ca3af;font-weight:600; }
+                </style>
+
+                <!-- KPIs -->
+                <div class="ip-summary-cards">
+                    <div class="ip-kpi"><h4>Total Records</h4><div class="val" id="ipKpiTotal">0</div></div>
+                    <div class="ip-kpi amber"><h4>Pending</h4><div class="val" id="ipKpiPending">0</div></div>
+                    <div class="ip-kpi green"><h4>Paid</h4><div class="val" id="ipKpiPaid">0</div></div>
+                    <div class="ip-kpi green"><h4>Total Amount Paid</h4><div class="val" id="ipKpiAmtPaid">₹0</div></div>
+                    <div class="ip-kpi amber"><h4>Amount Pending</h4><div class="val" id="ipKpiAmtPending">₹0</div></div>
+                </div>
+
+                <!-- Actions & Filter -->
+                <div class="ip-filter-bar">
+                    <button class="btn btn-primary" onclick="openIPModal()">
+                        <i class="fas fa-plus"></i> Add Incentive Record
+                    </button>
+                    <select id="ipStatusFilter" onchange="loadIPRecords()">
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="paid">Paid</option>
+                    </select>
+                    <select id="ipEmpFilter" onchange="loadIPRecords()">
+                        <option value="">All Employees</option>
+                    </select>
+                    <select id="ipMonthFilter" onchange="loadIPRecords()">
+                        <option value="">All Months</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div style="background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.08);overflow:hidden;">
+                    <div class="ip-table-wrap">
+                        <table class="ip-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Employee</th>
+                                    <th>Admissions</th>
+                                    <th>Amount</th>
+                                    <th>Incentive Month</th>
+                                    <th>Status</th>
+                                    <th>Payment Date</th>
+                                    <th>Paid By</th>
+                                    <th>Remarks</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ipTableBody">
+                                <tr><td colspan="10" class="ip-empty"><i class="fas fa-coins"></i>Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Email Logs -->
+                <div class="ip-email-logs">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                        <h3 style="font-size:15px;font-weight:700;color:#1a202c;margin:0;"><i class="fas fa-envelope" style="color:#6366f1;margin-right:8px;"></i>Email Log History</h3>
+                        <button class="btn btn-outline btn-sm" onclick="loadEmailLogs()"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    </div>
+                    <div style="background:#fff;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.08);overflow:hidden;">
+                        <div class="ip-table-wrap">
+                            <table class="ip-table" id="emailLogTable">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>To</th>
+                                        <th>Subject</th>
+                                        <th>Status</th>
+                                        <th>Sent At</th>
+                                        <th>Error</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="emailLogBody">
+                                    <tr><td colspan="6" class="ip-empty"><i class="fas fa-envelope-open"></i>No email logs yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
-    </div>
+
+        <!-- ── Add Incentive Payment Modal ── -->
+        <div id="ipModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;" class="modal" onclick="if(event.target===this)closeIPModal()">
+            <div style="background:#fff;border-radius:16px;width:min(560px,96vw);padding:32px;box-shadow:0 24px 64px rgba(0,0,0,.18);max-height:90vh;overflow-y:auto;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+                    <h2 style="font-size:18px;font-weight:800;color:#1a202c;margin:0;">Add Incentive Payment Record</h2>
+                    <button onclick="closeIPModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">×</button>
+                </div>
+                <form id="ipForm" onsubmit="submitIPRecord(event)">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div style="grid-column:1/-1;">
+                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Employee <span style="color:#ef4444;">*</span></label>
+                            <select id="ipEmpSelect" required style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;">
+                                <option value="">-- Select Employee --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Admission Count</label>
+                            <input type="number" id="ipAdmCount" min="0" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Incentive Amount (₹) <span style="color:#ef4444;">*</span></label>
+                            <input type="number" id="ipAmount" required min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+                        </div>
+                        <div>
+                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Incentive Month (Reference)</label>
+                            <input type="month" id="ipMonth" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+                        </div>
+                        <div style="grid-column:1/-1;">
+                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Remarks</label>
+                            <textarea id="ipRemarks" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:24px;justify-content:flex-end;">
+                        <button type="button" class="btn btn-outline" onclick="closeIPModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="ipSubmitBtn">Create Record</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ── Mark as Paid Modal ── -->
+        <div id="ipPaidModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeIPPaidModal()">
+            <div style="background:#fff;border-radius:16px;width:min(480px,96vw);padding:32px;box-shadow:0 24px 64px rgba(0,0,0,.18);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                    <h2 style="font-size:18px;font-weight:800;color:#1a202c;margin:0;"><i class="fas fa-check-circle" style="color:#10b981;margin-right:8px;"></i>Mark as Paid</h2>
+                    <button onclick="closeIPPaidModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">×</button>
+                </div>
+                <p style="font-size:14px;color:#4b5563;margin:0 0 20px;">Confirm marking this incentive as paid. An email will be sent to the employee automatically.</p>
+                <div id="ipPaidRecordInfo" style="background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:20px;font-size:13.5px;color:#374151;"></div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Paid By (Admin Name)</label>
+                    <input type="text" id="ipPaidBy" placeholder="Enter your name" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:20px;">
+                    <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Remarks (optional)</label>
+                    <textarea id="ipPaidRemarks" rows="2" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
+                </div>
+                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                    <button type="button" class="btn btn-outline" onclick="closeIPPaidModal()">Cancel</button>
+                    <button type="button" class="btn btn-success" id="ipConfirmPaidBtn" onclick="confirmMarkPaid()"><i class="fas fa-check"></i> Confirm & Mark Paid</button>
+                </div>
+            </div>
+        </div>
 
     <!-- Configuration Modal -->
     <div id="configModal" class="modal">
@@ -712,6 +888,7 @@
     <script>requireAdmin();</script>
     <script src="script.js"></script>
     <script src="incentives-script.js"></script>
+    <script src="incentive-payments-script.js"></script>
 </body>
 </html>
 

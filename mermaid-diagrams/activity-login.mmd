@@ -1,0 +1,7 @@
+flowchart TD
+    A[Open Login] --> B[Enter Credentials]
+    B --> C[Submit]
+    C --> D[Validate]
+    D --> E{Success?}
+    E -->|Yes| F[Create Session]
+    E -->|No| G[Show Error]

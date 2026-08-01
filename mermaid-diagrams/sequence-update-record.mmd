@@ -1,0 +1,12 @@
+sequenceDiagram
+    actor Admin
+    participant Frontend
+    participant API
+    participant Database
+    participant Logs
+
+    Admin->>Frontend: Edit record
+    Frontend->>API: PUT update request
+    API->>Database: Update document
+    API->>Logs: Write activity log
+    API-->>Frontend: Success

@@ -1,0 +1,8 @@
+stateDiagram-v2
+    [*] --> NotSet
+    NotSet --> TargetSet
+    TargetSet --> InProgress
+    InProgress --> Achieved
+    InProgress --> Missed
+    Achieved --> Closed
+    Missed --> Closed

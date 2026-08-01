@@ -1,0 +1,14 @@
+flowchart TD
+    A[Employee Submits Leave] --> B[Validate Dates]
+    B --> C{Holiday Conflict?}
+    C -->|Yes| D[Reject Request]
+    C -->|No| E[Check Probation and Cycle Rules]
+    E --> F{Allowed?}
+    F -->|Yes| G[Save Pending Leave]
+    F -->|No| H[Return Rule Violation]
+    G --> I[HR Reviews]
+    I --> J{Approve?}
+    J -->|Yes| K[Mark Approved]
+    J -->|No| L[Mark Rejected]
+    K --> M[Send Notification]
+    L --> M

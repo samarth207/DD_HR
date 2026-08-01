@@ -1,0 +1,10 @@
+flowchart TD
+    A[Open Payroll Preview] --> B[Load Attendance]
+    B --> C[Load Leaves]
+    C --> D[Load Incentives and Advances]
+    D --> E[Calculate Deductions]
+    E --> F[Generate Net Salary]
+    F --> G{Confirm Payment?}
+    G -->|Yes| H[Mark Paid]
+    G -->|No| I[Hold]
+    H --> J[Send Salary Email]

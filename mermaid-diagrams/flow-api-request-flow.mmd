@@ -1,0 +1,9 @@
+flowchart TD
+    A[Frontend Request] --> B[Attach Auth Token]
+    B --> C[Backend Route Handler]
+    C --> D{Validate Input}
+    D -->|Fail| E[Return 4xx]
+    D -->|Pass| F[Read or Update Database]
+    F --> G[Write Logs]
+    G --> H[Send Notifications if Needed]
+    H --> I[Return Response]

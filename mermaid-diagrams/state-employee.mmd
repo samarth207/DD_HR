@@ -1,0 +1,7 @@
+stateDiagram-v2
+    [*] --> Active
+    Active --> OnProbation
+    OnProbation --> Active
+    Active --> Inactive
+    Inactive --> Active
+    Inactive --> Terminated

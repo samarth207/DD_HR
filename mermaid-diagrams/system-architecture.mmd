@@ -1,0 +1,13 @@
+flowchart TB
+    U[Users] --> F[Frontend Web App]
+    F --> A[Backend API]
+    A --> AUTH[Authentication]
+    AUTH --> DB[(MongoDB Database)]
+    DB --> ST[File Storage / Uploads]
+    A --> TPS[Third Party Services]
+    TPS --> N[Notifications]
+    A --> L[Logs]
+    A --> AN[Analytics]
+    DB --> AN
+    ST --> AN
+    TPS --> AN

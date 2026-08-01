@@ -1,0 +1,8 @@
+flowchart TD
+    A[Open Sales Screen] --> B[Select Month and Employee]
+    B --> C[Enter Targets / Achievements]
+    C --> D[Save Sales Record]
+    D --> E{Target Changed?}
+    E -->|Yes| F[Send Target Email]
+    E -->|No| G[Done]
+    F --> G

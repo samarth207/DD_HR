@@ -1,0 +1,7 @@
+flowchart TD
+    A[Open Leave Form] --> B[Enter Dates]
+    B --> C[Run Business Rules]
+    C --> D{Valid?}
+    D -->|Yes| E[Submit]
+    D -->|No| F[Show Error]
+    E --> G[Review and Approve]

@@ -1,0 +1,12 @@
+sequenceDiagram
+    actor User
+    participant Frontend
+    participant AuthAPI
+    participant Database
+
+    User->>Frontend: Enter credentials
+    Frontend->>AuthAPI: POST /api/auth/login
+    AuthAPI->>Database: Verify user record
+    Database-->>AuthAPI: User data
+    AuthAPI-->>Frontend: JWT token + role
+    Frontend-->>User: Redirect to dashboard
