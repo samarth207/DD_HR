@@ -10,6 +10,11 @@
     const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
     let authValidationInFlight = null;
     let logoutTriggered = false;
+    const HR_RESTRICTED_PAGES = new Set([
+        'sales-tracking.html',
+        'admissions-analytics.html',
+        'incentives.html'
+    ]);
 
     function parseJsonSafe(value) {
         try { return JSON.parse(value); } catch { return null; }
@@ -82,18 +87,76 @@
         }
     }
 
-    async function requireRole(expectedRole) {
+    function toRoleList(expectedRoles) {
+        return Array.isArray(expectedRoles) ? expectedRoles : [expectedRoles];
+    }
+
+    function isAllowedRole(role, allowedRoles) {
+        return !!role && allowedRoles.includes(role);
+    }
+
+    function getPageNameFromHref(href) {
+        if (!href) return '';
+        try {
+            const url = new URL(href, window.location.origin);
+            return (url.pathname.split('/').pop() || '').toLowerCase();
+        } catch {
+            return String(href).split('/').pop().split('?')[0].split('#')[0].toLowerCase();
+        }
+    }
+
+    function applyRoleBasedNavigation(role) {
+        document.querySelectorAll('.nav-item').forEach((item) => {
+            const href = item.getAttribute('href') || '';
+            const pageName = getPageNameFromHref(href);
+            if (HR_RESTRICTED_PAGES.has(pageName)) {
+                item.style.display = role === 'hr' ? 'none' : '';
+            }
+        });
+    }
+
+    function applyRoleIdentity(role) {
+        const avatar = document.querySelector('.sidebar-avatar');
+        const nameEl = document.querySelector('.sidebar-user-info p');
+        const roleEl = document.querySelector('.sidebar-user-info span');
+
+        if (!avatar || !nameEl || !roleEl) return;
+
+        if (role === 'hr') {
+            avatar.textContent = 'HR';
+            nameEl.textContent = 'HR Portal';
+            roleEl.textContent = 'HR Manager';
+            return;
+        }
+
+        if (role === 'admin') {
+            avatar.textContent = 'AD';
+            nameEl.textContent = 'Admin Portal';
+            roleEl.textContent = 'Administrator';
+        }
+    }
+
+    async function requireRole(expectedRoles) {
+        const allowedRoles = toRoleList(expectedRoles);
         const auth = getAuth();
-        if (!auth || !auth.token || auth.role !== expectedRole) {
+        if (!auth || !auth.token || !isAllowedRole(auth.role, allowedRoles)) {
             window.location.replace('login.html');
             return;
         }
 
+        applyRoleBasedNavigation(auth.role);
+        applyRoleIdentity(auth.role);
         document.documentElement.style.visibility = 'visible';
 
         const verified = await validateAuthSession();
-        if (!verified || verified.role !== expectedRole) {
+        if (!verified || !isAllowedRole(verified.role, allowedRoles)) {
             logout();
+            return;
+        }
+
+        if (verified.role !== auth.role) {
+            applyRoleBasedNavigation(verified.role);
+            applyRoleIdentity(verified.role);
         }
     }
 
@@ -106,6 +169,12 @@
 
     // Require admin role — called by admin pages
     window.requireAdmin = function() { requireRole('admin'); };
+
+    // Require HR role only
+    window.requireHR = function() { requireRole('hr'); };
+
+    // Require admin or HR role — used by shared management pages
+    window.requireManagement = function() { requireRole(['admin', 'hr']); };
 
     // Require employee role — called by employee portal
     window.requireEmployee = function() { requireRole('employee'); };

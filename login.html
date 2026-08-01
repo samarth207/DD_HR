@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DD HR portal - Login</title>
+    <title>DD HR Portal - Sign In</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -264,6 +264,9 @@
             <button class="role-tab active" id="tabAdmin" onclick="switchRole('admin')">
                 <i class="fas fa-shield-alt"></i> Admin
             </button>
+            <button class="role-tab" id="tabHr" onclick="switchRole('hr')">
+                <i class="fas fa-user-tie"></i> HR
+            </button>
             <button class="role-tab" id="tabEmployee" onclick="switchRole('employee')">
                 <i class="fas fa-user"></i> Employee
             </button>
@@ -288,6 +291,27 @@
                 <i class="fas fa-sign-in-alt"></i> Sign In as Admin
             </button>
             <p class="hint">Admin access to all HR features</p>
+        </div>
+
+        <!-- HR login -->
+        <div class="form-panel" id="hrPanel">
+            <p class="panel-note">Use your HR password to access the HR operations portal.</p>
+            <div class="error-msg" id="hrError"><i class="fas fa-exclamation-circle"></i><span></span></div>
+            <div class="form-group">
+                <label>HR Password</label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock field-icon"></i>
+                    <input type="password" id="hrPassword" placeholder="Enter HR password"
+                        autocomplete="current-password" onkeydown="if(event.key==='Enter')doHrLogin()">
+                    <button type="button" class="eye-btn" onclick="return togglePwd('hrPassword', this, event)" tabindex="-1" aria-label="Show or hide HR password">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-login" id="hrLoginBtn" onclick="doHrLogin()">
+                <i class="fas fa-sign-in-alt"></i> Sign In as HR
+            </button>
+            <p class="hint">HR access with restricted modules</p>
         </div>
 
         <!-- Employee login -->
@@ -341,7 +365,7 @@
             }
 
             const me = await resp.json();
-            if (me?.role === 'admin') {
+            if (me?.role === 'admin' || me?.role === 'hr') {
                 window.location.replace('index.html');
             } else if (me?.role === 'employee') {
                 window.location.replace('employee-portal.html');
@@ -355,8 +379,10 @@
 
     function switchRole(role) {
         document.getElementById('tabAdmin').classList.toggle('active', role === 'admin');
+        document.getElementById('tabHr').classList.toggle('active', role === 'hr');
         document.getElementById('tabEmployee').classList.toggle('active', role === 'employee');
         document.getElementById('adminPanel').classList.toggle('active', role === 'admin');
+        document.getElementById('hrPanel').classList.toggle('active', role === 'hr');
         document.getElementById('employeePanel').classList.toggle('active', role === 'employee');
     }
 
@@ -405,6 +431,34 @@
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In as Admin';
+        }
+    }
+
+    async function doHrLogin() {
+        const password = document.getElementById('hrPassword').value.trim();
+        clearError('hrError');
+        if (!password) { showError('hrError', 'Please enter your password.'); return; }
+
+        const btn = document.getElementById('hrLoginBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+
+        try {
+            const resp = await fetch(`${API_BASE_URL}/auth/hr-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const data = await resp.json();
+            if (!resp.ok) { showError('hrError', data.error || 'Login failed'); return; }
+
+            localStorage.setItem('hrPortalAuth', JSON.stringify({ token: data.token, role: 'hr' }));
+            window.location.replace('index.html');
+        } catch(e) {
+            showError('hrError', 'Server unreachable. Is the server running?');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In as HR';
         }
     }
 

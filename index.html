@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DD HR portal - Dashboard</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -16,13 +17,13 @@
         .sidebar { background: linear-gradient(180deg,#1a1f36 0%,#111827 100%); border-right: none; }
         .logo { background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.07); padding: 22px 20px; }
         .logo-icon { width:40px;height:40px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0; }
-        .logo h2 { font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px; }
-        .logo small { font-size:11px;color:rgba(255,255,255,.4);font-weight:400; }
-        .nav-section-title { font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);padding:18px 20px 6px; }
-        .nav-item { border-radius:0;border-left:3px solid transparent;color:rgba(255,255,255,.55);font-size:13.5px;font-weight:500;transition:all .18s; }
+        .logo h2 { font-size:16px;font-weight:700;color:#fff;letter-spacing:-.3px; }
+        .logo small { font-size:11px;color:rgba(255,255,255,.38);font-weight:400; }
+        .nav-section-title { font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);padding:16px 18px 4px; }
+        .nav-item { border-radius:0;border-left:3px solid transparent;color:rgba(255,255,255,.55);font-size:13px;font-weight:500;transition:all .18s; }
         .nav-item:hover { background:rgba(255,255,255,.06);color:rgba(255,255,255,.9);border-left-color:rgba(99,102,241,.5); }
         .nav-item.active { background:rgba(99,102,241,.18);color:#fff;border-left-color:#6366f1; }
-        .nav-item i { width:18px;font-size:15px; }
+        .nav-item i { width:17px;font-size:14px; }
         .sidebar-footer { padding:16px 20px;border-top:1px solid rgba(255,255,255,.07);margin-top:auto; }
         .sidebar-user { display:flex;align-items:center;gap:10px; }
         .sidebar-avatar { width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700; }
@@ -267,7 +268,7 @@
 
 <script src="config.js"></script>
 <script src="auth-guard.js"></script>
-<script>requireAdmin();</script>
+<script>requireManagement();</script>
 <script src="script.js"></script>
 <script>
     const DEPT_COLORS = {
@@ -382,9 +383,19 @@
         await updateStats();
     });
 
-    // ── Change Admin Password Modal ─────────────────────────────────────────
+    // ── Change Portal Password Modal (Admin/HR) ─────────────────────────────
+    function getPrivilegedRole() {
+        return typeof window.getAuthRole === 'function' ? window.getAuthRole() : '';
+    }
+
+    function getPrivilegedLabel() {
+        return getPrivilegedRole() === 'hr' ? 'HR' : 'Admin';
+    }
+
     function openAdminPwdModal() {
+        const roleLabel = getPrivilegedLabel();
         document.getElementById('adminPwdModal').style.display = 'flex';
+        document.getElementById('adminPwdTitle').textContent = `Change ${roleLabel} Password`;
         document.getElementById('adminPwdMsg').style.display = 'none';
         document.getElementById('adminCurPwd').value = '';
         document.getElementById('adminNewPwd').value = '';
@@ -422,7 +433,9 @@
         btn.disabled = true; btn.textContent = 'Saving…';
 
         try {
-            const resp = await fetch(`${API_BASE_URL}/auth/change-admin-password`, {
+            const role = getPrivilegedRole() === 'hr' ? 'hr' : 'admin';
+            const endpoint = role === 'hr' ? '/auth/change-hr-password' : '/auth/change-admin-password';
+            const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` },
                 body: JSON.stringify({ currentPassword: cur, newPassword: nw })
@@ -457,7 +470,7 @@
 <div id="adminPwdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:20px;padding:32px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:16px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <h3 style="margin:0;font-size:18px;color:#1e293b;"><i class="fas fa-key" style="color:#6366f1;margin-right:8px;"></i>Change Admin Password</h3>
+            <h3 style="margin:0;font-size:18px;color:#1e293b;"><i class="fas fa-key" style="color:#6366f1;margin-right:8px;"></i><span id="adminPwdTitle">Change Admin Password</span></h3>
             <button onclick="closeAdminPwdModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;">&times;</button>
         </div>
         <div id="adminPwdMsg" style="display:none;margin-bottom:14px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;"></div>

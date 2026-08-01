@@ -5,6 +5,8 @@ const { getDB, isDBConnected } = require('../db');
 const {
     deletePasswordHash,
     deletePasswordSalt,
+    hrPasswordHash,
+    hrPasswordSalt,
     TOKEN_SECRET,
     TOKEN_TTL_MS
 } = require('../config/admin-credentials');
@@ -41,34 +43,76 @@ function hashPassword(password, salt) {
     return { hash: h, salt: s };
 }
 
+async function resolvePrivilegedPassword(settingKey, fallbackHash, fallbackSalt) {
+    let storedHash = fallbackHash;
+    let storedSalt = fallbackSalt;
+
+    if (isDBConnected()) {
+        const db = getDB();
+        const setting = await db.collection('settings').findOne({ key: settingKey });
+        if (setting && setting.hash && setting.salt) {
+            storedHash = setting.hash;
+            storedSalt = setting.salt;
+        }
+    }
+
+    return { storedHash, storedSalt };
+}
+
+async function hasPrivilegedPasswordSetting(settingKey) {
+    if (!isDBConnected()) return false;
+    const db = getDB();
+    const setting = await db.collection('settings').findOne({ key: settingKey });
+    return !!(setting && setting.hash && setting.salt);
+}
+
+function verifyPrivilegedPassword(password, storedHash, storedSalt) {
+    const candidate = crypto.scryptSync(String(password).trim(), storedSalt, 64).toString('hex');
+    return crypto.timingSafeEqual(
+        Buffer.from(storedHash, 'hex'),
+        Buffer.from(candidate, 'hex')
+    );
+}
+
 // ── POST /api/auth/admin-login ───────────────────────────────────────────────
 router.post('/admin-login', async (req, res) => {
     const { password } = req.body || {};
     if (!password) return res.status(400).json({ error: 'Password required' });
 
     try {
-        // Check DB for updated admin password first
-        let storedHash = deletePasswordHash;
-        let storedSalt = deletePasswordSalt;
-
-        if (isDBConnected()) {
-            const db = getDB();
-            const setting = await db.collection('settings').findOne({ key: 'adminPassword' });
-            if (setting && setting.hash && setting.salt) {
-                storedHash = setting.hash;
-                storedSalt = setting.salt;
-            }
-        }
-
-        const candidate = crypto.scryptSync(password, storedSalt, 64).toString('hex');
-        const match = crypto.timingSafeEqual(
-            Buffer.from(storedHash, 'hex'),
-            Buffer.from(candidate, 'hex')
-        );
+        const { storedHash, storedSalt } = await resolvePrivilegedPassword('adminPassword', deletePasswordHash, deletePasswordSalt);
+        const match = verifyPrivilegedPassword(password, storedHash, storedSalt);
         if (!match) return res.status(401).json({ error: 'Incorrect password' });
 
         const token = createToken({ role: 'admin' });
         res.json({ success: true, token, role: 'admin' });
+    } catch (err) {
+        res.status(500).json({ error: 'Login failed' });
+    }
+});
+
+// ── POST /api/auth/hr-login ─────────────────────────────────────────────────
+router.post('/hr-login', async (req, res) => {
+    const { password } = req.body || {};
+    if (!password) return res.status(400).json({ error: 'Password required' });
+
+    try {
+        const hrPasswordConfigured = await hasPrivilegedPasswordSetting('hrPassword');
+
+        const { storedHash, storedSalt } = await resolvePrivilegedPassword('hrPassword', hrPasswordHash, hrPasswordSalt);
+        let match = verifyPrivilegedPassword(password, storedHash, storedSalt);
+
+        // Backward compatibility: before HR password is configured,
+        // allow HR login with the current admin password.
+        if (!match && !hrPasswordConfigured) {
+            const adminCreds = await resolvePrivilegedPassword('adminPassword', deletePasswordHash, deletePasswordSalt);
+            match = verifyPrivilegedPassword(password, adminCreds.storedHash, adminCreds.storedSalt);
+        }
+
+        if (!match) return res.status(401).json({ error: 'Incorrect password' });
+
+        const token = createToken({ role: 'hr' });
+        res.json({ success: true, token, role: 'hr' });
     } catch (err) {
         res.status(500).json({ error: 'Login failed' });
     }
@@ -189,20 +233,8 @@ router.post('/change-admin-password', async (req, res) => {
     if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
 
     try {
-        let storedHash = deletePasswordHash;
-        let storedSalt = deletePasswordSalt;
-
-        if (isDBConnected()) {
-            const db = getDB();
-            const setting = await db.collection('settings').findOne({ key: 'adminPassword' });
-            if (setting && setting.hash && setting.salt) {
-                storedHash = setting.hash;
-                storedSalt = setting.salt;
-            }
-        }
-
-        const candidate = crypto.scryptSync(currentPassword.trim(), storedSalt, 64).toString('hex');
-        const match = crypto.timingSafeEqual(Buffer.from(storedHash, 'hex'), Buffer.from(candidate, 'hex'));
+        const { storedHash, storedSalt } = await resolvePrivilegedPassword('adminPassword', deletePasswordHash, deletePasswordSalt);
+        const match = verifyPrivilegedPassword(currentPassword, storedHash, storedSalt);
         if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
 
         const { hash, salt } = hashPassword(newPassword.trim());
@@ -216,6 +248,49 @@ router.post('/change-admin-password', async (req, res) => {
             );
         }
         res.json({ success: true, message: 'Admin password changed successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+// ── POST /api/auth/change-hr-password ───────────────────────────────────────
+// Header: Authorization: Bearer <token>  (hr only)
+// Body: { currentPassword, newPassword }
+router.post('/change-hr-password', async (req, res) => {
+    const raw = (req.headers.authorization || '').replace('Bearer ', '');
+    const payload = verifyToken(raw);
+    if (!payload || payload.role !== 'hr') return res.status(401).json({ error: 'Unauthorized' });
+
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
+    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+
+    try {
+        const hrPasswordConfigured = await hasPrivilegedPasswordSetting('hrPassword');
+
+        const { storedHash, storedSalt } = await resolvePrivilegedPassword('hrPassword', hrPasswordHash, hrPasswordSalt);
+        let match = verifyPrivilegedPassword(currentPassword, storedHash, storedSalt);
+
+        // If HR password was never set, allow the current admin password
+        // as the bootstrap credential to create an HR-specific password.
+        if (!match && !hrPasswordConfigured) {
+            const adminCreds = await resolvePrivilegedPassword('adminPassword', deletePasswordHash, deletePasswordSalt);
+            match = verifyPrivilegedPassword(currentPassword, adminCreds.storedHash, adminCreds.storedSalt);
+        }
+
+        if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
+
+        const { hash, salt } = hashPassword(newPassword.trim());
+
+        if (isDBConnected()) {
+            const db = getDB();
+            await db.collection('settings').updateOne(
+                { key: 'hrPassword' },
+                { $set: { key: 'hrPassword', hash, salt, updatedAt: new Date() } },
+                { upsert: true }
+            );
+        }
+        res.json({ success: true, message: 'HR password changed successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Failed to change password' });
     }
@@ -258,6 +333,7 @@ router.get('/me', async (req, res) => {
     if (!payload) return res.status(401).json({ error: 'Unauthorized' });
 
     if (payload.role === 'admin') return res.json({ role: 'admin' });
+    if (payload.role === 'hr') return res.json({ role: 'hr' });
 
     if (!isDBConnected()) return res.status(503).json({ error: 'Database not connected' });
     try {

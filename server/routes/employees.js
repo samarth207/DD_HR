@@ -26,7 +26,7 @@ function isEmployeeSelfRequest(req) {
 router.use((req, res, next) => {
     // Backward compatibility for test harnesses where auth middleware is disabled at app level.
     if (!req.auth) return next();
-    if (req.auth.role === 'admin') return next();
+    if (req.auth.role === 'admin' || req.auth.role === 'hr') return next();
     if (req.auth.role !== 'employee') return res.status(403).json({ error: 'Forbidden' });
 
     if (req.method === 'GET' && req.path === '/document-types') return next();
