@@ -14,7 +14,6 @@ The DD HR portal now uses **MongoDB Atlas** for data storage with a separate dat
 7. **salary_advances** - Salary advance records
 8. **salary_payments** - Salary payment tracking
 9. **incentive_config** - Incentive configuration
-10. **logs** - Activity logs
 11. **account** - Account details
 
 ---
@@ -50,6 +49,19 @@ npm run dev
 ```
 
 The server will run on **http://localhost:3000**
+
+### 3. Salary Period Metadata Migration (Non-destructive)
+
+To annotate historical payroll records with centralized salary period fields
+(`monthKey`, `cycleStart`, `cycleEnd`, `isFirstSalaryMonth`, `salaryPeriod`) without
+deleting any existing payroll history, run:
+
+```powershell
+cd "c:\Users\samth\Desktop\DD\HR\server"
+npm run migrate:salary-period
+```
+
+This script updates both `salaryPayments` and legacy `salary_payments` collections.
 
 You should see:
 ```
@@ -112,11 +124,6 @@ For example in `employees.html`:
 - `POST /api/incentives/daily` - Add daily bonus
 - `POST /api/incentives/advance` - Add salary advance
 - `POST /api/incentives/salary-payment` - Save salary payment
-
-### Logs
-- `GET /api/logs` - Get all logs
-- `POST /api/logs` - Add new log
-- `DELETE /api/logs` - Clear all logs
 
 ### Account
 - `GET /api/account` - Get account details

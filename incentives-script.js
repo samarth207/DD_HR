@@ -4,6 +4,7 @@ let cachedIncentiveData = null;
 let cachedSalesData = null;
 let cachedAdmissionsByMonth = {};
 let dbUnavailable = false;
+const salaryCycleUtils = window.SalaryCycleUtils;
 
 // Check DB status once on load
 async function checkDBStatus() {
@@ -975,6 +976,31 @@ async function saveAdvance(event) {
     }
 }
 
+async function markAdvanceRepaid(advanceId, employeeName, amount) {
+    try {
+        await fetch(`${API_BASE_URL}/incentives/advance/${advanceId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: 'Repaid',
+                repaid: true,
+                repaidDate: new Date().toISOString(),
+                adjustedInSalary: true
+            })
+        });
+
+        // Force fresh data after status update.
+        cachedIncentiveData = null;
+
+        addLog('salary', `Marked salary advance as repaid for ${employeeName}: ${formatRupees(amount)}`);
+        showNotification('Advance marked as repaid!', 'success');
+        await loadSalaryAdvances();
+    } catch (error) {
+        console.error('Error marking advance as repaid:', error);
+        showNotification('Failed to mark advance as repaid', 'error');
+    }
+}
+
 async function loadSalaryAdvances() {
     const incentiveData = await getIncentiveData();
     const container = document.getElementById('advancesContainer');
@@ -1091,28 +1117,29 @@ async function loadSalaryEmployeeFilters() {
     });
 }
 
-function getCycleDayFromHireDate(hireDate) {
-    if (!hireDate) return null;
-    const d = new Date(hireDate + 'T00:00:00');
-    if (Number.isNaN(d.getTime())) return null;
-    // Keep cycles stable across months; payroll UI supports 1-28 as safe day range.
-    return Math.min(d.getDate(), 28);
-}
-
 function getSalaryCycleRange(month, hireDate) {
-    const [year, mon] = month.split('-').map(Number);
-    const cycleDay = getCycleDayFromHireDate(hireDate);
-    if (!cycleDay) {
+    const cycle = salaryCycleUtils?.getSalaryCycleForMonth(month, hireDate);
+    if (!cycle) {
+        const [year, mon] = month.split('-').map(Number);
         const start = new Date(year, mon - 1, 1);
         const end = new Date(year, mon, 0);
         end.setHours(23, 59, 59, 999);
-        return { start, end, cycleDay: null };
+        return {
+            start,
+            end,
+            isFirstSalaryMonth: false,
+            proratedDays: Math.round((end - start) / 86400000) + 1,
+            workingDays: Math.round((end - start) / 86400000) + 1
+        };
     }
 
-    const start = new Date(year, mon - 2, cycleDay);
-    const end = new Date(year, mon - 1, cycleDay);
-    end.setHours(23, 59, 59, 999);
-    return { start, end, cycleDay };
+    return {
+        start: cycle.cycleStart,
+        end: cycle.cycleEnd,
+        isFirstSalaryMonth: cycle.isFirstSalaryMonth,
+        proratedDays: cycle.proratedDays,
+        workingDays: cycle.workingDays
+    };
 }
 
 // Only 'Unpaid Leave' type deducts from salary. Paid Leave uses leave balance — no salary impact.
@@ -1189,37 +1216,23 @@ async function getSalaryPaymentStatus(employeeId, month) {
 
 async function markSalaryPaid(employeeId, employeeName, month, grossSalary, deductions, netSalary) {
     try {
-        const key = `${month}_${employeeId}`;
-        
-        // Save to incentives collection (used by salary crediting tab)
-        await fetch(`${API_BASE_URL}/incentives/salary-payment`, {
+        // Critical consistency change:
+        // perform one canonical server call; server writes legacy + modern stores together.
+        const [yearStr, monthStr] = (month || '').split('-');
+        const monthNum = parseInt(monthStr, 10);
+        const yearNum  = parseInt(yearStr,  10);
+        if (!monthNum || !yearNum) {
+            throw new Error('Invalid salary month format');
+        }
+        const salaryPaidRes = await fetch(`${API_BASE_URL}/salary-payments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                key: key,
-                data: {
-                    paid: true,
-                    paidDate: new Date().toISOString(),
-                    grossSalary,
-                    deductions,
-                    netSalary
-                }
-            })
+            body: JSON.stringify({ employeeId, month: monthNum, year: yearNum })
         });
-
-        // Also sync to salary-payments collection so dashboard notification clears
-        try {
-            const [yearStr, monthStr] = (month || '').split('-');
-            const monthNum = parseInt(monthStr, 10);
-            const yearNum  = parseInt(yearStr,  10);
-            if (monthNum && yearNum) {
-                await fetch(`${API_BASE_URL}/salary-payments`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ employeeId, month: monthNum, year: yearNum })
-                });
-            }
-        } catch (_) { /* non-critical */ }
+        if (!salaryPaidRes.ok) {
+            const errPayload = await salaryPaidRes.json().catch(() => ({}));
+            throw new Error(errPayload.error || 'Failed to mark salary paid');
+        }
 
         // Auto-mark all outstanding advances for this employee as repaid
         // (they were included in the deductions for this salary payment)
@@ -1259,23 +1272,11 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month, hireDate = nu
         if (saved) settings = { ...settings, ...JSON.parse(saved) };
     } catch (e) {}
 
-    // Fetch attendance records for the month (and previous month for shifted cycles)
+    // Fetch attendance records for the selected month cycle.
     let docs = [];
     try {
         const res = await fetch(`${API_BASE_URL}/attendance/month/${month}`);
         if (res.ok) docs = await res.json();
-    } catch (e) {}
-
-    const [y, m] = month.split('-').map(Number);
-    const prevMonthKey = m === 1
-        ? `${y - 1}-12`
-        : `${y}-${String(m - 1).padStart(2, '0')}`;
-    try {
-        const prevRes = await fetch(`${API_BASE_URL}/attendance/month/${prevMonthKey}`);
-        if (prevRes.ok) {
-            const prevDocs = await prevRes.json();
-            docs = docs.concat(prevDocs || []);
-        }
     } catch (e) {}
 
     // Also check localStorage
@@ -1287,15 +1288,6 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month, hireDate = nu
                 try { docs.push({ date, records: JSON.parse(localStorage.getItem(k)) }); } catch (e) {}
             }
         });
-    Object.keys(localStorage)
-        .filter(k => k.startsWith(`attendance_${prevMonthKey}`))
-        .forEach(k => {
-            const date = k.replace('attendance_', '');
-            if (!docs.find(d => d.date === date)) {
-                try { docs.push({ date, records: JSON.parse(localStorage.getItem(k)) }); } catch (e) {}
-            }
-        });
-
     const cycle = getSalaryCycleRange(month, hireDate);
     const allLeaves = getLeaves();
     const hasFullDayLeaveOnDate = (dateStr) => allLeaves.some(l => {
@@ -1325,80 +1317,6 @@ async function getHalfDayAttendanceDaysForMonth(employeeId, month, hireDate = nu
     return halfDays * 0.5; // each half-day = 0.5 leave days
 }
 
-// ── Salary-due-tomorrow reminder banner (inside Salary Crediting tab) ──────
-async function loadSalaryDueReminders() {
-    const banner = document.getElementById('salaryDueReminderBanner');
-    if (!banner) return;
-
-    const allEmployees = getEmployees().filter(e => e.status === 'Active' && e.salaryDay);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const tomorrowDay = tomorrow.getDate();
-    const currentMonth = document.getElementById('salaryMonthFilter')?.value || '';
-
-    // Employees whose salary day is tomorrow
-    const due = allEmployees.filter(e => parseInt(e.salaryDay) === tomorrowDay);
-    if (!due.length) { banner.style.display = 'none'; return; }
-
-    // Check which are already paid for current month using the incentive data
-    const unpaid = [];
-    for (const emp of due) {
-        const status = await getSalaryPaymentStatus(emp.id, currentMonth);
-        if (!status.paid) unpaid.push(emp);
-    }
-
-    if (!unpaid.length) { banner.style.display = 'none'; return; }
-
-    banner.style.display = 'block';
-    banner.innerHTML = `
-        <div style="background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #f59e0b;border-radius:10px;padding:16px 20px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-                <i class="fas fa-bell" style="color:#f59e0b;font-size:16px;"></i>
-                <span style="font-weight:700;font-size:15px;color:#92400e;">
-                    Salary Due Tomorrow
-                </span>
-                <span style="background:#f59e0b;color:#fff;border-radius:20px;padding:2px 9px;font-size:12px;font-weight:700;">
-                    ${unpaid.length}
-                </span>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:10px;">
-                ${unpaid.map(emp => `
-                <div id="salary-due-row-${emp.id}" style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;gap:12px;flex-wrap:wrap;">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <div style="width:34px;height:34px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-weight:700;color:#92400e;font-size:13px;">
-                            ${(emp.firstName?.[0]||'')+(emp.lastName?.[0]||'')}
-                        </div>
-                        <div>
-                            <div style="font-weight:600;color:#1a202c;font-size:14px;">${emp.firstName} ${emp.lastName}</div>
-                            <div style="font-size:12px;color:#718096;">${emp.department} · Salary day: <strong>${emp.salaryDay}</strong> · Gross: <strong>${formatRupees(parseFloat(emp.salary)||0)}</strong></div>
-                        </div>
-                    </div>
-                    <button onclick="markSalaryPaidFromReminder(${emp.id}, '${emp.firstName} ${emp.lastName}', '${currentMonth}')"
-                        style="background:#10b981;color:#fff;border:none;padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
-                        <i class="fas fa-check"></i> Mark as Paid
-                    </button>
-                </div>`).join('')}
-            </div>
-        </div>`;
-}
-
-async function markSalaryPaidFromReminder(employeeId, employeeName, month) {
-    const allEmployees = getEmployees();
-    const emp = allEmployees.find(e => e.id === employeeId);
-    if (!emp) return;
-    const grossSalary = parseFloat(emp.salary) || 0;
-    // Use 0 for deductions here — full breakdown is visible in the salary crediting cards below
-    await markSalaryPaid(employeeId, employeeName, month, grossSalary, 0, grossSalary);
-    // Remove the row from the reminder banner
-    const row = document.getElementById(`salary-due-row-${employeeId}`);
-    if (row) row.remove();
-    // Hide banner if no rows remain
-    const banner = document.getElementById('salaryDueReminderBanner');
-    if (banner && !banner.querySelector('[id^="salary-due-row-"]')) {
-        banner.style.display = 'none';
-    }
-}
 function toggleSalaryDetails(cardId) {
     const details = document.getElementById(cardId);
     const chevron = document.getElementById('chevron-' + cardId);
@@ -1418,9 +1336,6 @@ async function loadSalaryCrediting() {
     const employees = allEmployees.filter(e => e.status === 'Active');
     const container = document.getElementById('salaryCreditingContainer');
 
-    // Refresh salary-due reminders whenever this tab reloads
-    loadSalaryDueReminders();
-    
     let totalGross = 0;
     let totalIncentives = 0;
     let totalDeductions = 0;
@@ -1436,15 +1351,13 @@ async function loadSalaryCrediting() {
         const dailyRate = grossSalary / 30;
         const cycle = getSalaryCycleRange(month, emp.hireDate);
 
-        // Pro-rate salary if employee joined during this month
+        // New policy: recurring salary cycle is always month start -> month end.
+        // Joining date affects only first-month salary proration.
         let effectiveGross = grossSalary;
         let joiningDays = 0;
-        if (emp.hireDate) {
-            const hireDate = new Date(emp.hireDate + 'T00:00:00');
-            if (hireDate > cycle.start && hireDate <= cycle.end) {
-                joiningDays = Math.floor((cycle.end - hireDate) / 86400000) + 1;
-                effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
-            }
+        if (cycle.isFirstSalaryMonth) {
+            joiningDays = cycle.proratedDays;
+            effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
         }
 
         const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id, month);
@@ -1466,11 +1379,16 @@ async function loadSalaryCrediting() {
             }
         }
         
+        const lopDays = Math.round((unpaidLeaveDays + halfDayAttDays) * 100) / 100;
+        const lopDeduction = Math.round((unpaidLeaveDeduction + halfDayAttDeduction) * 100) / 100;
+
         const totalEarnings = effectiveGross + monthlyIncentive;
         const totalDeductionsAmt = outstandingAdvance + unpaidLeaveDeduction + halfDayAttDeduction;
         const netSalary = totalEarnings - totalDeductionsAmt;
         
         const paymentStatus = await getSalaryPaymentStatus(emp.id, month);
+        const salaryPeriodStartLabel = cycle.start.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const salaryPeriodEndLabel = cycle.end.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         
         totalGross += effectiveGross;
         totalIncentives += monthlyIncentive;
@@ -1512,9 +1430,13 @@ async function loadSalaryCrediting() {
             </div>
 
             <div id="${cardId}" style="display:none;margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+                <div style="margin-bottom:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#334155;line-height:1.5;">
+                    <strong>Salary Period:</strong> ${salaryPeriodStartLabel} to ${salaryPeriodEndLabel}<br>
+                    <span>${cycle.isFirstSalaryMonth ? 'First salary month (joining-date proration)' : 'Standard monthly cycle (1st to last day)'}</span>
+                </div>
                 <div class="incentive-summary">
                     <div class="incentive-box">
-                        <label>${joiningDays > 0 ? `Salary (${joiningDays}d in cycle × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
+                        <label>${joiningDays > 0 ? `Salary (${joiningDays}d in month × ₹${Math.round(dailyRate)}/day)` : 'Gross Salary'}</label>
                         <div class="value">${formatRupees(effectiveGross)}${joiningDays > 0 ? `<span style="font-size:11px;color:#6b7280;display:block;">Full: ${formatRupees(grossSalary)}</span>` : ''}</div>
                     </div>
                     ${monthlyIncentive > 0 ? `
@@ -1532,6 +1454,11 @@ async function loadSalaryCrediting() {
                         <label>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</label>
                         <div class="value" style="color:#f5576c;">- ${formatRupees(halfDayAttDeduction)}</div>
                     </div>` : ''}
+                    ${lopDeduction > 0 ? `
+                    <div class="incentive-box">
+                        <label>LOP (${lopDays}d)</label>
+                        <div class="value" style="color:#f5576c;">- ${formatRupees(lopDeduction)}</div>
+                    </div>` : ''}
                     <div class="incentive-box">
                         <label>Outstanding Advances</label>
                         <div class="value" style="color:${outstandingAdvance > 0 ? '#f5576c' : '#718096'};">- ${formatRupees(outstandingAdvance)}</div>
@@ -1543,7 +1470,7 @@ async function loadSalaryCrediting() {
                 </div>
                 ${joiningDays > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;">
-                    <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> Joined inside cycle: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) × ₹${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
+                    <small style="color:#1d4ed8;font-weight:600;"><i class="fas fa-user-plus"></i> First salary month proration: ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked (from ${new Date(emp.hireDate+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}) × ₹${Math.round(dailyRate)}/day = ${formatRupees(effectiveGross)}</small>
                 </div>` : ''}
                 ${monthlyIncentive > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#f0fff4;border-left:4px solid #38ef7d;border-radius:6px;">
@@ -1556,6 +1483,10 @@ async function loadSalaryCrediting() {
                 ${halfDayAttDeduction > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:6px;">
                     <small style="color:#92400e;font-weight:600;"><i class="fas fa-adjust"></i> Late half-day: ${halfDayAttDays} day${halfDayAttDays !== 0.5 ? 's' : ''} × ${formatRupees(Math.round(dailyRate))}/day = ${formatRupees(halfDayAttDeduction)}</small>
+                </div>` : ''}
+                ${lopDeduction > 0 ? `
+                <div style="margin-top:12px;padding:12px;background:#fff5f5;border-left:4px solid #ef4444;border-radius:6px;">
+                    <small style="color:#b91c1c;font-weight:600;"><i class="fas fa-calculator"></i> LOP total: ${lopDays} day${lopDays !== 1 ? 's' : ''} = ${formatRupees(lopDeduction)}</small>
                 </div>` : ''}
                 ${outstandingAdvance > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#fff5f5;border-left:4px solid #f5576c;border-radius:6px;">
@@ -1663,8 +1594,6 @@ window.saveAdvance = saveAdvance;
 window.markIncentivePaid = markIncentivePaid;
 window.markAdvanceRepaid = markAdvanceRepaid;
 window.markSalaryPaid = markSalaryPaid;
-window.markSalaryPaidFromReminder = markSalaryPaidFromReminder;
-window.loadSalaryDueReminders = loadSalaryDueReminders;
 window.loadMonthlyIncentives = loadMonthlyIncentives;
 window.loadSalaryCrediting = loadSalaryCrediting;
 window.getSalesData = getSalesData;

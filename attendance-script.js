@@ -10,6 +10,7 @@ let currentDate = '';
 // attendanceData: { 'YYYY-MM-DD': { [employeeId]: { time: '09:05' | null, status: 'present'|'late'|'absent' } } }
 let attendanceData = {};
 const WORK_FROM_HOME_TYPE = 'Work From Home';
+const salaryCycleUtils = window.SalaryCycleUtils;
 
 // ─── Init ──────────────────────────────────────────────────────────────────
 
@@ -63,22 +64,47 @@ function getEmployeeJoinDate(employee) {
     return employee?.hireDate || employee?.joinDate || employee?.joiningDate || employee?.dateOfJoining || '';
 }
 
-function isEmployeeCycleMonthEndDate(employee, dateStr) {
-    const joinDate = getEmployeeJoinDate(employee);
-    if (!joinDate || dateStr < joinDate) return false;
-
-    const joinDay = parseInt(joinDate.substring(8, 10), 10);
-    const [year, month] = dateStr.split('-').map(Number);
-    const daysInThisMonth = new Date(year, month, 0).getDate();
-    const cycleDay = Math.min(joinDay, daysInThisMonth);
-
-    return parseInt(dateStr.substring(8, 10), 10) === cycleDay;
-}
-
 function isJoinedByDate(employee, dateStr) {
     const joinDate = getEmployeeJoinDate(employee);
     if (!joinDate) return true;
     return dateStr >= joinDate;
+}
+
+function toDateOnly(dateStr) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function formatAsDateStr(dateObj) {
+    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+}
+
+function getAttendanceCycleForEmployeeMonth(employee, monthStr) {
+    const hireDate = getEmployeeJoinDate(employee) || null;
+    const cycle = salaryCycleUtils?.getSalaryCycleForMonth(monthStr, hireDate);
+    if (cycle) {
+        return {
+            start: new Date(cycle.cycleStart),
+            end: new Date(cycle.cycleEnd),
+            startStr: formatAsDateStr(cycle.cycleStart),
+            endStr: formatAsDateStr(cycle.cycleEnd),
+            isFirstSalaryMonth: cycle.isFirstSalaryMonth
+        };
+    }
+
+    const [year, month] = monthStr.split('-').map(Number);
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0);
+    end.setHours(23, 59, 59, 999);
+    return {
+        start,
+        end,
+        startStr: formatAsDateStr(start),
+        endStr: formatAsDateStr(end),
+        isFirstSalaryMonth: false
+    };
 }
 
 function isWorkFromHomeLeave(leave) {
@@ -129,7 +155,7 @@ async function saveAttendanceSettings() {
 function updateSettingsSummary() {
     const el = document.getElementById('settingsSummaryText');
     if (!el) return;
-    el.innerHTML = `If an employee is late more than <strong>${attendanceSettings.lateDaysHalfDay}</strong> times in a month by more than <strong>${attendanceSettings.lateThresholdMins}</strong> minutes after <strong>${formatTime12h(attendanceSettings.officeStartTime)}</strong>, it counts as a half day deduction.`;
+    el.innerHTML = `If an employee is late more than <strong>${attendanceSettings.lateDaysHalfDay}</strong> times in a month by more than <strong>${attendanceSettings.lateThresholdMins}</strong> minutes after <strong>${formatTime12h(attendanceSettings.officeStartTime)}</strong>, it counts as a half day salary deduction during payroll.`;
 }
 
 function openLatePolicyPopup() {
@@ -194,6 +220,35 @@ async function loadMonthAttendanceFromAPI(monthStr) {
     // Also merge any locally stored data for this month
     Object.keys(localStorage)
         .filter(k => k.startsWith('attendance_' + monthStr))
+        .forEach(k => {
+            const date = k.replace('attendance_', '');
+            if (!attendanceData[date]) {
+                try { attendanceData[date] = JSON.parse(localStorage.getItem(k)); } catch (e) {}
+            }
+        });
+}
+
+async function loadAttendanceRangeFromAPI(startDate, endDate) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/attendance/range?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`);
+        if (res.ok) {
+            const docs = await res.json();
+            if (Array.isArray(docs)) {
+                docs.forEach(doc => {
+                    if (doc.date && doc.records) {
+                        attendanceData[doc.date] = doc.records;
+                    }
+                });
+            }
+        }
+    } catch (e) { /* offline — fall back to localStorage */ }
+
+    Object.keys(localStorage)
+        .filter(k => {
+            if (!k.startsWith('attendance_')) return false;
+            const date = k.replace('attendance_', '');
+            return date >= startDate && date <= endDate;
+        })
         .forEach(k => {
             const date = k.replace('attendance_', '');
             if (!attendanceData[date]) {
@@ -357,8 +412,24 @@ async function loadSingleEmployeeMonthAttendance() {
         return;
     }
 
-    await loadMonthAttendanceFromAPI(monthStr);
+    const cycle = getAttendanceCycleForEmployeeMonth(employee, monthStr);
+    await loadAttendanceRangeFromAPI(cycle.startStr, cycle.endStr);
     renderSingleEmployeeMonthAttendance(employee, monthStr);
+
+    // Keep monthly summary in sync with the backend attendance report API.
+    try {
+        const reportRes = await fetch(`${API_BASE_URL}/attendance/report/monthly?employeeId=${employeeId}&month=${encodeURIComponent(monthStr)}`);
+        if (reportRes.ok) {
+            const report = await reportRes.json();
+            const summary = report.summary || {};
+            document.getElementById('mStatWorking').textContent = summary.workingDays ?? 0;
+            document.getElementById('mStatPresent').textContent = summary.presentDays ?? 0;
+            document.getElementById('mStatLate').textContent = summary.lateDays ?? 0;
+            document.getElementById('mStatLeave').textContent = summary.leaveDays ?? 0;
+            document.getElementById('mStatWfh').textContent = summary.wfhDays ?? 0;
+            document.getElementById('mStatAbsent').textContent = summary.absentDays ?? 0;
+        }
+    } catch (_) {}
 }
 
 function clearSingleEmployeeMonthAttendance() {
@@ -382,6 +453,7 @@ function renderSingleEmployeeMonthAttendance(employee, monthStr) {
 
     const rows = [];
     const monthDays = getDaysInMonth(monthStr);
+    const cycle = getAttendanceCycleForEmployeeMonth(employee, monthStr);
     const today = formatDateKey(new Date());
 
     let statWorking = 0;
@@ -393,41 +465,18 @@ function renderSingleEmployeeMonthAttendance(employee, monthStr) {
     const joinDate = getEmployeeJoinDate(employee);
     monthDays.forEach(dateStr => {
         if (!isJoinedByDate(employee, dateStr)) return;
+        if (dateStr < cycle.startStr || dateStr > cycle.endStr) return;
 
         const isJoinDate = Boolean(joinDate) && dateStr === joinDate;
-        const isCycleMonthEnd = isEmployeeCycleMonthEndDate(employee, dateStr);
-        const isRecurringMonthEnd = isCycleMonthEnd && !isJoinDate;
         const isFutureDate = dateStr > today;
-        if (isFutureDate && !isJoinDate && !isRecurringMonthEnd) return;
+        if (isFutureDate) return;
 
         const dateObj = new Date(dateStr + 'T00:00:00');
         const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
         const dateText = dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         const rowClasses = [
-            isJoinDate ? 'emp-month-join-row' : '',
-            isRecurringMonthEnd ? 'emp-month-cycle-end-row' : ''
+            isJoinDate ? 'emp-month-join-row' : ''
         ].filter(Boolean).join(' ');
-
-        if (isFutureDate && (isJoinDate || isRecurringMonthEnd)) {
-            const specialNotes = [];
-            if (isJoinDate) specialNotes.push('<span class="emp-month-note-join">Joining date</span>');
-            if (isRecurringMonthEnd) specialNotes.push('<span class="emp-month-note-cycle-end">Month-end day</span>');
-            rows.push(`
-            <tr class="${rowClasses}">
-                <td>
-                    ${dateText}
-                    ${isJoinDate ? '<span class="emp-month-join-tag"><i class="fas fa-flag"></i> Joined</span>' : ''}
-                    ${isRecurringMonthEnd ? '<span class="emp-month-cycle-end-tag"><i class="fas fa-calendar-check"></i> Month End</span>' : ''}
-                </td>
-                <td>${dayName}</td>
-                <td><span class="att-badge upcoming"><i class="fas fa-hourglass-half"></i> Upcoming</span></td>
-                <td>—</td>
-                <td>—</td>
-                <td>${specialNotes.join('')}</td>
-            </tr>
-        `);
-            return;
-        }
 
         const dayRecord = (attendanceData[dateStr] || {})[employee.id] || null;
         const statusInfo = classifyEmployeeStatusForDate(employee, employee.id, dateStr, dayRecord);
@@ -441,13 +490,11 @@ function renderSingleEmployeeMonthAttendance(employee, monthStr) {
         const statusClass = statusInfo.status === 'wfh' ? 'on-leave' : statusInfo.status;
         const specialNotes = [];
         if (isJoinDate) specialNotes.push('<span class="emp-month-note-join">Joining date</span>');
-        if (isRecurringMonthEnd) specialNotes.push('<span class="emp-month-note-cycle-end">Month-end day</span>');
         rows.push(`
             <tr class="${rowClasses}">
                 <td>
                     ${dateText}
                     ${isJoinDate ? '<span class="emp-month-join-tag"><i class="fas fa-flag"></i> Joined</span>' : ''}
-                    ${isRecurringMonthEnd ? '<span class="emp-month-cycle-end-tag"><i class="fas fa-calendar-check"></i> Month End</span>' : ''}
                 </td>
                 <td>${dayName}</td>
                 <td><span class="att-badge ${statusClass}">${statusInfo.label}</span></td>
@@ -479,9 +526,10 @@ function renderSingleEmployeeMonthAttendance(employee, monthStr) {
 
 function countLateInMonth(employeeId, monthStr) {
     const employee = getEmployees().find(e => e.id === employeeId);
+    const cycle = getAttendanceCycleForEmployeeMonth(employee || {}, monthStr);
     let count = 0;
     Object.keys(attendanceData).forEach(dateKey => {
-        if (!dateKey.startsWith(monthStr)) return;
+        if (dateKey < cycle.startStr || dateKey > cycle.endStr) return;
         if (employee && !isJoinedByDate(employee, dateKey)) return;
         const rec = (attendanceData[dateKey] || {})[employeeId];
         if (rec && rec.time && isLate(rec.time)) {
@@ -498,42 +546,13 @@ function halfDaysAccumulated(employeeId, monthStr) {
     return Math.floor(countLateInMonth(employeeId, monthStr) / attendanceSettings.lateDaysHalfDay);
 }
 
-// ─── Auto-deduct half days from leave balance ─────────────────────────────
+// ─── Late policy application ───────────────────────────────────────────────
 
 async function applyHalfDayDeductions(employeeId, monthStr) {
-    const currentHalfDays = halfDaysAccumulated(employeeId, monthStr);
-    const storageKey = `halfDayDeducted_${employeeId}_${monthStr}`;
-    const prevApplied = parseFloat(localStorage.getItem(storageKey) || '0');
-    const diff = currentHalfDays - prevApplied;
-
-    if (diff === 0) return;
-
-    const employees = getEmployees();
-    const emp = employees.find(e => e.id === employeeId);
-    if (!emp) return;
-
-    // Ensure leaveBalance structure
-    if (!emp.leaveBalance) emp.leaveBalance = { paidLeave: 20 };
-    if (emp.leaveBalance.paidLeave === undefined) {
-        emp.leaveBalance.paidLeave = (emp.leaveBalance.annualLeave || 0) +
-            (emp.leaveBalance.sickLeave || 0) + (emp.leaveBalance.personalLeave || 0) || 20;
-    }
-
-    const deductionDays = diff * 0.5;
-    emp.leaveBalance.paidLeave = Math.max(0, parseFloat((emp.leaveBalance.paidLeave - deductionDays).toFixed(1)));
-
-    try {
-        await saveEmployeeToDB(emp);
-        localStorage.setItem(storageKey, currentHalfDays);
-        if (diff > 0) {
-            showNotification(
-                `${emp.firstName} ${emp.lastName}: ${diff} half day${diff > 1 ? 's' : ''} deducted (${deductionDays}d from leave balance)`,
-                'warning'
-            );
-        }
-    } catch (e) {
-        console.error('Failed to apply half-day deduction', e);
-    }
+    // Canonical rule: late penalties are applied only by backend payroll logic
+    // (`server/routes/salaryPayments.js`) to avoid double-penalty with leave balance.
+    // Attendance UI keeps this hook for backward compatibility but performs no mutation.
+    return;
 }
 
 // ─── Render ────────────────────────────────────────────────────────────────

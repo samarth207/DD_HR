@@ -66,7 +66,6 @@
                 <div class="nav-section-title">Tools</div>
                 <a href="chatbot.html" class="nav-item "><i class="fas fa-robot"></i><span>AI Assistant</span></a>
                 <a href="account.html" class="nav-item "><i class="fas fa-user-circle"></i><span>Account Details</span></a>
-                <a href="logs.html" class="nav-item "><i class="fas fa-history"></i><span>Activity Logs</span></a>
             </nav>
             <div class="sidebar-footer">
                 <div class="sidebar-user">
@@ -267,15 +266,6 @@
                         <input type="number" id="paidLeave" min="0" value="20">
                     </div>
                 </div>
-                <div class="form-section-title">Payroll</div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="salaryDay">Salary Credit Day <span style="color:#718096;font-size:12px;">(1-28 or Month End)</span></label>
-                        <select id="salaryDay">
-                            <option value="">Select salary credit day</option>
-                        </select>
-                    </div>
-                </div>
                 <div class="form-section-title">Probation Period</div>
                 <div class="form-grid">
                     <div class="form-group full-width">
@@ -403,39 +393,7 @@
     <script src="script.js"></script>
     <script>
         let deleteEmployeeId = null;
-        const MONTH_END_SALARY_DAY = 'month_end';
         const MAX_SHORT_EMPLOYEE_ID = 2000;
-
-        function getSalaryDayValueForForm(rawValue) {
-            if (rawValue === null || rawValue === undefined || rawValue === '') return '';
-            const normalized = String(rawValue).trim().toLowerCase();
-            if (['month_end', 'month-end', 'month end', 'monthend', 'eom'].includes(normalized)) {
-                return MONTH_END_SALARY_DAY;
-            }
-            const day = parseInt(rawValue, 10);
-            if (!Number.isInteger(day) || day < 1 || day > 28) return '';
-            return String(day);
-        }
-
-        function initSalaryDayOptions() {
-            const salaryDaySelect = document.getElementById('salaryDay');
-            if (!salaryDaySelect || salaryDaySelect.dataset.ready === 'true') return;
-
-            salaryDaySelect.innerHTML = '<option value="">Select salary credit day</option>';
-            for (let day = 1; day <= 28; day++) {
-                const option = document.createElement('option');
-                option.value = String(day);
-                option.textContent = `Day ${day}`;
-                salaryDaySelect.appendChild(option);
-            }
-
-            const monthEndOption = document.createElement('option');
-            monthEndOption.value = MONTH_END_SALARY_DAY;
-            monthEndOption.textContent = 'Month End (last day of month)';
-            salaryDaySelect.appendChild(monthEndOption);
-
-            salaryDaySelect.dataset.ready = 'true';
-        }
 
         function getNextShortEmployeeId() {
             const employees = getEmployees();
@@ -452,7 +410,6 @@
 
         // Initialize employees page
         document.addEventListener('DOMContentLoaded', async function() {
-            initSalaryDayOptions();
             await loadEmployeesFromDB();
             
             // Check if should open add modal
@@ -635,9 +592,6 @@
             const leaveBalance = employee.leaveBalance || { paidLeave: 20 };
             document.getElementById('paidLeave').value = leaveBalance.paidLeave ?? leaveBalance.annualLeave ?? 20;
 
-            // Payroll
-            document.getElementById('salaryDay').value = getSalaryDayValueForForm(employee.salaryDay);
-
             // Probation
             document.getElementById('isOnProbation').checked = employee.isOnProbation === true;
             
@@ -648,7 +602,6 @@
             event.preventDefault();
             
             const id = document.getElementById('employeeId').value;
-            const salaryDayRaw = getSalaryDayValueForForm(document.getElementById('salaryDay').value);
             const nextShortId = id ? parseInt(id, 10) : getNextShortEmployeeId();
             if (!nextShortId) {
                 showNotification(`Employee ID limit reached (${MAX_SHORT_EMPLOYEE_ID}).`, 'error');
@@ -676,9 +629,6 @@
                 leaveBalance: {
                     paidLeave: parseInt(document.getElementById('paidLeave').value) || 20
                 },
-                salaryDay: salaryDayRaw === MONTH_END_SALARY_DAY
-                    ? MONTH_END_SALARY_DAY
-                    : (parseInt(salaryDayRaw, 10) || null),
                 isOnProbation: document.getElementById('isOnProbation').checked
             };
             

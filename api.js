@@ -2,12 +2,22 @@
 
 // Helper function for API calls
 async function apiCall(endpoint, method = 'GET', data = null) {
+    let authToken = '';
+    try {
+        const auth = JSON.parse(localStorage.getItem('hrPortalAuth') || 'null');
+        authToken = auth?.token || '';
+    } catch (_) {}
+
     const options = {
         method,
         headers: {
             'Content-Type': 'application/json',
         }
     };
+
+    if (authToken) {
+        options.headers.Authorization = `Bearer ${authToken}`;
+    }
     
     if (data) {
         options.body = JSON.stringify(data);
@@ -125,24 +135,6 @@ async function updateSalaryAdvanceInDB(advanceId, data) {
 
 async function saveSalaryPaymentToDB(key, data) {
     await apiCall('/incentives/salary-payment', 'POST', { key, data });
-}
-
-// Logs API
-async function getLogsFromDB() {
-    return await apiCall('/logs');
-}
-
-async function addLogToDB(type, action) {
-    const log = {
-        type,
-        action,
-        timestamp: new Date().toISOString()
-    };
-    await apiCall('/logs', 'POST', log);
-}
-
-async function clearLogsInDB() {
-    await apiCall('/logs', 'DELETE');
 }
 
 // Account API

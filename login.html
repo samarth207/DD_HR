@@ -324,16 +324,33 @@
 <script src="config.js"></script>
 <script>
     // If already authenticated, redirect accordingly
-    (function() {
+    (async function() {
         const raw = localStorage.getItem('hrPortalAuth');
         if (!raw) return;
         try {
             const auth = JSON.parse(raw);
-            if (auth && auth.token) {
-                if (auth.role === 'admin') { window.location.replace('index.html'); }
-                else { window.location.replace('employee-portal.html'); }
+            if (!auth || !auth.token) return;
+
+            // Validate session with backend before redirecting from login page.
+            const resp = await fetch(`${API_BASE_URL}/auth/me`, {
+                headers: { Authorization: `Bearer ${auth.token}` }
+            });
+            if (!resp.ok) {
+                localStorage.removeItem('hrPortalAuth');
+                return;
             }
-        } catch(_) {}
+
+            const me = await resp.json();
+            if (me?.role === 'admin') {
+                window.location.replace('index.html');
+            } else if (me?.role === 'employee') {
+                window.location.replace('employee-portal.html');
+            } else {
+                localStorage.removeItem('hrPortalAuth');
+            }
+        } catch(_) {
+            localStorage.removeItem('hrPortalAuth');
+        }
     })();
 
     function switchRole(role) {

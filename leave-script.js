@@ -2,6 +2,7 @@
 let currentStatusFilter = 'all';
 let deleteLeaveId = null;
 const WORK_FROM_HOME_TYPE = 'Work From Home';
+const salaryCycleUtils = window.SalaryCycleUtils;
 
 function toggleHalfDaySession() {
     const isChecked = document.getElementById('halfDayCheck')?.checked || false;
@@ -129,18 +130,16 @@ function showEmployeeLeaveBalance() {
         ? `<div style="width:100%;margin-top:8px;padding:8px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:8px;"><i class="fas fa-user-clock"></i><strong>On Probation</strong> — Paid leave is blocked for this employee. Only unpaid leave / WFH is allowed.</div>`
         : '';
 
-    // Cycle warning: show if this employee already has a paid leave in the cycle
+    // Cycle warning: show if this employee already has a paid leave in current salary cycle.
     let cycleWarning = '';
-    if (isPaidType && !emp.isOnProbation && startDate && emp.hireDate) {
+    if (isPaidType && !emp.isOnProbation && startDate) {
         try {
-            const hireDay = Math.min(new Date(emp.hireDate + 'T00:00:00').getDate(), 28);
-            const ds = new Date(startDate + 'T00:00:00');
-            const yr = ds.getFullYear(), mn = ds.getMonth(), dy = ds.getDate();
-            const cStart = dy > hireDay ? new Date(yr, mn, hireDay)     : new Date(yr, mn - 1, hireDay);
-            const cEnd   = dy > hireDay ? new Date(yr, mn + 1, hireDay) : new Date(yr, mn, hireDay);
-            cEnd.setHours(23, 59, 59, 999);
-            const dStr = d2 => `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
-            const cStartStr = dStr(cStart), cEndStr = dStr(cEnd);
+            const monthKey = String(startDate || '').substring(0, 7);
+            const cycle = salaryCycleUtils?.getSalaryCycleForMonth(monthKey, emp.hireDate || null);
+            if (!cycle) throw new Error('Invalid cycle');
+
+            const dStr = d2 => `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
+            const cStartStr = dStr(cycle.cycleStart), cEndStr = dStr(cycle.cycleEnd);
             const UNPAID_TYPES = ['Unpaid Leave','Work From Home','Maternity Leave','Paternity Leave'];
             const currentLeaveId = leaveId ? parseInt(leaveId) : -1;
             const existingPaid = getLeaves().find(l =>
@@ -151,7 +150,7 @@ function showEmployeeLeaveBalance() {
                 l.startDate <= cEndStr && l.endDate >= cStartStr
             );
             if (existingPaid) {
-                cycleWarning = `<div style="width:100%;margin-top:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:12px;color:#991b1b;display:flex;align-items:flex-start;gap:8px;"><i class="fas fa-exclamation-circle" style="margin-top:2px;"></i><div><strong>Cycle limit:</strong> This employee already has a paid leave from <strong>${existingPaid.startDate}</strong> to <strong>${existingPaid.endDate}</strong> in this cycle (${cStartStr} – ${cEndStr}). Only 1 paid leave is allowed per salary cycle.</div></div>`;
+                cycleWarning = `<div style="width:100%;margin-top:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:12px;color:#991b1b;display:flex;align-items:flex-start;gap:8px;"><i class="fas fa-exclamation-circle" style="margin-top:2px;"></i><div><strong>Cycle limit:</strong> This employee already has a paid leave from <strong>${existingPaid.startDate}</strong> to <strong>${existingPaid.endDate}</strong> in this cycle (${cStartStr} – ${cEndStr}). Only 1 paid leave is allowed per monthly salary cycle.</div></div>`;
             }
         } catch (_) {}
     }
@@ -260,24 +259,30 @@ function displayLeaves(leaves) {
 
 function updateLeaveStats() {
     const leaves = getLeaves();
+    const employees = getEmployees();
     
     const pending = leaves.filter(l => l.status === 'pending').length;
     const approved = leaves.filter(l => l.status === 'approved').length;
     const rejected = leaves.filter(l => l.status === 'rejected').length;
     
-    // Calculate total days for selected month filter (defaults to current month)
+    // Calculate total days for selected month filter (defaults to current month),
+    // aligned to centralized salary-cycle policy per employee.
     const monthFilterValue = document.getElementById('monthFilter')?.value;
     const now = new Date();
     const statsMonth = monthFilterValue !== '' && monthFilterValue !== null && monthFilterValue !== undefined
         ? parseInt(monthFilterValue, 10)
         : now.getMonth();
     const statsYear = now.getFullYear();
-    const firstDayOfMonth = new Date(statsYear, statsMonth, 1);
-    const lastDayOfMonth = new Date(statsYear, statsMonth + 1, 0);
+    const monthKey = `${statsYear}-${String(statsMonth + 1).padStart(2, '0')}`;
     
     const thisMonthLeaves = leaves.filter(l => {
-        const startDate = new Date(l.startDate);
-        const endDate = new Date(l.endDate);
+        const emp = employees.find(e => e.id === l.employeeId);
+        const cycle = salaryCycleUtils?.getSalaryCycleForMonth(monthKey, emp?.hireDate || null);
+        if (!cycle) return false;
+        const firstDayOfMonth = cycle.cycleStart;
+        const lastDayOfMonth = cycle.cycleEnd;
+        const startDate = new Date(l.startDate + 'T00:00:00');
+        const endDate = new Date(l.endDate + 'T00:00:00');
         return (startDate >= firstDayOfMonth && startDate <= lastDayOfMonth) ||
                (endDate >= firstDayOfMonth && endDate <= lastDayOfMonth) ||
                (startDate <= firstDayOfMonth && endDate >= lastDayOfMonth);
@@ -480,7 +485,7 @@ async function saveLeaveRequest(event) {
         if (err && err.probation) {
             showNotification('This employee is on probation. Only Unpaid Leave or Work From Home is allowed.', 'error');
         } else if (err && err.paidLeaveLimit) {
-            showNotification(err.message || 'Only 1 paid leave is allowed per salary cycle.', 'error');
+            showNotification(err.message || 'Only 1 paid leave is allowed per monthly salary cycle.', 'error');
         } else {
             showNotification('Failed to save leave request. Please try again.', 'error');
         }

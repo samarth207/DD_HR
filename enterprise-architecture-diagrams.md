@@ -102,12 +102,6 @@ classDiagram
         +updateAdvance()
     }
 
-    class LogService {
-        +listLogs()
-        +addLog()
-        +clearLogs()
-    }
-
     class NotificationService {
         +sendLeaveApproved()
         +sendLeaveRejected()

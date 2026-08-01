@@ -7,6 +7,7 @@ const API = API_BASE_URL;
 const auth = JSON.parse(localStorage.getItem('hrPortalAuth') || '{}');
 const EMP_ID = auth.employeeId;
 let employeeProfile = {};
+const salaryCycleUtils = window.SalaryCycleUtils;
 
 function isSalesDepartment(department) {
     return String(department || '').trim().toLowerCase().includes('sales');
@@ -70,30 +71,31 @@ function parseDateOnly(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
     return Number.isNaN(d.getTime()) ? null : d;
 }
-function getCycleDayFromHireDate(hireDate) {
-    const hd = parseDateOnly(hireDate);
-    if (!hd) return null;
-    // Keep cycles stable across months; payroll UI supports 1-28 as safe day range.
-    return Math.min(hd.getDate(), 28);
-}
 function getCycleRangeForMonth(month, hireDate) {
-    const [yr, mo] = month.split('-').map(Number);
-    const cycleDay = getCycleDayFromHireDate(hireDate);
-    if (!cycleDay) {
+    const cycle = salaryCycleUtils?.getSalaryCycleForMonth(month, hireDate);
+    if (!cycle) {
+        const [yr, mo] = month.split('-').map(Number);
         const start = new Date(yr, mo - 1, 1);
         const end = new Date(yr, mo, 0);
         end.setHours(23, 59, 59, 999);
-        return { start, end, cycleDay: null, label: 'Calendar month' };
+        const days = Math.round((end - start) / 86400000) + 1;
+        return {
+            start,
+            end,
+            label: 'Calendar month',
+            isFirstSalaryMonth: false,
+            proratedDays: days,
+            workingDays: days
+        };
     }
 
-    const start = new Date(yr, mo - 2, cycleDay);
-    const end = new Date(yr, mo - 1, cycleDay);
-    end.setHours(23, 59, 59, 999);
     return {
-        start,
-        end,
-        cycleDay,
-        label: `${start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${end.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+        start: cycle.cycleStart,
+        end: cycle.cycleEnd,
+        label: 'Calendar month',
+        isFirstSalaryMonth: cycle.isFirstSalaryMonth,
+        proratedDays: cycle.proratedDays,
+        workingDays: cycle.workingDays
     };
 }
 function getEmployeeJoinDate(employee) {
@@ -107,24 +109,6 @@ function isAdmissionVisibleForEmployee(admission, employee) {
     if (!joinDate || !admissionDate) return true;
     return admissionDate >= joinDate;
 }
-// Returns the salary-cycle window that contains dateStr anchored on cycleDay (hire-date day).
-function getCycleWindowForDate(dateStr, cycleDay) {
-    if (!cycleDay) return null;
-    const d = parseDateOnly(dateStr);
-    if (!d) return null;
-    const year = d.getFullYear(), month = d.getMonth(), day = d.getDate();
-    let start, end;
-    if (day > cycleDay) {
-        start = new Date(year, month, cycleDay);
-        end   = new Date(year, month + 1, cycleDay);
-    } else {
-        start = new Date(year, month - 1, cycleDay);
-        end   = new Date(year, month, cycleDay);
-    }
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
-}
-
 function isJoinedByDate(hireDate, dateStr) {
     if (!hireDate) return true;
     const hire = parseDateOnly(hireDate);
@@ -445,7 +429,7 @@ async function submitLeave(event) {
         if (e && e.probation) {
             notify('leaveNotify', 'You are currently on probation. Only Unpaid Leave or Work From Home is allowed.', 'error');
         } else if (e && e.paidLeaveLimit) {
-            notify('leaveNotify', e.message || 'Only 1 paid leave is allowed per salary cycle.', 'error');
+            notify('leaveNotify', e.message || 'Only 1 paid leave is allowed per monthly salary cycle.', 'error');
         } else {
             notify('leaveNotify', e.message || 'Failed to submit leave request.', 'error');
         }
@@ -1093,156 +1077,61 @@ async function loadSalaryBreakup() {
     content.innerHTML = '<div class="no-data"><div class="spinner"></div></div>';
 
     try {
-        await loadAttSettings();
-        const [py, pm] = month.split('-').map(Number);
-        const prevMonthKey = pm === 1
-            ? `${py - 1}-12`
-            : `${py}-${String(pm - 1).padStart(2, '0')}`;
-
-        const [empData, incData, leavesRaw, attDocs, prevAttDocs] = await Promise.all([
-            apiFetch(`/employees/${EMP_ID}`),
-            apiFetch('/incentives/data'),
-            apiFetch('/leaves'),
-            apiFetch(`/attendance/month/${month}`).catch(() => []),
-            apiFetch(`/attendance/month/${prevMonthKey}`).catch(() => [])
-        ]);
-
-        const payKey = `${month}_${EMP_ID}`;
-        const payRecord = (incData.salaryPayments || {})[payKey];
-
-        // Use the salary that was snapshotted at payment time (if available), so a salary
-        // hike does NOT retroactively change previous months' breakup display.
-        const gross     = (payRecord?.paid && payRecord?.grossSalary)
-            ? parseFloat(payRecord.grossSalary)
-            : parseFloat(empData.salary) || 0;
-        const dailyRate = gross / 30;
-
-        // â"€â"€ Pro-rate if joining inside selected salary cycle â"€â"€
-        const cycle = getCycleRangeForMonth(month, empData.hireDate);
-        const cycleStart = cycle.start;
-        const cycleEnd = cycle.end;
-        let effectiveGross = gross;
-        let joiningDays = 0;
-        if (empData.hireDate) {
-            const hd = new Date(empData.hireDate + 'T00:00:00');
-            if (hd > cycleStart && hd <= cycleEnd) {
-                joiningDays = Math.floor((cycleEnd - hd) / 86400000) + 1;
-                effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
-            }
+        const [yearStr, monthStr] = String(month || '').split('-');
+        const year = parseInt(yearStr, 10);
+        const monthNumber = parseInt(monthStr, 10);
+        if (!year || !monthNumber) {
+            throw new Error('Invalid month selected');
         }
-        // Only 'Unpaid Leave' type deducts from salary. Paid Leave uses leave balance — no salary impact.
-        const myAllLeaves = (leavesRaw.leaves || leavesRaw || []);
-        const myUnpaidLeaves = myAllLeaves
-            .filter(l =>
-                (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID)) &&
-                l.status === 'approved' &&
-                l.leaveType === 'Unpaid Leave'
-            );
-        const hasFullDayLeaveOnDate = (dateStr) => myAllLeaves.some(l => {
-            const isSameEmployee = (l.employeeId === EMP_ID || l.employeeId === String(EMP_ID));
-            const isApproved = l.status === 'approved';
-            const inRange = dateStr >= l.startDate && dateStr <= l.endDate;
-            const isHalfDayLeave = l.halfDay === true || l.leaveType === 'Half Day';
-            return isSameEmployee && isApproved && inRange && !isHalfDayLeave;
-        });
-        let totalLeaveDays = 0;
-        for (const leave of myUnpaidLeaves) {
-            if (leave.halfDay === true || leave.leaveType === 'Half Day') {
-                const ls = new Date(leave.startDate + 'T00:00:00');
-                if (ls >= cycleStart && ls <= cycleEnd) totalLeaveDays += 0.5;
-            } else {
-                const ls = new Date(leave.startDate + 'T00:00:00');
-                const le = new Date(leave.endDate   + 'T00:00:00');
-                const os = ls < cycleStart ? cycleStart : ls;
-                const oe = le > cycleEnd   ? cycleEnd   : le;
-                if (os <= oe) {
-                    totalLeaveDays += Math.round((oe - os) / 86400000) + 1;
-                    // Sandwich Sundays on this leave are also unpaid (they follow Monday's type)
-                    totalLeaveDays += leave.sandwichDays || 0;
-                }
-            }
+
+        // Use the canonical payroll breakup API to avoid duplicated salary logic in frontend.
+        const preview = await apiFetch(`/salary-payments/preview?employeeId=${EMP_ID}&month=${monthNumber}&year=${year}`);
+        const breakup = preview?.breakup;
+        if (!breakup) {
+            throw new Error('Salary breakup unavailable');
         }
-        const unpaidLeaveDays      = totalLeaveDays;
-        const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
 
-        // â”€â”€ Late half-day attendance deduction â”€â”€
-        let lateCount = 0;
-        const allAttDocs = [...(attDocs || []), ...(prevAttDocs || [])];
-        allAttDocs.forEach(doc => {
-            const docDate = new Date((doc.date || '') + 'T00:00:00');
-            if (Number.isNaN(docDate.getTime()) || docDate < cycleStart || docDate > cycleEnd) return;
-            if (hasFullDayLeaveOnDate(doc.date || '')) return;
-            const rec = (doc.records || {})[EMP_ID] || (doc.records || {})[String(EMP_ID)];
-            if (rec && rec.time && isLateEntry(rec.time)) lateCount++;
-        });
-        const halfDayAttDays      = Math.floor(lateCount / attSettings.lateDaysHalfDay) * 0.5;
-        const halfDayAttDeduction = Math.round(halfDayAttDays * dailyRate * 100) / 100;
-
-        // ── Outstanding salary advances ──
-        // Show an advance in month X only if it has NOT already been deducted in an
-        // earlier paid salary. Specifically: if a salary payment exists for any month M
-        // where advanceMonth <= M < currentViewingMonth, the advance was already settled.
-        // This means:
-        //   • May breakup  (month="2026-05"): advance taken in May → no paid salary in
-        //     range ["2026-05","2026-05") → empty range → advance IS included ✓
-        //   • June breakup (month="2026-06"): advance taken in May → paid salary exists
-        //     for "2026-05" which is in range ["2026-05","2026-06") → excluded ✓
-        const payments = incData.salaryPayments || {};
-        const advances = (incData.salaryAdvances || []).filter(a => {
-            if (!(a.employeeId === EMP_ID || a.employeeId === String(EMP_ID))) return false;
-            if (a.status === 'Repaid' || a.repaid) return false;
-            if (a.date) {
-                const advMonth = a.date.substring(0, 7); // YYYY-MM
-                // Was the advance already deducted in a salary paid before this month?
-                const alreadyDeducted = Object.entries(payments).some(([key, val]) => {
-                    if (!val.paid) return false;
-                    const payMonth = key.substring(0, 7);           // YYYY-MM
-                    const payEmp   = key.substring(8);              // employeeId part
-                    if (String(payEmp) !== String(EMP_ID)) return false;
-                    // Paid salary M falls in [advMonth, currentMonth) → advance was settled
-                    return payMonth >= advMonth && payMonth < month;
-                });
-                if (alreadyDeducted) return false;
-            }
-            return true;
-        });
-        const advanceDeduction = advances.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-
-        // â”€â”€ Monthly incentive (Sales dept) â”€â”€
-        let incentive = 0;
-        const monthKey2 = `${month}_${EMP_ID}`;
-        const monthlyRec = (incData.monthlyIncentives || {})[monthKey2];
-        if (monthlyRec && monthlyRec.paid) incentive = parseFloat(monthlyRec.amount) || 0;
-
-        // â”€â”€ Daily bonuses this month â”€â”€
-        const bonusTotal = (incData.dailyBonuses || [])
-            .filter(b => (b.employeeId === EMP_ID || b.employeeId === String(EMP_ID)) && isBonusVisibleForMonth(b.date || '', month))
-            .reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
-
-        const totalEarnings   = effectiveGross + incentive + bonusTotal;
-        const totalDeductions = advanceDeduction + unpaidLeaveDeduction + halfDayAttDeduction;
-        const net = Math.max(0, totalEarnings - totalDeductions);
-
-        const isPaid = payRecord?.paid || false;
-
-        const salaryDayInfo = empData.salaryDay
-            ? `<div style="font-size:12px;color:var(--muted);margin-bottom:18px;"><i class="fas fa-calendar-check"></i> Salary credit day: <strong>${empData.salaryDay}</strong> of each month</div>`
-            : '';
+        const gross = parseFloat(breakup.grossSalary) || 0;
+        const dailyRate = parseFloat(breakup.dailyRate) || 0;
+        const effectiveGross = parseFloat(breakup.effectiveGross) || 0;
+        const joiningDays = parseFloat(breakup.joiningDays) || 0;
+        const unpaidLeaveDays = parseFloat(breakup.unpaidLeaveDays) || 0;
+        const unpaidLeaveDeduction = parseFloat(breakup.unpaidLeaveDeduction) || 0;
+        const lateCount = parseFloat(breakup.lateCount) || 0;
+        const halfDayAttDays = parseFloat(breakup.lateDays) || 0;
+        const halfDayAttDeduction = parseFloat(breakup.lateAttendanceDeduction) || 0;
+        const advanceDeduction = parseFloat(breakup.advanceDeduction) || 0;
+        const incentive = parseFloat(breakup.monthlyIncentive) || 0;
+        const bonusTotal = parseFloat(breakup.dailyBonusTotal) || 0;
+        const lopDays = parseFloat(breakup.lopDays) || 0;
+        const lopDeduction = parseFloat(breakup.lopDeduction) || 0;
+        const net = parseFloat(breakup.netSalary) || 0;
+        const isPaid = Boolean(breakup.payRecord?.paid);
 
         const paidBadge = isPaid
             ? `<div style="text-align:center;margin-bottom:16px;"><span class="badge badge-green"><i class="fas fa-check-circle"></i> Salary Credited</span></div>`
             : `<div style="text-align:center;margin-bottom:16px;"><span class="badge badge-amber"><i class="fas fa-clock"></i> Pending Credit</span></div>`;
 
+        const cycleStart = new Date(`${breakup.salaryPeriod?.start || breakup.cycleStart}T00:00:00`);
+        const cycleEnd = new Date(`${breakup.salaryPeriod?.end || breakup.cycleEnd}T00:00:00`);
+        const salaryPeriodStartLabel = cycleStart.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const salaryPeriodEndLabel = cycleEnd.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const salaryPeriodHint = breakup.salaryPeriod?.isFirstSalaryMonth
+            ? 'First salary month (joining-date proration)'
+            : 'Standard monthly cycle (1st to last day)';
+
         content.innerHTML = `
             ${paidBadge}
-            ${salaryDayInfo}
-            ${cycle.cycleDay ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px;"><i class="fas fa-repeat"></i> Salary cycle: <strong>${cycle.label}</strong></div>` : ''}
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+                <i class="fas fa-calendar-alt"></i> <strong>Salary Period:</strong> ${salaryPeriodStartLabel} to ${salaryPeriodEndLabel}<br>
+                <span>${salaryPeriodHint}</span>
+            </div>
             ${joiningDays > 0 ? `
             <div style="margin-bottom:12px;padding:10px 14px;background:#1e3a5f;border-left:4px solid #3b82f6;border-radius:10px;font-size:12px;color:#93c5fd;">
-                <i class="fas fa-user-plus"></i> <strong>Joining month:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked x INR ${Math.round(dailyRate)}/day = ${salaryDisplay(effectiveGross)}
+                <i class="fas fa-user-plus"></i> <strong>First salary month proration:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked x INR ${Math.round(dailyRate)}/day = ${salaryDisplay(effectiveGross)}
             </div>` : ''}
             <div class="salary-row earning">
-                <span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:6px;"></i>${joiningDays > 0 ? `Salary (${joiningDays}d in cycle)` : 'Gross Salary'}</span>
+                <span class="label"><i class="fas fa-plus-circle" style="color:var(--green);margin-right:6px;"></i>${joiningDays > 0 ? `Salary (${joiningDays}d in month)` : 'Gross Salary'}</span>
                 <span class="amount">${salaryDisplay(effectiveGross)}</span>
             </div>
             ${incentive > 0 ? `
@@ -1265,6 +1154,11 @@ async function loadSalaryBreakup() {
                 <span class="label"><i class="fas fa-adjust" style="color:var(--amber);margin-right:6px;"></i>Late Half Days (${halfDayAttDays}d × ₹${Math.round(dailyRate)})</span>
                 <span class="amount">- ${salaryDisplay(halfDayAttDeduction)}</span>
             </div>` : ''}
+            ${lopDeduction > 0 ? `
+            <div class="salary-row deduction">
+                <span class="label"><i class="fas fa-calculator" style="color:var(--red);margin-right:6px;"></i>LOP Total (${lopDays}d)</span>
+                <span class="amount">- ${salaryDisplay(lopDeduction)}</span>
+            </div>` : ''}
             ${advanceDeduction > 0 ? `
             <div class="salary-row deduction">
                 <span class="label"><i class="fas fa-minus-circle" style="color:var(--red);margin-right:6px;"></i>Outstanding Advance</span>
@@ -1279,7 +1173,8 @@ async function loadSalaryBreakup() {
             <div style="margin-top:14px;padding:12px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:12px;color:#c2410c;line-height:1.7;">
                 <i class="fas fa-info-circle"></i>
                 ${unpaidLeaveDays > 0 ? `<strong>Unpaid leave:</strong> ${unpaidLeaveDays} day${unpaidLeaveDays !== 1 ? 's' : ''} × ₹${Math.round(dailyRate)}/day<br>` : ''}
-                ${halfDayAttDays > 0 ? `<strong>Late attendance:</strong> ${lateCount} late day${lateCount !== 1 ? 's' : ''} \u2192 ${halfDayAttDays} half-day deduction${halfDayAttDays !== 0.5 ? 's' : ''} \u00d7 \u20b9${Math.round(dailyRate)}/day` : ''}
+                ${halfDayAttDays > 0 ? `<strong>Late attendance:</strong> ${lateCount} late day${lateCount !== 1 ? 's' : ''} \u2192 ${halfDayAttDays} half-day deduction${halfDayAttDays !== 0.5 ? 's' : ''} \u00d7 \u20b9${Math.round(dailyRate)}/day<br>` : ''}
+                ${lopDeduction > 0 ? `<strong>LOP total:</strong> ${lopDays} day${lopDays !== 1 ? 's' : ''} = ${salaryDisplay(lopDeduction)}` : ''}
             </div>` : ''}`;
     } catch (e) {
         content.innerHTML = `<div class="no-data">Failed to load salary breakup</div>`;
@@ -1421,10 +1316,11 @@ async function loadMyAttendance() {
     tbody.innerHTML = '<tr><td colspan="5" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
-        const [docs, leavesData, profile] = await Promise.all([
+        const [docs, leavesData, profile, reportData] = await Promise.all([
             apiFetch(`/attendance/month/${month}`),
             apiFetch('/leaves'),
-            apiFetch(`/employees/${EMP_ID}`).catch(() => null)
+            apiFetch(`/employees/${EMP_ID}`).catch(() => null),
+            apiFetch(`/attendance/report/monthly?employeeId=${EMP_ID}&month=${encodeURIComponent(month)}`).catch(() => null)
         ]);
 
         const attMap = {};
@@ -1479,12 +1375,31 @@ async function loadMyAttendance() {
             rows.push({ dateStr, dayLabel, entryTime, statusHtml, lateBy });
         }
 
-        const halfDays = Math.floor(lateCount / attSettings.lateDaysHalfDay);
+        // Use backend monthly report summary as source of truth to keep dashboard cards
+        // aligned with centralized salary-cycle policy and future API refinements.
+        const summary = reportData?.summary || null;
+        const salaryPeriod = reportData?.salaryPeriod || null;
+        const presentForCard = summary ? (summary.presentDays ?? 0) : presentDays;
+        const lateForCard = summary ? (summary.lateDays ?? 0) : lateDays;
+        const absentForCard = summary ? (summary.absentDays ?? 0) : absentDays;
+        const halfDays = summary
+            ? (summary.lateHalfDays ?? 0)
+            : (Math.floor(lateCount / attSettings.lateDaysHalfDay) * 0.5);
+
+        if (salaryPeriod?.start && salaryPeriod?.end) {
+            const startLabel = new Date(`${salaryPeriod.start}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const endLabel = new Date(`${salaryPeriod.end}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            const periodHint = salaryPeriod.isFirstSalaryMonth
+                ? 'Joining month proration applies'
+                : 'Standard monthly cycle (1st to last day)';
+            policyBox.innerHTML += `<br><span><i class="fas fa-calendar-alt"></i> Salary Period: <strong>${startLabel}</strong> to <strong>${endLabel}</strong> &nbsp;&middot;&nbsp; ${periodHint}</span>`;
+        }
+
         statsDiv.innerHTML = `
             <div class="kpi-grid" style="margin-bottom:0;">
-                <div class="kpi"><div class="kpi-label">Present</div><div class="kpi-value" style="color:#16a34a;">${presentDays}</div><div class="kpi-sub">On time</div></div>
-                <div class="kpi"><div class="kpi-label">Late</div><div class="kpi-value" style="color:#d97706;">${lateDays}</div><div class="kpi-sub">Arrived late</div></div>
-                <div class="kpi"><div class="kpi-label">Absent</div><div class="kpi-value" style="color:#dc2626;">${absentDays}</div><div class="kpi-sub">Days absent</div></div>
+                <div class="kpi"><div class="kpi-label">Present</div><div class="kpi-value" style="color:#16a34a;">${presentForCard}</div><div class="kpi-sub">On time</div></div>
+                <div class="kpi"><div class="kpi-label">Late</div><div class="kpi-value" style="color:#d97706;">${lateForCard}</div><div class="kpi-sub">Arrived late</div></div>
+                <div class="kpi"><div class="kpi-label">Absent</div><div class="kpi-value" style="color:#dc2626;">${absentForCard}</div><div class="kpi-sub">Days absent</div></div>
                 <div class="kpi"><div class="kpi-label">Half Day Deductions</div><div class="kpi-value" style="color:#7c3aed;">${halfDays}</div><div class="kpi-sub">From leave balance</div></div>
             </div>`;
 

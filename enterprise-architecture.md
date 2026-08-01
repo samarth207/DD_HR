@@ -27,7 +27,6 @@ The system is designed to support day-to-day HR operations, operational analytic
 - Sales tracking
 - Incentives and payroll screens
 - Account/profile management
-- Activity logs
 - Chatbot/help assistant
 - Employee portal
 - Testing dashboard and reports
@@ -1550,14 +1549,6 @@ All endpoints below are based on the current route modules. Authentication is no
 | GET | /api/salary-payments/preview | Admin/HR | query employeeId, month, year | salary breakup | all query params required | 400, 404, 503, 500 |
 | POST | /api/salary-payments | Admin/HR | { employeeId, month, year } | { success, record, breakup } | all required | 400, 404, 503, 500 |
 | DELETE | /api/salary-payments | Admin/HR | { employeeId, month, year } | { success } | all required | 400, 404, 503, 500 |
-
-## Logs API
-
-| Method | URL | Authentication | Request Body | Response | Validation | Errors |
-| --- | --- | --- | --- | --- | --- | --- |
-| GET | /api/logs | Admin/Super Admin | none | log list | none | 500 |
-| POST | /api/logs | System or admin | log object | { success, log } | timestamp/type recommended | 500 |
-| DELETE | /api/logs | Super Admin | none | { success, message } | none | 500 |
 
 ## Account API
 

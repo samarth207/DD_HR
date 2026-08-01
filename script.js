@@ -1,7 +1,6 @@
 // API Configuration loaded from config.js
 let cachedEmployees = null;
 let cachedLeaves = null;
-let cachedLogs = null;
 
 // Format number in Indian numbering system (lakhs, crores)
 function formatIndianNumber(num) {
@@ -214,44 +213,16 @@ function saveLeaves(leaves) {
 }
 
 function getLogs() {
-    return cachedLogs || [];
+    return [];
 }
 
 async function loadLogs() {
-    try {
-        const logs = await apiCall('/logs');
-        if (logs && Array.isArray(logs)) {
-            cachedLogs = logs;
-            return logs;
-        }
-        return [];
-    } catch (error) {
-        console.error('Failed to load logs from DB:', error);
-        return cachedLogs || [];
-    }
+    return [];
 }
 
-function saveLogs(logs) {
-    cachedLogs = logs;
-}
+function saveLogs() {}
 
-function addLog(type, action) {
-    const log = {
-        type: type,
-        action: action,
-        timestamp: new Date().toISOString()
-    };
-    
-    // Add to API
-    apiCall('/logs', 'POST', log).catch(error => {
-        console.error('Failed to save log to DB');
-    });
-    
-    // Also update cache
-    const logs = getLogs();
-    logs.push(log);
-    saveLogs(logs);
-}
+function addLog() {}
 
 // Check server connection on load
 async function checkServerConnection() {
@@ -260,7 +231,7 @@ async function checkServerConnection() {
         if (response.ok) {
             console.log('✅ Connected to MongoDB server');
             // Load initial data from DB
-            await Promise.all([loadEmployees(), loadLeaves(), loadLogs()]);
+            await Promise.all([loadEmployees(), loadLeaves()]);
             return true;
         }
     } catch (error) {

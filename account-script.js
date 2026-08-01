@@ -74,11 +74,9 @@ async function saveAccountData(data) {
 async function updateSystemInfo() {
     const employees = await loadEmployees();
     const leaves = await loadLeaves();
-    const logs = await loadLogs();
     
     document.getElementById('totalEmployeesCount').textContent = employees.length;
     document.getElementById('totalLeavesCount').textContent = leaves.length;
-    document.getElementById('totalLogsCount').textContent = logs.length;
     
     // Calculate MongoDB storage info
     document.getElementById('dataStorage').textContent = 'MongoDB';
@@ -182,7 +180,6 @@ async function exportAllData() {
     const allData = {
         employees: await loadEmployees(),
         leaves: await loadLeaves(),
-        logs: await loadLogs(),
         account: getAccountData(),
         exportDate: new Date().toISOString()
     };
