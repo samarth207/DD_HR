@@ -189,10 +189,15 @@ function resolveFeeManagementForEdit(payload, nextFields, existingAdmission) {
 
         const lockedInstallments = shouldLockPaidInstallments && Array.isArray(existingInstallments) && Array.isArray(incomingInstallments)
             ? existingInstallments.map((previousInstallment, index) => {
-                if (String(previousInstallment?.status || '').toLowerCase() === 'paid') {
+                const incomingInstallment = incomingInstallments[index];
+                const previousStatus = String(previousInstallment?.status || '').toLowerCase();
+                const incomingStatus = String(incomingInstallment?.status || '').toLowerCase();
+                
+                // Only lock if previous was paid AND incoming is not explicitly changing to pending
+                if (previousStatus === 'paid' && incomingStatus !== 'pending') {
                     return previousInstallment;
                 }
-                return incomingInstallments[index] || previousInstallment;
+                return incomingInstallment || previousInstallment;
             })
             : incomingInstallments;
 
@@ -206,7 +211,8 @@ function resolveFeeManagementForEdit(payload, nextFields, existingAdmission) {
             revenue: nextFields.revenue,
             duration: existingAdmission?.courseDuration || existingAdmission?.duration || existingAdmission?.feeManagement?.duration,
             totalFees: existingAdmission?.courseTotalFees || existingAdmission?.totalFees || existingAdmission?.feeManagement?.summary?.actualFees,
-            installments: existingInstallments
+            installments: existingInstallments,
+            respectExplicitDiscount: Array.isArray(payload.feeManagement.installments)
         });
     }
 
@@ -412,6 +418,14 @@ router.post('/', async (req, res) => {
         admission.totalFees = admission.feeManagement.summary.actualFees;
         admission.fees = admission.feeManagement.summary.actualFees;
         admission.discountType = admission.feeManagement.discountType;
+
+        // Validate that first installment is marked as paid
+        const firstInstallment = Array.isArray(admission.feeManagement.installments) 
+            ? admission.feeManagement.installments[0] 
+            : null;
+        if (!firstInstallment || String(firstInstallment.status || '').toLowerCase() !== 'paid') {
+            return res.status(400).json({ error: 'First installment must be marked as paid for admission to be created' });
+        }
 
         const creditedRevenue = getFirstInstallmentCreditedRevenue(admission.feeManagement);
         admission.creditedRevenue = creditedRevenue;

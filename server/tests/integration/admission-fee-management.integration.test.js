@@ -90,7 +90,28 @@ describe('Integration: admission fee-management', () => {
             admissionDate: '2026-08-01',
             admissionType: 'annual',
             revenue: 45000,
-            status: 'approved'
+            status: 'approved',
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'yearly',
+                duration: 1,
+                totalFees: 45000,
+                installmentDiscounts: {
+                    1: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 0,
+                        originalFees: 45000,
+                        calculatedFees: 45000,
+                        feesPaid: 45000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    }
+                ]
+            }
         });
 
         expect(response.status).toBe(200);
@@ -119,7 +140,61 @@ describe('Integration: admission fee-management', () => {
             revenue: 50000,
             courseId: seededCourseId.toString(),
             universityId: seededUniversityId.toString(),
-            status: 'approved'
+            status: 'approved',
+            feeManagement: {
+                admissionType: 'semester-wise',
+                discountType: 'semester',
+                duration: 2,
+                totalFees: 120000,
+                installmentDiscounts: {
+                    1: 0,
+                    2: 0,
+                    3: 0,
+                    4: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Semester 1',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 30000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Semester 2',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Semester 3',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 4,
+                        installmentName: 'Semester 4',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    }
+                ]
+            }
         });
 
         expect(response.status).toBe(200);
@@ -169,7 +244,39 @@ describe('Integration: admission fee-management', () => {
                     1: 10,
                     2: 20,
                     3: 0
-                }
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 27000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 20,
+                        originalFees: 30000,
+                        calculatedFees: 24000,
+                        feesPaid: 0,
+                        remainingFees: 24000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -182,6 +289,66 @@ describe('Integration: admission fee-management', () => {
         expect(saved.feeManagement.installments[0].calculatedFees).toBe(27000);
         expect(saved.feeManagement.installments[1].calculatedFees).toBe(24000);
         expect(saved.revenue).toBe(27000);
+    });
+
+    test('admission creation requires first installment to be marked as paid', async () => {
+        const response = await http.post('/api/admissions').send({
+            employeeId: 2001,
+            month: '2026-08',
+            customerName: 'First Installment Not Paid',
+            customerPhone: '8777777777',
+            customerEmail: 'notpaid@example.com',
+            admissionDate: '2026-08-02',
+            admissionType: 'yearly',
+            revenue: 90000,
+            status: 'pending',
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'yearly',
+                duration: 3,
+                actualFees: 90000,
+                installmentDiscounts: {
+                    1: 10,
+                    2: 20,
+                    3: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 20,
+                        originalFees: 30000,
+                        calculatedFees: 24000,
+                        feesPaid: 0,
+                        remainingFees: 24000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    }
+                ]
+            }
+        });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('First installment must be marked as paid for admission to be created');
     });
 
     test('editing a legacy admission preserves locked credited revenue after creation', async () => {
@@ -222,7 +389,39 @@ describe('Integration: admission fee-management', () => {
                     1: 30,
                     2: 20,
                     3: 0
-                }
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 30,
+                        originalFees: 30000,
+                        calculatedFees: 21000,
+                        feesPaid: 21000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 20,
+                        originalFees: 30000,
+                        calculatedFees: 24000,
+                        feesPaid: 0,
+                        remainingFees: 24000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -250,32 +449,45 @@ describe('Integration: admission fee-management', () => {
                 discountType: 'whole-fees',
                 duration: 3,
                 totalFees: 90000,
-                discountPercent: 10
+                discountPercent: 10,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 27000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
         expect(createResponse.status).toBe(200);
 
         const created = await db.collection('admissions').findOne({ customerName: 'Pending Recalc Guard' });
-        const installments = created.feeManagement.installments.map((item, index) => (
-            index === 0
-                ? {
-                    ...item,
-                    status: 'paid',
-                    feesPaid: item.calculatedFees,
-                    remainingFees: 0
-                }
-                : item
-        ));
-
-        await db.collection('admissions').updateOne(
-            { _id: created._id },
-            {
-                $set: {
-                    'feeManagement.installments': installments
-                }
-            }
-        );
 
         const editResponse = await http.put(`/api/admissions/${created._id.toString()}`).send({
             customerName: 'Pending Recalc Guard',
@@ -316,7 +528,39 @@ describe('Integration: admission fee-management', () => {
                 discountType: 'whole-fees',
                 duration: 3,
                 totalFees: 90000,
-                discountPercent: 10
+                discountPercent: 10,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 27000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -494,6 +738,125 @@ describe('Integration: admission fee-management', () => {
         expect(updated.feeManagement.installments[0].discountPercent).toBe(15);
     });
 
+    test('approved admission allows admin to undo paid installment with corrected discount', async () => {
+        const createResponse = await http.post('/api/admissions').send({
+            employeeId: 2001,
+            month: '2026-08',
+            customerName: 'Approved Undo Paid Guard',
+            customerPhone: '7555555555',
+            customerEmail: 'approved-undo@example.com',
+            admissionDate: '2026-08-06',
+            admissionType: 'yearly',
+            revenue: 90000,
+            status: 'approved',
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'yearly',
+                duration: 3,
+                totalFees: 90000,
+                installmentDiscounts: {
+                    1: 10,
+                    2: 20,
+                    3: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 27000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 20,
+                        originalFees: 30000,
+                        calculatedFees: 24000,
+                        feesPaid: 0,
+                        remainingFees: 24000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    }
+                ]
+            }
+        });
+
+        expect(createResponse.status).toBe(200);
+
+        const created = await db.collection('admissions').findOne({ customerName: 'Approved Undo Paid Guard' });
+        const editResponse = await http.put(`/api/admissions/${created._id.toString()}`).send({
+            customerName: 'Approved Undo Paid Guard',
+            customerPhone: '7555555555',
+            customerEmail: 'approved-undo@example.com',
+            admissionDate: '2026-08-06',
+            admissionType: 'yearly',
+            revenue: created.revenue,
+            reviewNote: 'Undo paid after approval with corrected discount',
+            feeManagement: {
+                discountType: 'yearly',
+                installmentDiscounts: {
+                    1: 15,
+                    2: 20,
+                    3: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 15,
+                        originalFees: 30000,
+                        calculatedFees: 25500,
+                        feesPaid: 0,
+                        remainingFees: 25500,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 20,
+                        originalFees: 30000,
+                        calculatedFees: 24000,
+                        feesPaid: 0,
+                        remainingFees: 24000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 0,
+                        remainingFees: 30000,
+                        status: 'pending'
+                    }
+                ]
+            }
+        });
+
+        expect(editResponse.status).toBe(200);
+
+        const updated = await db.collection('admissions').findOne({ _id: created._id });
+        expect(updated.status).toBe('approved');
+        expect(updated.feeManagement.installments[0].status).toBe('pending');
+        expect(updated.feeManagement.installments[0].feesPaid).toBe(0);
+        expect(updated.feeManagement.installments[0].remainingFees).toBe(updated.feeManagement.installments[0].calculatedFees);
+        expect(updated.feeManagement.installments[0].discountPercent).toBe(15);
+    });
+
     test('migration script backfills admissions missing feeManagement', async () => {
         await db.collection('admissions').insertOne({
             employeeId: 2001,
@@ -523,7 +886,26 @@ describe('Integration: admission fee-management', () => {
             admissionDate: '2026-11-01',
             admissionType: 'one-time',
             revenue: 1000,
-            status: 'pending'
+            status: 'pending',
+            feeManagement: {
+                admissionType: 'one-time',
+                discountType: 'whole-fees',
+                duration: 1,
+                totalFees: 1000,
+                discountPercent: 0,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Installment 1',
+                        discountPercent: 0,
+                        originalFees: 1000,
+                        calculatedFees: 1000,
+                        feesPaid: 1000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    }
+                ]
+            }
         });
 
         expect(create.status).toBe(200);
@@ -555,7 +937,26 @@ describe('Integration: admission fee-management', () => {
             admissionDate: '2026-12-01',
             admissionType: 'one-time',
             revenue: 500,
-            status: 'pending'
+            status: 'pending',
+            feeManagement: {
+                admissionType: 'one-time',
+                discountType: 'whole-fees',
+                duration: 1,
+                totalFees: 500,
+                discountPercent: 0,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Installment 1',
+                        discountPercent: 0,
+                        originalFees: 500,
+                        calculatedFees: 500,
+                        feesPaid: 500,
+                        remainingFees: 0,
+                        status: 'paid'
+                    }
+                ]
+            }
         });
 
         expect(create.status).toBe(200);
@@ -611,7 +1012,29 @@ describe('Integration: admission fee-management', () => {
                 discountType: 'semester',
                 duration: 2,
                 actualFees: 75000,
-                discountPercent: 10
+                discountPercent: 10,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 37500,
+                        calculatedFees: 33750,
+                        feesPaid: 33750,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 10,
+                        originalFees: 37500,
+                        calculatedFees: 33750,
+                        feesPaid: 0,
+                        remainingFees: 33750,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -634,7 +1057,49 @@ describe('Integration: admission fee-management', () => {
                 discountType: 'yearly',
                 duration: 2,
                 actualFees: 95000,
-                discountPercent: 10
+                discountPercent: 10,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Semester 1',
+                        discountPercent: 10,
+                        originalFees: 23750,
+                        calculatedFees: 21375,
+                        feesPaid: 21375,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Semester 2',
+                        discountPercent: 10,
+                        originalFees: 23750,
+                        calculatedFees: 21375,
+                        feesPaid: 0,
+                        remainingFees: 21375,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Semester 3',
+                        discountPercent: 10,
+                        originalFees: 23750,
+                        calculatedFees: 21375,
+                        feesPaid: 0,
+                        remainingFees: 21375,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 4,
+                        installmentName: 'Semester 4',
+                        discountPercent: 10,
+                        originalFees: 23750,
+                        calculatedFees: 21375,
+                        feesPaid: 0,
+                        remainingFees: 21375,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -657,7 +1122,29 @@ describe('Integration: admission fee-management', () => {
                 discountType: 'whole-fees',
                 duration: 2,
                 actualFees: 72000,
-                discountPercent: 0
+                discountPercent: 0,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 0,
+                        originalFees: 36000,
+                        calculatedFees: 36000,
+                        feesPaid: 36000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 0,
+                        originalFees: 36000,
+                        calculatedFees: 36000,
+                        feesPaid: 0,
+                        remainingFees: 36000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 

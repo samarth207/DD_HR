@@ -211,7 +211,72 @@ describe('Integration: course master APIs', () => {
             courseId: String(course._id),
             universityId,
             courseDuration: 5,
-            courseTotalFees: 450000
+            courseTotalFees: 450000,
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'yearly',
+                duration: 5,
+                totalFees: 450000,
+                installmentDiscounts: {
+                    1: 0,
+                    2: 0,
+                    3: 0,
+                    4: 0,
+                    5: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 0,
+                        originalFees: 90000,
+                        calculatedFees: 90000,
+                        feesPaid: 90000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 0,
+                        originalFees: 90000,
+                        calculatedFees: 90000,
+                        feesPaid: 0,
+                        remainingFees: 90000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 90000,
+                        calculatedFees: 90000,
+                        feesPaid: 0,
+                        remainingFees: 90000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 4,
+                        installmentName: 'Year 4',
+                        discountPercent: 0,
+                        originalFees: 90000,
+                        calculatedFees: 90000,
+                        feesPaid: 0,
+                        remainingFees: 90000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 5,
+                        installmentName: 'Year 5',
+                        discountPercent: 0,
+                        originalFees: 90000,
+                        calculatedFees: 90000,
+                        feesPaid: 0,
+                        remainingFees: 90000,
+                        status: 'pending'
+                    }
+                ]
+            }
         });
 
         expect(response.status).toBe(200);

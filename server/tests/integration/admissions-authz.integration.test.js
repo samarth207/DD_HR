@@ -74,7 +74,26 @@ describe('Integration: admissions authentication and authorization', () => {
                 admissionDate: '2026-11-11',
                 admissionType: 'one-time',
                 revenue: 2000,
-                status: 'pending'
+                status: 'pending',
+                feeManagement: {
+                    admissionType: 'one-time',
+                    discountType: 'whole-fees',
+                    duration: 1,
+                    totalFees: 2000,
+                    discountPercent: 0,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Installment 1',
+                            discountPercent: 0,
+                            originalFees: 2000,
+                            calculatedFees: 2000,
+                            feesPaid: 2000,
+                            remainingFees: 0,
+                            status: 'paid'
+                        }
+                    ]
+                }
             });
 
         expect(create.status).toBe(200);
@@ -117,7 +136,26 @@ describe('Integration: admissions authentication and authorization', () => {
                 admissionDate: '2026-11-12',
                 admissionType: 'one-time',
                 revenue: 1500,
-                status: 'pending'
+                status: 'pending',
+                feeManagement: {
+                    admissionType: 'one-time',
+                    discountType: 'whole-fees',
+                    duration: 1,
+                    totalFees: 1500,
+                    discountPercent: 0,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Installment 1',
+                            discountPercent: 0,
+                            originalFees: 1500,
+                            calculatedFees: 1500,
+                            feesPaid: 1500,
+                            remainingFees: 0,
+                            status: 'paid'
+                        }
+                    ]
+                }
             });
 
         const employeeOwn = await db.collection('admissions').findOne({ customerName: 'Employee Own Record' });
@@ -155,7 +193,26 @@ describe('Integration: admissions authentication and authorization', () => {
                 admissionDate: '2026-11-13',
                 admissionType: 'one-time',
                 revenue: 1200,
-                status: 'approved'
+                status: 'approved',
+                feeManagement: {
+                    admissionType: 'one-time',
+                    discountType: 'whole-fees',
+                    duration: 1,
+                    totalFees: 1200,
+                    discountPercent: 0,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Installment 1',
+                            discountPercent: 0,
+                            originalFees: 1200,
+                            calculatedFees: 1200,
+                            feesPaid: 1200,
+                            remainingFees: 0,
+                            status: 'paid'
+                        }
+                    ]
+                }
             });
 
         expect(getRes.status).toBe(200);
@@ -196,7 +253,26 @@ describe('Integration: admissions authentication and authorization', () => {
                 admissionDate: '2026-12-01',
                 admissionType: 'one-time',
                 revenue: 500,
-                status: 'pending'
+                status: 'pending',
+                feeManagement: {
+                    admissionType: 'one-time',
+                    discountType: 'whole-fees',
+                    duration: 1,
+                    totalFees: 500,
+                    discountPercent: 0,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Installment 1',
+                            discountPercent: 0,
+                            originalFees: 500,
+                            calculatedFees: 500,
+                            feesPaid: 500,
+                            remainingFees: 0,
+                            status: 'paid'
+                        }
+                    ]
+                }
             });
 
         expect(create.status).toBe(200);

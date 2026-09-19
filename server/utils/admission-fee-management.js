@@ -190,8 +190,15 @@ function deriveDiscountPercent({
     wholeDiscountPercent,
     discountMap,
     installment,
-    existingInstallment
+    existingInstallment,
+    respectExplicitDiscount
 }) {
+    // If respectExplicitDiscount is true and the existing installment has an explicitly set discountPercent, respect it
+    // This allows admins to correct mistakes by explicitly setting the discount in installments array
+    if (respectExplicitDiscount && existingInstallment && existingInstallment.discountPercent !== undefined && existingInstallment.discountPercent !== null) {
+        return clampDiscountPercent(existingInstallment.discountPercent);
+    }
+
     if (discountType === DISCOUNT_TYPE.WHOLE_FEES) {
         return wholeDiscountPercent;
     }
@@ -361,7 +368,8 @@ function calculateFeeManagement(input = {}, context = {}) {
             wholeDiscountPercent,
             discountMap,
             installment: fallback,
-            existingInstallment: existing
+            existingInstallment: existing,
+            respectExplicitDiscount: input.respectExplicitDiscount || false
         });
 
         const pending = recalculatePendingInstallment({

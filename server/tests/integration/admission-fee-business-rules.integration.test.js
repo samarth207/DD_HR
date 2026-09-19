@@ -113,7 +113,39 @@ describe('Integration: admission fee business rules', () => {
                 discountType: 'whole-fees',
                 duration: 3,
                 totalFees: 150000,
-                discountPercent: 10
+                discountPercent: 10,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 50000,
+                        calculatedFees: 45000,
+                        feesPaid: 45000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 10,
+                        originalFees: 50000,
+                        calculatedFees: 45000,
+                        feesPaid: 0,
+                        remainingFees: 45000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 10,
+                        originalFees: 50000,
+                        calculatedFees: 45000,
+                        feesPaid: 0,
+                        remainingFees: 45000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -143,7 +175,49 @@ describe('Integration: admission fee business rules', () => {
                 discountType: 'semester',
                 duration: 2,
                 totalFees: 120000,
-                installmentDiscounts: { 1: 0, 2: 5, 3: 10, 4: 15 }
+                installmentDiscounts: { 1: 0, 2: 5, 3: 10, 4: 15 },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Semester 1',
+                        discountPercent: 0,
+                        originalFees: 30000,
+                        calculatedFees: 30000,
+                        feesPaid: 30000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Semester 2',
+                        discountPercent: 5,
+                        originalFees: 30000,
+                        calculatedFees: 28500,
+                        feesPaid: 0,
+                        remainingFees: 28500,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Semester 3',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 4,
+                        installmentName: 'Semester 4',
+                        discountPercent: 15,
+                        originalFees: 30000,
+                        calculatedFees: 25500,
+                        feesPaid: 0,
+                        remainingFees: 25500,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -152,7 +226,8 @@ describe('Integration: admission fee business rules', () => {
         const saved = await db.collection('admissions').findOne({ customerName: 'Valid Semester Discount' });
         expect(saved.feeManagement.installments).toHaveLength(4);
         expect(saved.feeManagement.summary.totalDiscount).toBeGreaterThan(0);
-        expect(saved.feeManagement.summary.outstandingFees).toBe(saved.feeManagement.summary.totalFeesPayable);
+        // Since first installment is paid, outstanding should be less than total payable
+        expect(saved.feeManagement.summary.outstandingFees).toBeLessThan(saved.feeManagement.summary.totalFeesPayable);
     });
 
     test('api validation: invalid admissionType-discountType combinations are rejected', async () => {
@@ -165,7 +240,19 @@ describe('Integration: admission fee business rules', () => {
                     discountType: 'yearly',
                     duration: 1,
                     totalFees: 20000,
-                    discountPercent: 10
+                    discountPercent: 10,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Installment 1',
+                            discountPercent: 10,
+                            originalFees: 20000,
+                            calculatedFees: 18000,
+                            feesPaid: 18000,
+                            remainingFees: 0,
+                            status: 'paid'
+                        }
+                    ]
                 }
             },
             {
@@ -176,7 +263,29 @@ describe('Integration: admission fee business rules', () => {
                     discountType: 'semester',
                     duration: 2,
                     totalFees: 60000,
-                    discountPercent: 10
+                    discountPercent: 10,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Year 1',
+                            discountPercent: 10,
+                            originalFees: 30000,
+                            calculatedFees: 27000,
+                            feesPaid: 27000,
+                            remainingFees: 0,
+                            status: 'paid'
+                        },
+                        {
+                            installmentNumber: 2,
+                            installmentName: 'Year 2',
+                            discountPercent: 10,
+                            originalFees: 30000,
+                            calculatedFees: 27000,
+                            feesPaid: 0,
+                            remainingFees: 27000,
+                            status: 'pending'
+                        }
+                    ]
                 }
             },
             {
@@ -187,7 +296,49 @@ describe('Integration: admission fee business rules', () => {
                     discountType: 'yearly',
                     duration: 2,
                     totalFees: 60000,
-                    discountPercent: 10
+                    discountPercent: 10,
+                    installments: [
+                        {
+                            installmentNumber: 1,
+                            installmentName: 'Semester 1',
+                            discountPercent: 10,
+                            originalFees: 15000,
+                            calculatedFees: 13500,
+                            feesPaid: 13500,
+                            remainingFees: 0,
+                            status: 'paid'
+                        },
+                        {
+                            installmentNumber: 2,
+                            installmentName: 'Semester 2',
+                            discountPercent: 10,
+                            originalFees: 15000,
+                            calculatedFees: 13500,
+                            feesPaid: 0,
+                            remainingFees: 13500,
+                            status: 'pending'
+                        },
+                        {
+                            installmentNumber: 3,
+                            installmentName: 'Semester 3',
+                            discountPercent: 10,
+                            originalFees: 15000,
+                            calculatedFees: 13500,
+                            feesPaid: 0,
+                            remainingFees: 13500,
+                            status: 'pending'
+                        },
+                        {
+                            installmentNumber: 4,
+                            installmentName: 'Semester 4',
+                            discountPercent: 10,
+                            originalFees: 15000,
+                            calculatedFees: 13500,
+                            feesPaid: 0,
+                            remainingFees: 13500,
+                            status: 'pending'
+                        }
+                    ]
                 }
             }
         ];
@@ -240,7 +391,39 @@ describe('Integration: admission fee business rules', () => {
                 discountType: 'whole-fees',
                 duration: 3,
                 totalFees: 90000,
-                discountPercent: 10
+                discountPercent: 10,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 27000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 10,
+                        originalFees: 30000,
+                        calculatedFees: 27000,
+                        feesPaid: 0,
+                        remainingFees: 27000,
+                        status: 'pending'
+                    }
+                ]
             }
         });
 
@@ -248,17 +431,6 @@ describe('Integration: admission fee business rules', () => {
         const created = await db.collection('admissions').findOne({ customerName: 'Edit Pending Paid Lock' });
 
         const originalFirst = created.feeManagement.installments[0].calculatedFees;
-
-        const withPaid = created.feeManagement.installments.map((item, index) => (
-            index === 0
-                ? { ...item, status: 'paid', feesPaid: item.calculatedFees, remainingFees: 0 }
-                : item
-        ));
-
-        await db.collection('admissions').updateOne(
-            { _id: created._id },
-            { $set: { 'feeManagement.installments': withPaid } }
-        );
 
         const edit = await http.put(`/api/admissions/${created._id.toString()}`).send({
             customerName: 'Edit Pending Paid Lock',
@@ -279,7 +451,7 @@ describe('Integration: admission fee business rules', () => {
         const updated = await db.collection('admissions').findOne({ _id: created._id });
         expect(updated.feeManagement.installments[0].status).toBe('paid');
         expect(updated.feeManagement.installments[0].calculatedFees).toBe(originalFirst);
-        expect(updated.feeManagement.installments[1].calculatedFees).toBeLessThan(withPaid[1].calculatedFees);
+        expect(updated.feeManagement.installments[1].calculatedFees).toBeLessThan(originalFirst);
     });
 
     test('api validation: edit rejects invalid discount type combination', async () => {
@@ -335,7 +507,46 @@ describe('Integration: admission fee business rules', () => {
             revenue: 50000,
             courseId: String(courseYearlyId),
             courseDuration: 0,
-            status: 'pending'
+            status: 'pending',
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'whole-fees',
+                duration: 3,
+                totalFees: 50000,
+                discountPercent: 0,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 0,
+                        originalFees: 16667,
+                        calculatedFees: 16667,
+                        feesPaid: 16667,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 0,
+                        originalFees: 16667,
+                        calculatedFees: 16667,
+                        feesPaid: 0,
+                        remainingFees: 16667,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 16666,
+                        calculatedFees: 16666,
+                        feesPaid: 0,
+                        remainingFees: 16666,
+                        status: 'pending'
+                    }
+                ]
+            }
         });
         expect(badDuration.status).toBe(400);
 
@@ -361,7 +572,46 @@ describe('Integration: admission fee business rules', () => {
             revenue: 50000,
             courseId: String(courseYearlyId),
             universityId: String(anotherUniversityId),
-            status: 'pending'
+            status: 'pending',
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'whole-fees',
+                duration: 3,
+                totalFees: 50000,
+                discountPercent: 0,
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 0,
+                        originalFees: 16667,
+                        calculatedFees: 16667,
+                        feesPaid: 16667,
+                        remainingFees: 0,
+                        status: 'paid'
+                    },
+                    {
+                        installmentNumber: 2,
+                        installmentName: 'Year 2',
+                        discountPercent: 0,
+                        originalFees: 16667,
+                        calculatedFees: 16667,
+                        feesPaid: 0,
+                        remainingFees: 16667,
+                        status: 'pending'
+                    },
+                    {
+                        installmentNumber: 3,
+                        installmentName: 'Year 3',
+                        discountPercent: 0,
+                        originalFees: 16666,
+                        calculatedFees: 16666,
+                        feesPaid: 0,
+                        remainingFees: 16666,
+                        status: 'pending'
+                    }
+                ]
+            }
         });
 
         expect(mismatch.status).toBe(400);
@@ -378,7 +628,28 @@ describe('Integration: admission fee business rules', () => {
             admissionDate: '2027-01-02',
             admissionType: 'annual',
             revenue: 47000,
-            status: 'approved'
+            status: 'approved',
+            feeManagement: {
+                admissionType: 'yearly',
+                discountType: 'yearly',
+                duration: 1,
+                totalFees: 47000,
+                installmentDiscounts: {
+                    1: 0
+                },
+                installments: [
+                    {
+                        installmentNumber: 1,
+                        installmentName: 'Year 1',
+                        discountPercent: 0,
+                        originalFees: 47000,
+                        calculatedFees: 47000,
+                        feesPaid: 47000,
+                        remainingFees: 0,
+                        status: 'paid'
+                    }
+                ]
+            }
         });
 
         expect(response.status).toBe(200);
