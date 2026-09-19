@@ -158,6 +158,168 @@
             }
         }
 
+        .employee-admission-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .employee-admission-grid .span-2 { grid-column: span 2; }
+        .employee-admission-grid .span-4 { grid-column: 1 / -1; }
+
+        .employee-admission-flow {
+            margin-top: 10px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            background: var(--surface2);
+        }
+        .employee-admission-flow-title {
+            margin: 0 0 10px;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .employee-flow-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .live-calc-panel {
+            margin-top: 10px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            overflow: hidden;
+        }
+        .live-calc-head {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .live-calc-title {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .live-calc-note {
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .live-validation {
+            margin: 10px 12px 0;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #9f1239;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 12px;
+            display: none;
+        }
+        .live-calc-summary {
+            padding: 10px 12px;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .live-calc-kpi {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .live-calc-kpi .lbl {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+        .live-calc-kpi .val {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .live-calc-table-wrap {
+            max-height: 220px;
+            overflow: auto;
+        }
+        .live-calc-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .live-calc-table th,
+        .live-calc-table td {
+            padding: 7px 9px;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            white-space: nowrap;
+        }
+        .live-calc-table th {
+            background: var(--surface2);
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            font-size: 10px;
+        }
+        .installment-discount-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .installment-discount-input {
+            width: 90px;
+            padding: 7px 8px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            text-align: right;
+        }
+        .field-note {
+            font-size: 10px;
+            color: var(--muted);
+            margin-top: 5px;
+        }
+        .flow-readonly {
+            background: #f8fafc !important;
+            border-style: dashed !important;
+        }
+        .edit-fee-action-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .edit-fee-action-btn.primary { background: #dcfce7; color: #166534; }
+        .edit-fee-action-btn.secondary { background: #e2e8f0; color: #334155; }
+
+        @media (max-width: 900px) {
+            .employee-admission-grid,
+            .employee-flow-grid,
+            .live-calc-summary {
+                grid-template-columns: 1fr;
+            }
+            .employee-admission-grid .span-2,
+            .employee-admission-grid .span-4 {
+                grid-column: 1 / -1;
+            }
+        }
+
         /* ── Table ── */
         .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -267,6 +429,50 @@
         }
         .notify-success { background: #dcfce7; border: 1px solid #bbf7d0; color: #16a34a; }
         .notify-error   { background: #fee2e2; border: 1px solid #fecaca; color: #dc2626; }
+
+        /* Global popup toasts */
+        .portal-toast-container {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 9999;
+            pointer-events: none;
+            max-width: min(92vw, 380px);
+        }
+        .portal-toast {
+            border-radius: 12px;
+            border: 1px solid transparent;
+            padding: 12px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.4;
+            box-shadow: 0 14px 34px rgba(2, 6, 23, 0.22);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            transition: opacity .18s ease, transform .18s ease;
+            pointer-events: auto;
+            backdrop-filter: blur(2px);
+        }
+        .portal-toast.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+        .portal-toast.success {
+            background: rgba(220, 252, 231, 0.98);
+            border-color: #86efac;
+            color: #166534;
+        }
+        .portal-toast.error {
+            background: rgba(254, 226, 226, 0.98);
+            border-color: #fca5a5;
+            color: #b91c1c;
+        }
 
         /* Loading */
         .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #e5e7eb; border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
@@ -828,59 +1034,61 @@
         <div class="card">
             <div class="card-title"><i class="fas fa-plus-circle"></i> Submit Sales Record</div>
             <form id="mySalesForm" onsubmit="submitMySalesRecord(event)">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Student Name</label>
-                        <input id="mySalesCustomerName" required placeholder="Full name" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                    </div>
-                    <div class="sales-pair-grid">
-                        <div>
-                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Primary No (Reg. One)</label>
-                            <input id="mySalesCustomerPhone" required placeholder="e.g., 9876543210" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                        </div>
-                        <div>
-                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Number</label>
-                            <input id="mySalesAlternatePhone" required placeholder="e.g., 9123456780" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                        </div>
-                    </div>
-                    <div class="sales-pair-grid">
-                        <div>
-                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Primary Email (Reg. One)</label>
-                            <input id="mySalesCustomerEmail" type="email" required placeholder="primary@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                        </div>
-                        <div>
-                            <label style="font-size:12px;color:var(--muted);font-weight:700;">Alternate Email</label>
-                            <input id="mySalesAlternateEmail" type="email" required placeholder="alternate@example.com" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                        </div>
-                    </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Course</label>
-                        <input id="mySalesCourse" required placeholder="e.g., B.Tech CSE" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                    </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Admission Date</label>
-                        <input id="mySalesDate" type="date" required style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                    </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Type</label>
-                        <select id="mySalesType" required style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                            <option value="">Select type...</option>
-                            <option value="one-time">One-Time</option>
-                            <option value="semester">Semester</option>
-                            <option value="annual">Annual</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">Revenue (₹)</label>
-                        <input id="mySalesRevenue" required inputmode="numeric" placeholder="e.g., 25000" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
-                    </div>
-                    <div style="grid-column:1 / -1;">
-                        <label style="font-size:12px;color:var(--muted);font-weight:700;">University / Institute</label>
-                        <input id="mySalesUniversity" required placeholder="e.g., Delhi University" style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);">
+                <div class="employee-admission-grid">
+                    <div class="form-group"><label for="mySalesCustomerName">Student Name *</label><input id="mySalesCustomerName" required placeholder="Full name"></div>
+                    <div class="form-group"><label for="mySalesCustomerPhone">Phone Number *</label><input id="mySalesCustomerPhone" required placeholder="e.g., 9876543210"></div>
+                    <div class="form-group"><label for="mySalesCustomerEmail">Email *</label><input id="mySalesCustomerEmail" type="email" required placeholder="student@example.com"></div>
+                    <div class="form-group"><label for="mySalesDate">Admission Date *</label><input id="mySalesDate" type="date" required></div>
+                </div>
+
+                <div class="employee-admission-flow">
+                    <p class="employee-admission-flow-title">Admission Generation Flow</p>
+                    <div class="employee-flow-grid">
+                        <div class="form-group"><label for="mySalesUniversity">University *</label><select id="mySalesUniversity" required><option value="">Select university...</option></select></div>
+                        <div class="form-group"><label for="mySalesCourse">Course *</label><select id="mySalesCourse" required disabled><option value="">Select course...</option></select></div>
+                        <div class="form-group"><label for="mySalesDuration">Duration</label><input id="mySalesDuration" class="flow-readonly" readonly><input id="mySalesDurationRaw" type="hidden"><div class="field-note">Years are used to build yearly or semester installment schedules.</div></div>
+                        <div class="form-group"><label for="mySalesTotalFees">Total Fees (₹)</label><input id="mySalesTotalFees" class="flow-readonly" readonly><input id="mySalesTotalFeesRaw" type="hidden"></div>
+                        <div class="form-group"><label for="mySalesType">Admission Type *</label><select id="mySalesType" required><option value="">Select type...</option><option value="one-time">One-Time</option><option value="yearly">Yearly</option><option value="semester-wise">Semester-Wise</option></select></div>
+                        <div class="form-group"><label for="mySalesDiscountType">Discount Type *</label><select id="mySalesDiscountType" required><option value="">Select discount type...</option><option value="whole-fees">Whole Fees</option><option value="yearly">Yearly</option><option value="semester">Semester</option></select></div>
+                        <div class="form-group" id="mySalesDiscountPercentGroup"><label for="mySalesDiscountPercent">Discount (%)</label><input id="mySalesDiscountPercent" type="number" min="0" max="100" step="0.01" value="0"></div>
                     </div>
                 </div>
+
+                <div class="live-calc-panel" id="mySalesLiveCalcPanel">
+                    <div class="live-calc-head">
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><p class="live-calc-title">Live Fee Calculation</p><span class="live-calc-note">Updates instantly as fields change</span></div>
+                        <button type="button" class="edit-fee-action-btn primary" onclick="markAllMySalesInstallmentsPaid()">Mark All Paid</button>
+                    </div>
+                    <div class="live-validation" id="mySalesCalcValidation"></div>
+                    <div class="live-calc-summary">
+                        <div class="live-calc-kpi"><div class="lbl">Actual Fees</div><div class="val" id="mySalesActualFees">₹0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Total Discount</div><div class="val" id="mySalesTotalDiscount">₹0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Payable</div><div class="val" id="mySalesPayableFees">₹0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Credited Revenue</div><div class="val" id="mySalesCreditedRevenue">₹0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Outstanding</div><div class="val" id="mySalesOutstandingFees">₹0</div></div>
+                    </div>
+                    <div class="live-calc-table-wrap">
+                        <table class="live-calc-table">
+                            <thead><tr><th>#</th><th>Installment</th><th>Original</th><th>Discount</th><th>Payable</th><th>Status</th><th>Action</th></tr></thead>
+                            <tbody id="mySalesInstallmentBody"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:10px;">Select university and course to preview</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="employee-admission-grid" style="margin-top:10px;">
+                    <div class="form-group span-2"><label for="mySalesRevenue">Revenue Credit (Auto)</label><input id="mySalesRevenue" class="flow-readonly" readonly placeholder="Auto from first installment"></div>
+                </div>
+
+                <details style="margin-top:8px;">
+                    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);">More details (optional)</summary>
+                    <div class="employee-admission-grid" style="margin-top:10px;">
+                        <div class="form-group span-2"><label for="mySalesAlternatePhone">Alternate Number</label><input id="mySalesAlternatePhone" placeholder="e.g., 9123456780"></div>
+                        <div class="form-group span-2"><label for="mySalesAlternateEmail">Alternate Email</label><input id="mySalesAlternateEmail" type="email" placeholder="alternate@example.com"></div>
+                    </div>
+                </details>
+
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap;">
-                    <small style="color:var(--muted);"><i class="fas fa-info-circle"></i> Your submission is marked as <strong>Pending</strong> until admin approves it.</small>
+                    <small style="color:var(--muted);"><i class="fas fa-info-circle"></i> Your submission is marked as <strong>Pending</strong> until admin approves it. Revenue credit is locked to first installment payable.</small>
                     <button id="mySalesSubmitBtn" type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit for Approval</button>
                 </div>
             </form>
@@ -1024,6 +1232,7 @@
 <script src="config.js"></script>
 <script src="auth-guard.js"></script>
 <script src="salary-cycle-utils.js"></script>
+<script src="sales-fee-calculator.js"></script>
 <script src="employee-portal-script.js"></script>
 
 <!-- ══════════════════════════════════════════════

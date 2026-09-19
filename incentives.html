@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -349,6 +349,9 @@
                 <a href="sales-tracking.html" class="nav-item "><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
                 <a href="admissions-analytics.html" class="nav-item "><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
                 <a href="incentives.html" class="nav-item active"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+                <div class="nav-section-title">Master Management</div>
+                <a href="universities.html" class="nav-item "><i class="fas fa-university"></i><span>Universities</span></a>
+                <a href="courses.html" class="nav-item "><i class="fas fa-book"></i><span>Courses</span></a>
                 <div class="nav-section-title">Leave</div>
                 <a href="leave-management.html" class="nav-item "><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
                 <a href="leave-calendar.html" class="nav-item "><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
@@ -403,7 +406,7 @@
                 <div class="summary-cards">
                     <div class="summary-card">
                         <h4>Total Monthly Incentives</h4>
-                        <div class="amount" id="totalMonthlyIncentives">₹0</div>
+                        <div class="amount" id="totalMonthlyIncentives">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Pending Approvals</h4>
@@ -411,7 +414,7 @@
                     </div>
                     <div class="summary-card">
                         <h4>Paid This Month</h4>
-                        <div class="amount" id="paidThisMonth">₹0</div>
+                        <div class="amount" id="paidThisMonth">?0</div>
                     </div>
                 </div>
 
@@ -435,11 +438,11 @@
                 <div class="summary-cards">
                     <div class="summary-card">
                         <h4>Total Daily Rewards</h4>
-                        <div class="amount" id="totalDailyBonuses">₹0</div>
+                        <div class="amount" id="totalDailyBonuses">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Today's Rewards</h4>
-                        <div class="amount" id="todayBonuses">₹0</div>
+                        <div class="amount" id="todayBonuses">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>One-Time Admissions</h4>
@@ -474,19 +477,19 @@
                 <div class="summary-cards">
                     <div class="summary-card">
                         <h4>Total Gross Salary</h4>
-                        <div class="amount" id="totalGrossSalary">₹0</div>
+                        <div class="amount" id="totalGrossSalary">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Total Incentives</h4>
-                        <div class="amount" id="totalIncentivesAdded">₹0</div>
+                        <div class="amount" id="totalIncentivesAdded">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Total Deductions</h4>
-                        <div class="amount" id="totalDeductions">₹0</div>
+                        <div class="amount" id="totalDeductions">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Net Payable</h4>
-                        <div class="amount" id="totalNetPayable">₹0</div>
+                        <div class="amount" id="totalNetPayable">?0</div>
                     </div>
                 </div>
 
@@ -514,15 +517,15 @@
                 <div class="summary-cards">
                     <div class="summary-card">
                         <h4>Total Advances Given</h4>
-                        <div class="amount" id="totalAdvances">₹0</div>
+                        <div class="amount" id="totalAdvances">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>This Month Advances</h4>
-                        <div class="amount" id="thisMonthAdvances">₹0</div>
+                        <div class="amount" id="thisMonthAdvances">?0</div>
                     </div>
                     <div class="summary-card">
                         <h4>Outstanding Advances</h4>
-                        <div class="amount" id="outstandingAdvances">₹0</div>
+                        <div class="amount" id="outstandingAdvances">?0</div>
                     </div>
                 </div>
 
@@ -537,7 +540,7 @@
                 </div>
             </div>
 
-            <!-- ── Incentive Payments Tab ── -->
+            <!-- -- Incentive Payments Tab -- -->
             <div id="incentive-payments-tab" class="tab-content">
                 <style>
                     .ip-summary-cards { display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px; }
@@ -571,8 +574,8 @@
                     <div class="ip-kpi"><h4>Total Records</h4><div class="val" id="ipKpiTotal">0</div></div>
                     <div class="ip-kpi amber"><h4>Pending</h4><div class="val" id="ipKpiPending">0</div></div>
                     <div class="ip-kpi green"><h4>Paid</h4><div class="val" id="ipKpiPaid">0</div></div>
-                    <div class="ip-kpi green"><h4>Total Amount Paid</h4><div class="val" id="ipKpiAmtPaid">₹0</div></div>
-                    <div class="ip-kpi amber"><h4>Amount Pending</h4><div class="val" id="ipKpiAmtPending">₹0</div></div>
+                    <div class="ip-kpi green"><h4>Total Amount Paid</h4><div class="val" id="ipKpiAmtPaid">?0</div></div>
+                    <div class="ip-kpi amber"><h4>Amount Pending</h4><div class="val" id="ipKpiAmtPending">?0</div></div>
                 </div>
 
                 <!-- Actions & Filter -->
@@ -612,7 +615,7 @@
                                 </tr>
                             </thead>
                             <tbody id="ipTableBody">
-                                <tr><td colspan="10" class="ip-empty"><i class="fas fa-coins"></i>Loading…</td></tr>
+                                <tr><td colspan="10" class="ip-empty"><i class="fas fa-coins"></i>Loading�</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -647,12 +650,12 @@
             </div>
         </main>
 
-        <!-- ── Add Incentive Payment Modal ── -->
+        <!-- -- Add Incentive Payment Modal -- -->
         <div id="ipModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;" class="modal" onclick="if(event.target===this)closeIPModal()">
             <div style="background:#fff;border-radius:16px;width:min(560px,96vw);padding:32px;box-shadow:0 24px 64px rgba(0,0,0,.18);max-height:90vh;overflow-y:auto;">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
                     <h2 style="font-size:18px;font-weight:800;color:#1a202c;margin:0;">Add Incentive Payment Record</h2>
-                    <button onclick="closeIPModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">×</button>
+                    <button onclick="closeIPModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">�</button>
                 </div>
                 <form id="ipForm" onsubmit="submitIPRecord(event)">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -667,7 +670,7 @@
                             <input type="number" id="ipAdmCount" min="0" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
                         </div>
                         <div>
-                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Incentive Amount (₹) <span style="color:#ef4444;">*</span></label>
+                            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">Incentive Amount (?) <span style="color:#ef4444;">*</span></label>
                             <input type="number" id="ipAmount" required min="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;box-sizing:border-box;">
                         </div>
                         <div>
@@ -687,12 +690,12 @@
             </div>
         </div>
 
-        <!-- ── Mark as Paid Modal ── -->
+        <!-- -- Mark as Paid Modal -- -->
         <div id="ipPaidModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;" onclick="if(event.target===this)closeIPPaidModal()">
             <div style="background:#fff;border-radius:16px;width:min(480px,96vw);padding:32px;box-shadow:0 24px 64px rgba(0,0,0,.18);">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
                     <h2 style="font-size:18px;font-weight:800;color:#1a202c;margin:0;"><i class="fas fa-check-circle" style="color:#10b981;margin-right:8px;"></i>Mark as Paid</h2>
-                    <button onclick="closeIPPaidModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">×</button>
+                    <button onclick="closeIPPaidModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1;">�</button>
                 </div>
                 <p style="font-size:14px;color:#4b5563;margin:0 0 20px;">Confirm marking this incentive as paid. An email will be sent to the employee automatically.</p>
                 <div id="ipPaidRecordInfo" style="background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:20px;font-size:13.5px;color:#374151;"></div>
@@ -739,30 +742,30 @@
                     </div>
 
                     <div class="config-section">
-                        <h3><i class="fas fa-graduation-cap"></i> Admission Type Rewards (₹)</h3>
+                        <h3><i class="fas fa-graduation-cap"></i> Admission Type Rewards (?)</h3>
                         <p style="font-size: 13px; color: #718096; margin-bottom: 15px;">
-                            <i class="fas fa-info-circle"></i> Set the reward amounts and effective date for each admission type. <strong>Note: Rewards are valid for 24 hours only and will reset to ₹0 after expiry.</strong>
+                            <i class="fas fa-info-circle"></i> Set the reward amounts and effective date for each admission type. <strong>Note: Rewards are valid for 24 hours only and will reset to ?0 after expiry.</strong>
                         </p>
                         <div class="config-grid" style="grid-template-columns: repeat(2, 1fr);">
                             <div class="config-item">
-                                <label>One-Time Payment Amount (₹)</label>
-                                <input type="text" id="rewardOneTime" inputmode="numeric" value="₹1,000" required>
+                                <label>One-Time Payment Amount (?)</label>
+                                <input type="text" id="rewardOneTime" inputmode="numeric" value="?1,000" required>
                             </div>
                             <div class="config-item">
                                 <label>Effective From (One-Time)</label>
                                 <input type="date" id="rewardOneTimeDate" required>
                             </div>
                             <div class="config-item">
-                                <label>Annual Plan Amount (₹)</label>
-                                <input type="text" id="rewardAnnual" inputmode="numeric" value="₹500" required>
+                                <label>Annual Plan Amount (?)</label>
+                                <input type="text" id="rewardAnnual" inputmode="numeric" value="?500" required>
                             </div>
                             <div class="config-item">
                                 <label>Effective From (Annual)</label>
                                 <input type="date" id="rewardAnnualDate" required>
                             </div>
                             <div class="config-item">
-                                <label>Semester Plan Amount (₹)</label>
-                                <input type="text" id="rewardSemester" inputmode="numeric" value="₹300" required>
+                                <label>Semester Plan Amount (?)</label>
+                                <input type="text" id="rewardSemester" inputmode="numeric" value="?300" required>
                             </div>
                             <div class="config-item">
                                 <label>Effective From (Semester)</label>
@@ -822,7 +825,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="bonusAmount">Total Reward Amount (₹) *</label>
+                        <label for="bonusAmount">Total Reward Amount (?) *</label>
                         <input type="number" id="bonusAmount" min="0" required readonly style="font-weight: 700; font-size: 18px; background: #e2e8f0; cursor: not-allowed;">
                     </div>
 
@@ -865,8 +868,8 @@
                             <input type="date" id="advanceDate" required>
                         </div>
                         <div class="form-group">
-                            <label for="advanceAmount">Advance Amount (₹) *</label>
-                            <input type="text" id="advanceAmount" inputmode="numeric" required placeholder="e.g., ₹5,000">
+                            <label for="advanceAmount">Advance Amount (?) *</label>
+                            <input type="text" id="advanceAmount" inputmode="numeric" required placeholder="e.g., ?5,000">
                         </div>
                     </div>
                     <div class="form-group">

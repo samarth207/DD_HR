@@ -22,7 +22,16 @@ function requireAdmin(req, res, next) {
     return next();
 }
 
+function requireManagement(req, res, next) {
+    if (!req.auth) return res.status(401).json({ error: 'Unauthorized' });
+    if (req.auth.role !== 'admin' && req.auth.role !== 'hr') {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+    return next();
+}
+
 module.exports = {
     requireAuth,
-    requireAdmin
+    requireAdmin,
+    requireManagement
 };

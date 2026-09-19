@@ -77,6 +77,52 @@ async function createIndexes() {
         
         await db.collection('holidays').createIndex({ id: 1 }, { unique: true });
         await db.collection('holidays').createIndex({ date: 1 });
+
+        await db.collection('universities').createIndex(
+            { normalizedName: 1 },
+            { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
+        );
+        await db.collection('universities').createIndex(
+            { code: 1 },
+            { unique: true, partialFilterExpression: { isDeleted: { $ne: true }, code: { $type: 'string', $ne: '' } } }
+        );
+        await db.collection('universities').createIndex({ isDeleted: 1, isActive: 1, name: 1 });
+        await db.collection('universities').createIndex({ name: 'text', code: 'text', country: 'text', state: 'text', city: 'text' });
+
+        await db.collection('courses').createIndex(
+            { universityId: 1, normalizedName: 1 },
+            { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
+        );
+        await db.collection('courses').createIndex(
+            { code: 1 },
+            { unique: true, partialFilterExpression: { isDeleted: { $ne: true }, code: { $type: 'string', $ne: '' } } }
+        );
+        await db.collection('courses').createIndex({ universityId: 1, isDeleted: 1, isActive: 1, name: 1 });
+        await db.collection('courses').createIndex({ name: 'text', code: 'text', universityName: 'text' });
+
+        await db.collection('admissions').createIndex({ employeeId: 1, month: 1 });
+        await db.collection('admissions').createIndex({ employeeId: 1, month: 1, status: 1, admissionDate: -1 });
+        await db.collection('admissions').createIndex({ status: 1, month: 1, employeeId: 1, admissionDate: -1 });
+        await db.collection('admissions').createIndex({ status: 1, month: 1 });
+        await db.collection('admissions').createIndex({ status: 1, admissionDate: -1 });
+        await db.collection('admissions').createIndex({ admissionType: 1, month: 1 });
+        await db.collection('admissions').createIndex({ courseId: 1, universityId: 1, month: 1 });
+        await db.collection('admissions').createIndex({ 'feeManagement.legacyMigration.requiresReview': 1, month: 1 });
+        await db.collection('admissions').createIndex({ 'feeManagement.summary.outstandingFees': 1, status: 1 });
+        await db.collection('admissions').createIndex({
+            status: 1,
+            month: 1,
+            'feeManagement.installments.status': 1,
+            'feeManagement.summary.outstandingFees': 1
+        });
+        await db.collection('admissions').createIndex(
+            { 'feeManagementMigration.migrationId': 1 },
+            { sparse: true }
+        );
+        await db.collection('admissions').createIndex(
+            { 'feeManagementMigration.rollbackAvailable': 1 },
+            { sparse: true }
+        );
         
         await db.collection('sales').createIndex({ month: 1, employeeId: 1 });
         
@@ -94,6 +140,9 @@ async function createIndexes() {
         await db.collection('monthly_incentives').createIndex({ paid: 1, key: 1 });
         await db.collection('daily_bonuses').createIndex({ employeeId: 1, date: 1 });
         await db.collection('salary_advances').createIndex({ employeeId: 1, status: 1, repaid: 1, date: 1 });
+        await db.collection('incentive_payments').createIndex({ employeeId: 1, incentiveMonth: 1, status: 1 });
+        await db.collection('incentive_payments').createIndex({ status: 1, employeeId: 1, incentiveMonth: 1, createdAt: -1 });
+        await db.collection('email_logs').createIndex({ type: 1, sentAt: -1 });
         
         console.log('✅ Database indexes created');
     } catch (error) {

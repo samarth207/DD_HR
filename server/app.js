@@ -3,7 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const { isDBConnected } = require('./db');
-const { requireAuth } = require('./middleware/authz');
+const { requireAuth, requireManagement } = require('./middleware/authz');
 
 function createApp(options = {}) {
     const {
@@ -27,6 +27,8 @@ function createApp(options = {}) {
     const salesRoutes = require('./routes/sales');
     const incentivesRoutes = require('./routes/incentives');
     const accountRoutes = require('./routes/account');
+    const universitiesRoutes = require('./routes/universities');
+    const coursesRoutes = require('./routes/courses');
     const attendanceRoutes = require('./routes/attendance');
     const salaryPaymentsRoutes = require('./routes/salaryPayments');
     const adminRoutes = require('./routes/admin');
@@ -37,6 +39,9 @@ function createApp(options = {}) {
     if (includeAdmissionsRoutes) admissionsRoutes = require('./routes/admissions');
     const testingRoutes = require('./routes/testing');
     const authGuard = includeAuthRoutes ? requireAuth : (req, res, next) => next();
+    const admissionsGuard = includeAuthRoutes
+        ? [requireAuth]
+        : [];
 
     app.use('/api/employees', authGuard, employeesRoutes);
     app.use('/api/leaves', leavesRoutes);
@@ -46,11 +51,13 @@ function createApp(options = {}) {
     app.use('/api/incentives', authGuard, incentivesRoutes);
     app.use('/api/account', accountRoutes);
     app.use('/api/attendance', authGuard, attendanceRoutes);
+    app.use('/api/universities', authGuard, universitiesRoutes);
+    app.use('/api/courses', authGuard, coursesRoutes);
     app.use('/api/salary-payments', authGuard, salaryPaymentsRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/analytics', analyticsRoutes);
     if (authRoutes) app.use('/api/auth', authRoutes);
-    if (admissionsRoutes) app.use('/api/admissions', admissionsRoutes);
+    if (admissionsRoutes) app.use('/api/admissions', ...admissionsGuard, admissionsRoutes);
     app.use('/api/testing', testingRoutes);
 
     app.get('/api/health', (req, res) => {

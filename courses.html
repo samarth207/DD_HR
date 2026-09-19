@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DD HR portal - Course Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .page-tools {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .table-container { overflow-x: auto; }
+
+        .employees-table { min-width: 980px; }
+
+        .form-error {
+            color: #b91c1c;
+            font-size: 12px;
+            padding: 0 24px 0;
+            min-height: 20px;
+        }
+
+        .money-input { text-align: right; }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .header-right,
+            .page-tools {
+                width: 100%;
+            }
+
+            .header-right .btn,
+            .page-tools .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .filter-group { width: 100%; flex-direction: column; }
+            .filter-group select { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"><img src="assets/dd-hr-logo.png" alt="DD HR portal logo" style="width:100%;height:100%;object-fit:contain;"></div>
+                <div><h2 style="margin:0;">DD HR portal</h2><small>Management System</small></div>
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-section-title">Main Menu</div>
+                <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="employees.html" class="nav-item"><i class="fas fa-users"></i><span>Employees</span></a>
+                <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+                <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+                <a href="admissions-analytics.html" class="nav-item"><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
+                <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+                <div class="nav-section-title">Master Management</div>
+                <a href="universities.html" class="nav-item"><i class="fas fa-university"></i><span>Universities</span></a>
+                <a href="courses.html" class="nav-item active"><i class="fas fa-book"></i><span>Courses</span></a>
+                <div class="nav-section-title">Leave</div>
+                <a href="leave-management.html" class="nav-item"><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
+                <a href="leave-calendar.html" class="nav-item"><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
+                <a href="holidays.html" class="nav-item"><i class="fas fa-calendar-day"></i><span>Holidays</span></a>
+                <div class="nav-section-title">Tools</div>
+                <a href="chatbot.html" class="nav-item"><i class="fas fa-robot"></i><span>AI Assistant</span></a>
+                <a href="account.html" class="nav-item"><i class="fas fa-user-circle"></i><span>Account Details</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-avatar">HR</div>
+                    <div class="sidebar-user-info"><p>HR Admin</p><span>Administrator</span></div>
+                </div>
+                <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h1>Course Management</h1>
+                    <p class="subtitle">Manage course masters by university with duration and fee controls</p>
+                </div>
+                <div class="header-right page-tools">
+                    <button class="btn btn-primary" onclick="openCourseModal()">
+                        <i class="fas fa-plus"></i> Add Course
+                    </button>
+                </div>
+            </header>
+
+            <div class="search-section">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="courseSearchInput" placeholder="Search by course name" oninput="onCourseSearch()">
+                </div>
+                <div class="filter-group">
+                    <select id="courseUniversityFilter" onchange="onCourseUniversityFilter()">
+                        <option value="">All Universities</option>
+                    </select>
+                    <select id="courseStatusFilter" onchange="onCourseStatusFilter()">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="deleted">Deleted</option>
+                        <option value="all">All</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="employees-table">
+                    <thead>
+                        <tr>
+                            <th>Course Name</th>
+                            <th>University</th>
+                            <th>Duration (Years)</th>
+                            <th>Total Fees</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="coursesTableBody">
+                        <tr><td colspan="6" class="no-data">Loading courses...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <div id="courseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="courseModalTitle">Add Course</h2>
+                <button class="close-btn" onclick="closeCourseModal()">&times;</button>
+            </div>
+            <form id="courseForm" onsubmit="saveCourse(event)">
+                <div class="form-grid" style="grid-template-columns:repeat(2,1fr);">
+                    <div class="form-group">
+                        <label for="courseUniversity">University *</label>
+                        <select id="courseUniversity" required>
+                            <option value="">Select University</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="courseName">Course Name *</label>
+                        <input type="text" id="courseName" maxlength="160" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="courseDuration">Duration (Years) *</label>
+                        <input type="number" id="courseDuration" min="1" step="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="courseTotalFees">Total Fees *</label>
+                        <input type="number" id="courseTotalFees" min="1" step="0.01" class="money-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="courseIsActive">Status *</label>
+                        <select id="courseIsActive" required>
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="courseFormError" class="form-error"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeCourseModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Course</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="auth-guard.js"></script>
+    <script>requireManagement();</script>
+    <script src="script.js"></script>
+    <script src="master-data-validation.js"></script>
+    <script src="courses-script.js"></script>
+</body>
+</html>

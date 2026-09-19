@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -307,7 +307,7 @@
         .modal-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 24px 30px;
+            padding: 18px 24px;
             border-radius: 20px 20px 0 0;
             display: flex;
             justify-content: space-between;
@@ -316,7 +316,7 @@
 
         .modal-header h2 {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
         }
 
@@ -342,29 +342,29 @@
         }
 
         .modal form {
-            padding: 30px;
+            padding: 22px 24px 24px;
         }
 
         .form-group {
-            margin-bottom: 24px;
+            margin-bottom: 16px;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             font-weight: 600;
             color: #2d3748;
-            font-size: 14px;
+            font-size: 12px;
         }
 
         .form-group input,
         .form-group textarea,
         .form-group select {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 12px;
             border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 14px;
+            border-radius: 8px;
+            font-size: 13px;
             transition: all 0.3s ease;
             font-family: inherit;
         }
@@ -381,6 +381,106 @@
             background: #f7fafc;
             color: #4a5568;
             cursor: not-allowed;
+        }
+
+        .live-calc-panel {
+            margin-top: 14px;
+            border: 1px solid #d9e3f5;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            overflow: hidden;
+        }
+
+        .live-calc-head {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e5ecfa;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .live-calc-title {
+            margin: 0;
+            font-size: 12px;
+            font-weight: 700;
+            color: #1e3a8a;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .live-calc-note {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        .live-validation {
+            margin: 10px 14px 0;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #9f1239;
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .live-calc-summary {
+            padding: 12px 14px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            border-bottom: 1px solid #e5ecfa;
+        }
+
+        .live-calc-kpi {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .live-calc-kpi .lbl {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+
+        .live-calc-kpi .val {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .live-calc-table-wrap {
+            max-height: 210px;
+            overflow: auto;
+        }
+
+        .live-calc-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .live-calc-table th,
+        .live-calc-table td {
+            padding: 8px 10px;
+            font-size: 12px;
+            border-bottom: 1px solid #edf2fb;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .live-calc-table th {
+            background: #f8faff;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 10px;
         }
 
         .modal-footer {
@@ -423,7 +523,184 @@
         .form-row {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
+            gap: 14px;
+        }
+
+        .admission-flow {
+            margin-top: 10px;
+            border: 1px solid #dbe3f3;
+            background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+            border-radius: 14px;
+            padding: 12px;
+        }
+
+        .admission-flow-title {
+            margin: 0 0 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #1e3a8a;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .admission-flow-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        #salesModal .modal-content {
+            max-width: 1080px;
+            width: min(1080px, 96vw);
+        }
+
+        .admission-form .form-group {
+            margin-bottom: 12px;
+        }
+
+        #salesForm .compact-grid,
+        #editAdmissionForm .compact-grid {
+            gap: 10px;
+        }
+
+        .admission-form .compact-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            align-items: end;
+        }
+
+        .admission-form .compact-grid-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .admission-form details {
+            margin-top: 8px;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 8px 10px;
+            background: #f9fafb;
+        }
+
+        .admission-form details summary {
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+            color: #4b5563;
+            user-select: none;
+        }
+
+        .field-note {
+            margin-top: 5px;
+            font-size: 10px;
+            color: #64748b;
+        }
+
+        .installment-discount-input {
+            width: 92px;
+            padding: 7px 9px;
+            border: 1.5px solid #dbe3f3;
+            border-radius: 8px;
+            font-size: 12px;
+            text-align: right;
+            background: #fff;
+        }
+
+        .installment-discount-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+        }
+
+        .installment-discount-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-start;
+        }
+
+        .edit-fee-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .edit-fee-action-btn {
+            border: none;
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .edit-fee-action-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .edit-fee-action-btn.primary {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .edit-fee-action-btn.secondary {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .edit-fee-action-btn.warn {
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        .form-group input.flow-readonly {
+            background: #f8fafc;
+            border-style: dashed;
+        }
+
+        @media (max-width: 900px) {
+            .modal-content {
+                width: min(96vw, 720px);
+            }
+
+            .admission-flow-grid,
+            .form-row,
+            .admission-form .compact-grid,
+            .admission-form .compact-grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .live-calc-summary {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (min-width: 901px) {
+            .live-calc-summary {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .modal form {
+                padding: 18px;
+            }
+
+            .modal-header {
+                padding: 18px;
+            }
+
+            .modal-footer {
+                padding: 0 18px 18px;
+                flex-direction: column-reverse;
+            }
+
+            .modal-footer .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -443,6 +720,9 @@
                 <a href="sales-tracking.html" class="nav-item active"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
                 <a href="admissions-analytics.html" class="nav-item "><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
                 <a href="incentives.html" class="nav-item "><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+                <div class="nav-section-title">Master Management</div>
+                <a href="universities.html" class="nav-item "><i class="fas fa-university"></i><span>Universities</span></a>
+                <a href="courses.html" class="nav-item "><i class="fas fa-book"></i><span>Courses</span></a>
                 <div class="nav-section-title">Leave</div>
                 <a href="leave-management.html" class="nav-item "><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
                 <a href="leave-calendar.html" class="nav-item "><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
@@ -482,7 +762,7 @@
             <div class="sales-overview">
                 <div class="sales-stat-item">
                     <div class="sales-stat-icon green"><i class="fas fa-rupee-sign"></i></div>
-                    <div><div class="sales-stat-val" id="totalRevenueAchieved">₹0</div><div class="sales-stat-lbl">Revenue Achieved</div></div>
+                    <div><div class="sales-stat-val" id="totalRevenueAchieved">?0</div><div class="sales-stat-lbl">Revenue Achieved</div></div>
                 </div>
                 <div class="sales-stat-item">
                     <div class="sales-stat-icon pink"><i class="fas fa-shopping-cart"></i></div>
@@ -546,12 +826,13 @@
                 <h2>Record Admission</h2>
                 <button class="close-btn" onclick="closeSalesModal()">&times;</button>
             </div>
-            <form id="salesForm" onsubmit="recordSales(event)">
+            <form id="salesForm" class="admission-form" onsubmit="recordSales(event)">
                 <div class="form-group">
                     <label>Employee</label>
                     <input type="text" id="salesEmployeeName" readonly>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;">
+
+                <div class="compact-grid">
                     <div class="form-group">
                         <label for="admCustomerName">Student Name *</label>
                         <input type="text" id="admCustomerName" required placeholder="Full name">
@@ -568,23 +849,103 @@
                         <label for="admDate">Admission Date *</label>
                         <input type="date" id="admDate" required>
                     </div>
-                    <div class="form-group">
-                        <label for="admType">Type of Admission *</label>
-                        <select id="admType" required>
-                            <option value="">Select type…</option>
-                            <option value="one-time">One-Time</option>
-                            <option value="semester">Semester</option>
-                            <option value="annual">Annual</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="admRevenue">Revenue (₹) *</label>
-                        <input type="text" id="admRevenue" inputmode="numeric" required placeholder="e.g., ₹25,000">
+                </div>
+
+                <div class="admission-flow">
+                    <p class="admission-flow-title">Admission Generation Flow</p>
+                    <div class="admission-flow-grid">
+                        <div class="form-group">
+                            <label for="admUniversitySelect">University *</label>
+                            <select id="admUniversitySelect" required>
+                                <option value="">Select university...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="admCourseSelect">Course *</label>
+                            <select id="admCourseSelect" required disabled>
+                                <option value="">Select course...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="admDuration">Duration</label>
+                            <input type="number" id="admDuration" min="1" step="0.01" placeholder="Auto from selected course">
+                            <div class="field-note">Years are used to build yearly or semester installment schedules.</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="admTotalFees">Total Fees (?)</label>
+                            <input type="number" id="admTotalFees" min="0" step="0.01" placeholder="Auto from selected course">
+                        </div>
+                        <div class="form-group">
+                            <label for="admType">Admission Type *</label>
+                            <select id="admType" required>
+                                <option value="">Select type...</option>
+                                <option value="one-time">One-Time</option>
+                                <option value="yearly">Yearly</option>
+                                <option value="semester-wise">Semester-Wise</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="admDiscountType">Discount Type *</label>
+                            <select id="admDiscountType" required>
+                                <option value="">Select discount type...</option>
+                                <option value="whole-fees">Whole Fees</option>
+                                <option value="yearly">Yearly</option>
+                                <option value="semester">Semester</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="admDiscountPercentGroup">
+                            <label for="admDiscountPercent">Discount (%)</label>
+                            <input type="number" id="admDiscountPercent" min="0" max="100" step="0.01" value="0" placeholder="0-100">
+                        </div>
                     </div>
                 </div>
-                <details style="margin-top:4px;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;background:#f9fafb;">
-                    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:#4b5563;user-select:none;">More details (optional)</summary>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;align-items:end;margin-top:10px;">
+
+                <div class="live-calc-panel" id="admLiveCalcPanel">
+                    <div class="live-calc-head">
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <p class="live-calc-title">Live Fee Calculation</p>
+                            <span class="live-calc-note">Updates instantly as fields change</span>
+                        </div>
+                        <button type="button" class="edit-fee-action-btn primary" onclick="markAllLiveInstallmentsPaid()">Mark All Paid</button>
+                    </div>
+                    <div class="live-calc-summary">
+                        <div class="live-calc-kpi"><div class="lbl">Actual Fees</div><div class="val" id="liveActualFees">?0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Total Discount</div><div class="val" id="liveTotalDiscount">?0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Payable</div><div class="val" id="livePayableFees">?0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Paid</div><div class="val" id="livePaidFees">?0</div></div>
+                        <div class="live-calc-kpi"><div class="lbl">Outstanding</div><div class="val" id="liveOutstandingFees">?0</div></div>
+                    </div>
+                    <div class="live-validation" id="liveCalcValidation"></div>
+                    <div class="live-calc-table-wrap">
+                        <table class="live-calc-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Installment</th>
+                                    <th>Original</th>
+                                    <th>Discount</th>
+                                    <th>Payable</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="liveInstallmentBody">
+                                <tr><td colspan="7" style="text-align:center;color:#64748b;padding:10px;">Select university and course to preview</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="compact-grid compact-grid-2">
+                    <div class="form-group">
+                        <label for="admRevenuePreview">Revenue (Auto)</label>
+                        <input type="text" id="admRevenuePreview" class="flow-readonly" readonly placeholder="Auto from total fees">
+                    </div>
+                </div>
+
+                <details>
+                    <summary>More details (optional)</summary>
+                    <div class="compact-grid compact-grid-2" style="margin-top:10px;">
                         <div class="form-group">
                             <label for="admAlternatePhone">Alternate Number</label>
                             <input type="tel" id="admAlternatePhone" placeholder="e.g., 9123456780">
@@ -593,18 +954,11 @@
                             <label for="admAlternateEmail">Alternate Email</label>
                             <input type="email" id="admAlternateEmail" placeholder="alternate@example.com">
                         </div>
-                        <div class="form-group">
-                            <label for="admCourse">Course</label>
-                            <input type="text" id="admCourse" placeholder="e.g., B.Tech CSE">
-                        </div>
-                        <div class="form-group" style="grid-column:1 / -1;">
-                            <label for="admUniversity">University / Institute Name</label>
-                            <input type="text" id="admUniversity" placeholder="e.g., Delhi University">
-                        </div>
                     </div>
                 </details>
                 <input type="hidden" id="salesEmployeeId">
                 <input type="hidden" id="salesMonth">
+                <input type="hidden" id="admRevenue">
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeSalesModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Record Admission</button>
@@ -651,10 +1005,10 @@
     </div>
 
     <div id="editAdmissionModal" class="modal" style="display:none;">
-        <div class="modal-content" style="max-width:760px;width:min(760px,94vw);">
+        <div class="modal-content" style="max-width:1120px;width:min(1120px,96vw);">
             <div class="modal-header">
                 <div>
-                    <h2 style="margin:0;font-size:22px;">Edit Lead Details</h2>
+                    <h2 style="margin:0;font-size:22px;">Edit Admission Record</h2>
                     <p id="editAdmissionSubtitle" style="margin:4px 0 0;font-size:13px;opacity:.85;"></p>
                 </div>
                 <button class="close-btn" onclick="closeEditAdmissionModal()">&times;</button>
@@ -699,12 +1053,14 @@
                         <label for="editAdmType">Type *</label>
                         <select id="editAdmType" required>
                             <option value="one-time">One-Time</option>
-                            <option value="semester">Semester</option>
-                            <option value="annual">Annual</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="semester-wise">Semester-Wise</option>
+                            <option value="annual">Annual (Legacy)</option>
+                            <option value="semester">Semester (Legacy)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="editAdmRevenue">Revenue (₹) *</label>
+                        <label for="editAdmRevenue">Revenue (?) *</label>
                         <input type="text" id="editAdmRevenue" inputmode="numeric" required>
                     </div>
                 </div>
@@ -716,6 +1072,82 @@
                     <label for="editAdmReviewNote">Review Note</label>
                     <textarea id="editAdmReviewNote" rows="3" placeholder="Optional note visible to the employee, e.g. corrected phone and revenue after review"></textarea>
                 </div>
+
+                <div class="admission-flow">
+                    <p class="admission-flow-title">Fee Plan</p>
+                    <div class="compact-grid compact-grid-2" style="margin-bottom:12px;">
+                        <div class="form-group">
+                            <label for="editAdmDuration">Duration (Auto)</label>
+                            <input type="text" id="editAdmDuration" class="flow-readonly" readonly placeholder="Auto from saved fee plan">
+                            <input type="hidden" id="editAdmDurationRaw">
+                        </div>
+                        <div class="form-group">
+                            <label for="editAdmTotalFees">Actual Fees (Auto)</label>
+                            <input type="text" id="editAdmTotalFees" class="flow-readonly" readonly placeholder="Auto from saved fee plan">
+                            <input type="hidden" id="editAdmTotalFeesRaw">
+                        </div>
+                    </div>
+                    <div class="compact-grid compact-grid-2">
+                        <div class="form-group">
+                            <label for="editAdmDiscountType">Discount Type *</label>
+                            <select id="editAdmDiscountType" required>
+                                <option value="">Select discount type...</option>
+                                <option value="whole-fees">Whole Fees</option>
+                                <option value="yearly">Yearly</option>
+                                <option value="semester">Semester</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="editAdmDiscountPercentGroup">
+                            <label for="editAdmDiscountPercent">Discount (%)</label>
+                            <input type="number" id="editAdmDiscountPercent" min="0" max="100" step="0.01" value="0" placeholder="0-100">
+                        </div>
+                    </div>
+
+                    <div class="live-calc-panel" id="editLiveCalcPanel">
+                        <div class="live-calc-head">
+                            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                <p class="live-calc-title">Live Fee Calculation</p>
+                                <span class="live-calc-note">Updates instantly as fee-plan values change</span>
+                            </div>
+                            <button type="button" class="edit-fee-action-btn primary" onclick="markAllEditInstallmentsPaid()">Mark All Paid</button>
+                        </div>
+                        <div class="live-validation" id="editLiveCalcValidation"></div>
+                        <div class="live-calc-summary">
+                            <div class="live-calc-kpi"><div class="lbl">Actual Fees</div><div class="val" id="editLiveActualFees">₹0</div></div>
+                            <div class="live-calc-kpi"><div class="lbl">Total Discount</div><div class="val" id="editLiveTotalDiscount">₹0</div></div>
+                            <div class="live-calc-kpi"><div class="lbl">Payable</div><div class="val" id="editLivePayableFees">₹0</div></div>
+                            <div class="live-calc-kpi"><div class="lbl">Paid</div><div class="val" id="editLivePaidFees">₹0</div></div>
+                            <div class="live-calc-kpi"><div class="lbl">Outstanding</div><div class="val" id="editLiveOutstandingFees">₹0</div></div>
+                        </div>
+                        <div class="live-calc-table-wrap">
+                            <table class="live-calc-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Installment</th>
+                                        <th>Original</th>
+                                        <th>Discount</th>
+                                        <th>Payable</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="editLiveInstallmentBody">
+                                    <tr><td colspan="7" style="text-align:center;color:#64748b;padding:10px;">Edit the fee plan to preview installments</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="compact-grid compact-grid-2" style="margin-top:12px;">
+                        <div class="form-group">
+                            <label for="editAdmRevenuePreview">Revenue Preview</label>
+                            <input type="text" id="editAdmRevenuePreview" class="flow-readonly" readonly placeholder="Auto from payable amount">
+                        </div>
+                        <div class="field-note" style="align-self:end;">Revenue stays aligned with the calculated payable amount when the fee plan changes.</div>
+                    </div>
+                </div>
+
                 <input type="hidden" id="editAdmissionId">
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeEditAdmissionModal()">Cancel</button>
@@ -729,6 +1161,7 @@
     <script src="auth-guard.js"></script>
     <script>requireAdmin();</script>
     <script src="script.js"></script>
+    <script src="sales-fee-calculator.js"></script>
     <script src="sales-script.js"></script>
 </body>
 </html>

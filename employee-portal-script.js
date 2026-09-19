@@ -195,10 +195,46 @@ async function apiFetch(path, opts = {}) {
 }
 
 function notify(sectionId, msg, type = 'success') {
+    showPortalToast(msg, type);
+
     const el = document.getElementById(sectionId);
     if (!el) return;
     el.innerHTML = `<div class="notify-bar notify-${type}"><i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>${msg}</div>`;
     setTimeout(() => { el.innerHTML = ''; }, 4000);
+}
+
+function ensurePortalToastContainer() {
+    let container = document.getElementById('portalToastContainer');
+    if (container) return container;
+
+    container = document.createElement('div');
+    container.id = 'portalToastContainer';
+    container.className = 'portal-toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'false');
+    document.body.appendChild(container);
+    return container;
+}
+
+function showPortalToast(msg, type = 'success') {
+    if (!msg) return;
+
+    const normalizedType = type === 'error' ? 'error' : 'success';
+    const container = ensurePortalToastContainer();
+    const toast = document.createElement('div');
+    toast.className = `portal-toast ${normalizedType}`;
+    toast.innerHTML = `<i class="fas fa-${normalizedType === 'success' ? 'check-circle' : 'exclamation-circle'}"></i><span>${msg}</span>`;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    const dismiss = () => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 220);
+    };
+
+    setTimeout(dismiss, 4200);
+    toast.addEventListener('click', dismiss);
 }
 
 // â”€â”€ Tab navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -697,6 +733,344 @@ function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
 
 // â”€â”€ Sales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+let mySalesUniversities = [];
+let mySalesCoursesByUniversity = new Map();
+let mySalesHandlersInitialized = false;
+let mySalesLiveCalculation = null;
+let mySalesInstallmentStatuses = {};
+let mySalesInstallmentDiscounts = {};
+
+function parseSalesNumber(value) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+}
+
+function normalizeSalesAdmissionType(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (raw === 'annual') return 'yearly';
+    if (raw === 'semester') return 'semester-wise';
+    return raw;
+}
+
+function getSalesRecommendedDiscountType(admissionType) {
+    const normalized = normalizeSalesAdmissionType(admissionType);
+    if (normalized === 'yearly') return 'yearly';
+    if (normalized === 'semester-wise') return 'semester';
+    return 'whole-fees';
+}
+
+function getAdmissionCreditedRevenue(admission) {
+    const raw = parseFloat(admission?.creditedRevenue ?? admission?.revenue);
+    return Number.isFinite(raw) ? raw : 0;
+}
+
+function getMySalesInstallmentStatus(installmentNumber) {
+    return mySalesInstallmentStatuses[Number(installmentNumber)] === 'paid' ? 'paid' : 'pending';
+}
+
+function getMySalesInstallmentDiscounts() {
+    const inputs = document.querySelectorAll('[data-my-installment-discount]');
+    if (!inputs.length) return {};
+
+    const discounts = {};
+    inputs.forEach((input) => {
+        const key = Number(input.getAttribute('data-my-installment-discount'));
+        if (!Number.isFinite(key) || key < 1) return;
+        discounts[key] = parseSalesNumber(input.value);
+    });
+    return discounts;
+}
+
+function getFirstInstallmentRevenue(calculation) {
+    const firstInstallment = Array.isArray(calculation?.installments) ? calculation.installments[0] : null;
+    const creditedRevenue = parseSalesNumber(firstInstallment?.calculatedFees);
+    if (creditedRevenue > 0) return creditedRevenue;
+    return parseSalesNumber(calculation?.summary?.totalFeesPayable);
+}
+
+function syncMySalesDiscountMode(discountType) {
+    const group = document.getElementById('mySalesDiscountPercentGroup');
+    if (!group) return;
+    group.style.display = (discountType === 'yearly' || discountType === 'semester') ? 'none' : '';
+}
+
+function resetMySalesCourseSnapshot() {
+    document.getElementById('mySalesCourse').value = '';
+    document.getElementById('mySalesCourse').disabled = true;
+    document.getElementById('mySalesCourse').innerHTML = '<option value="">Select course...</option>';
+    document.getElementById('mySalesDuration').value = '';
+    document.getElementById('mySalesDurationRaw').value = '';
+    document.getElementById('mySalesTotalFees').value = '';
+    document.getElementById('mySalesTotalFeesRaw').value = '';
+    document.getElementById('mySalesRevenue').value = '';
+    mySalesInstallmentStatuses = {};
+    mySalesInstallmentDiscounts = {};
+    renderMySalesLiveCalculation(null);
+}
+
+async function fetchMySalesUniversities() {
+    if (mySalesUniversities.length) return mySalesUniversities;
+    const payload = await apiFetch('/universities/dropdown?limit=100');
+    mySalesUniversities = Array.isArray(payload?.data) ? payload.data : [];
+    return mySalesUniversities;
+}
+
+async function fetchMySalesCourses(universityId) {
+    const key = String(universityId || '').trim();
+    if (!key) return [];
+    if (mySalesCoursesByUniversity.has(key)) return mySalesCoursesByUniversity.get(key);
+
+    const payload = await apiFetch(`/courses/dropdown?universityId=${encodeURIComponent(key)}&limit=200`);
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    mySalesCoursesByUniversity.set(key, rows);
+    return rows;
+}
+
+async function populateMySalesUniversityDropdown() {
+    const select = document.getElementById('mySalesUniversity');
+    select.innerHTML = '<option value="">Select university...</option>';
+
+    const rows = await fetchMySalesUniversities();
+    rows.forEach((row) => {
+        if (!row?._id) return;
+        const option = document.createElement('option');
+        option.value = String(row._id);
+        option.textContent = row.code ? `${row.name} (${row.code})` : row.name;
+        option.dataset.universityName = row.name || '';
+        select.appendChild(option);
+    });
+}
+
+async function populateMySalesCourseDropdown(universityId) {
+    const select = document.getElementById('mySalesCourse');
+    select.innerHTML = '<option value="">Select course...</option>';
+    select.disabled = true;
+
+    const key = String(universityId || '').trim();
+    if (!key) {
+        resetMySalesCourseSnapshot();
+        return;
+    }
+
+    const rows = await fetchMySalesCourses(key);
+    rows.forEach((row) => {
+        const option = document.createElement('option');
+        option.value = String(row._id);
+        option.textContent = row.code ? `${row.name} (${row.code})` : row.name;
+        option.dataset.courseName = row.name || '';
+        option.dataset.universityName = row.universityName || '';
+        option.dataset.duration = String(row.duration ?? '');
+        option.dataset.totalFees = String(row.totalFees ?? '');
+        select.appendChild(option);
+    });
+    select.disabled = rows.length === 0;
+}
+
+function setMySalesCourseSnapshot(courseOption) {
+    if (!courseOption || !courseOption.value) {
+        document.getElementById('mySalesDuration').value = '';
+        document.getElementById('mySalesDurationRaw').value = '';
+        document.getElementById('mySalesTotalFees').value = '';
+        document.getElementById('mySalesTotalFeesRaw').value = '';
+        document.getElementById('mySalesRevenue').value = '';
+        mySalesInstallmentStatuses = {};
+        mySalesInstallmentDiscounts = {};
+        renderMySalesLiveCalculation(null);
+        return;
+    }
+
+    const duration = parseSalesNumber(courseOption.dataset.duration);
+    const totalFees = parseSalesNumber(courseOption.dataset.totalFees);
+    document.getElementById('mySalesDuration').value = duration ? String(duration) : '';
+    document.getElementById('mySalesDurationRaw').value = duration ? String(duration) : '';
+    document.getElementById('mySalesTotalFees').value = totalFees ? fmtRupees(totalFees) : '';
+    document.getElementById('mySalesTotalFeesRaw').value = totalFees ? String(totalFees) : '';
+    mySalesInstallmentStatuses = {};
+    mySalesInstallmentDiscounts = {};
+    recalculateMySalesLiveFees();
+}
+
+function getMySalesLiveInputs() {
+    const admissionType = normalizeSalesAdmissionType(document.getElementById('mySalesType').value);
+    const discountType = String(document.getElementById('mySalesDiscountType').value || '').trim().toLowerCase();
+    const useInstallmentDiscounts = discountType === 'yearly' || discountType === 'semester';
+
+    return {
+        admissionType,
+        discountType,
+        discountPercent: useInstallmentDiscounts ? 0 : parseSalesNumber(document.getElementById('mySalesDiscountPercent').value),
+        duration: parseSalesNumber(document.getElementById('mySalesDurationRaw').value),
+        totalFees: parseSalesNumber(document.getElementById('mySalesTotalFeesRaw').value),
+        installmentDiscounts: useInstallmentDiscounts ? getMySalesInstallmentDiscounts() : undefined
+    };
+}
+
+function renderMySalesValidation(calculation) {
+    const box = document.getElementById('mySalesCalcValidation');
+    const errors = Array.isArray(calculation?.validation?.errors) ? calculation.validation.errors : [];
+    if (!errors.length) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+    box.style.display = 'block';
+    box.innerHTML = errors.map((err) => `<div>${err}</div>`).join('');
+}
+
+function renderMySalesLiveCalculation(calculation) {
+    const actualFees = document.getElementById('mySalesActualFees');
+    const totalDiscount = document.getElementById('mySalesTotalDiscount');
+    const payable = document.getElementById('mySalesPayableFees');
+    const credited = document.getElementById('mySalesCreditedRevenue');
+    const outstanding = document.getElementById('mySalesOutstandingFees');
+    const revenueInput = document.getElementById('mySalesRevenue');
+    const tableBody = document.getElementById('mySalesInstallmentBody');
+
+    const summary = calculation?.summary || {
+        actualFees: 0,
+        totalDiscount: 0,
+        totalFeesPayable: 0,
+        outstandingFees: 0
+    };
+    const creditedRevenue = getFirstInstallmentRevenue(calculation);
+
+    actualFees.textContent = fmtRupees(summary.actualFees || 0);
+    totalDiscount.textContent = fmtRupees(summary.totalDiscount || 0);
+    payable.textContent = fmtRupees(summary.totalFeesPayable || 0);
+    credited.textContent = fmtRupees(creditedRevenue || 0);
+    outstanding.textContent = fmtRupees(summary.outstandingFees || 0);
+    revenueInput.value = creditedRevenue ? fmtRupees(creditedRevenue) : '';
+
+    renderMySalesValidation(calculation);
+    syncMySalesDiscountMode(calculation?.discountType);
+
+    if (!calculation?.installments?.length) {
+        tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:10px;">Select university and course to preview</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = calculation.installments.map((item) => {
+        const status = getMySalesInstallmentStatus(item.installmentNumber);
+        const isPaid = status === 'paid';
+        const isInstallmentMode = calculation.discountType === 'yearly' || calculation.discountType === 'semester';
+        return `
+            <tr>
+                <td>${item.installmentNumber}</td>
+                <td>${item.installmentName}</td>
+                <td>${fmtRupees(item.originalFees)}</td>
+                <td>${isInstallmentMode ? `
+                    <div class="installment-discount-cell">
+                        <input type="number" class="installment-discount-input" data-my-installment-discount="${item.installmentNumber}" min="0" max="100" step="0.01" value="${parseSalesNumber(item.discountPercent)}" ${isPaid ? 'disabled' : ''} oninput="recalculateMySalesLiveFees()">
+                        <span style="font-size:11px;color:var(--muted);">%</span>
+                    </div>
+                ` : `${item.discountPercent}% (${fmtRupees(item.discountAmount)})`}</td>
+                <td><strong>${fmtRupees(item.calculatedFees)}</strong></td>
+                <td><span class="badge ${isPaid ? 'badge-green' : 'badge-amber'}" style="font-size:10px;">${isPaid ? 'Paid' : 'Pending'}</span></td>
+                <td>${isPaid
+                    ? `<button type="button" class="edit-fee-action-btn secondary" onclick="markMySalesInstallmentPending(${item.installmentNumber})">Undo</button>`
+                    : `<button type="button" class="edit-fee-action-btn primary" onclick="markMySalesInstallmentPaid(${item.installmentNumber})">Mark Paid</button>`}
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+function recalculateMySalesLiveFees() {
+    if (!window.SalesFeeCalculator || typeof window.SalesFeeCalculator.buildLiveFeeCalculation !== 'function') return;
+
+    mySalesInstallmentDiscounts = getMySalesInstallmentDiscounts();
+    const inputs = getMySalesLiveInputs();
+    mySalesLiveCalculation = window.SalesFeeCalculator.buildLiveFeeCalculation({
+        ...inputs,
+        installmentDiscounts: (inputs.discountType === 'yearly' || inputs.discountType === 'semester')
+            ? mySalesInstallmentDiscounts
+            : undefined
+    });
+    renderMySalesLiveCalculation(mySalesLiveCalculation);
+}
+
+function markMySalesInstallmentPaid(installmentNumber) {
+    mySalesInstallmentStatuses[Number(installmentNumber)] = 'paid';
+    renderMySalesLiveCalculation(mySalesLiveCalculation);
+}
+
+function markMySalesInstallmentPending(installmentNumber) {
+    mySalesInstallmentStatuses[Number(installmentNumber)] = 'pending';
+    renderMySalesLiveCalculation(mySalesLiveCalculation);
+}
+
+function markAllMySalesInstallmentsPaid() {
+    if (!mySalesLiveCalculation?.installments?.length) return;
+    mySalesLiveCalculation.installments.forEach((item) => {
+        mySalesInstallmentStatuses[item.installmentNumber] = 'paid';
+    });
+    renderMySalesLiveCalculation(mySalesLiveCalculation);
+}
+
+function buildMySalesInstallmentsPayload() {
+    if (!mySalesLiveCalculation?.installments?.length) return [];
+
+    return mySalesLiveCalculation.installments.map((item) => {
+        const status = getMySalesInstallmentStatus(item.installmentNumber);
+        const isPaid = status === 'paid';
+        return {
+            installmentNumber: item.installmentNumber,
+            installmentName: item.installmentName,
+            discountPercent: item.discountPercent,
+            originalFees: item.originalFees,
+            calculatedFees: item.calculatedFees,
+            remainingFees: isPaid ? 0 : item.calculatedFees,
+            feesPaid: isPaid ? item.calculatedFees : 0,
+            status
+        };
+    });
+}
+
+async function initializeMySalesForm() {
+    if (mySalesHandlersInitialized) return;
+
+    const universitySelect = document.getElementById('mySalesUniversity');
+    const courseSelect = document.getElementById('mySalesCourse');
+    const typeSelect = document.getElementById('mySalesType');
+    const discountTypeSelect = document.getElementById('mySalesDiscountType');
+    const discountPercentInput = document.getElementById('mySalesDiscountPercent');
+
+    universitySelect.addEventListener('change', async function() {
+        try {
+            await populateMySalesCourseDropdown(this.value);
+        } catch (error) {
+            notify('salesNotify', 'Failed to load courses for selected university.', 'error');
+        }
+    });
+
+    courseSelect.addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        setMySalesCourseSnapshot(selected);
+    });
+
+    typeSelect.addEventListener('change', function() {
+        discountTypeSelect.value = getSalesRecommendedDiscountType(this.value);
+        syncMySalesDiscountMode(discountTypeSelect.value);
+        recalculateMySalesLiveFees();
+    });
+
+    discountTypeSelect.addEventListener('change', function() {
+        syncMySalesDiscountMode(this.value);
+        recalculateMySalesLiveFees();
+    });
+
+    discountPercentInput.addEventListener('input', recalculateMySalesLiveFees);
+
+    try {
+        await populateMySalesUniversityDropdown();
+    } catch (error) {
+        notify('salesNotify', 'Failed to load university master data.', 'error');
+    }
+
+    mySalesHandlersInitialized = true;
+    syncMySalesDiscountMode(discountTypeSelect.value);
+    renderMySalesLiveCalculation(null);
+}
+
 function initSalesMonths() {
     const sel = document.getElementById('salesMonthFilter');
     sel.innerHTML = '';
@@ -743,7 +1117,7 @@ async function loadMySales() {
         const revTarget     = empSales.revenueTarget  || 0;
         // Source of truth for achieved values is approved admissions list.
         const salesAchieved = approvedAdmissions;
-        const revAchieved   = approvedAdmList.reduce((sum, a) => sum + (parseFloat(a.revenue) || 0), 0);
+        const revAchieved   = approvedAdmList.reduce((sum, a) => sum + getAdmissionCreditedRevenue(a), 0);
 
         // Monthly incentive — if already PAID use locked DB amount, else always recalculate live
         const monthlyKey     = `${month}_${EMP_ID}`;
@@ -846,7 +1220,7 @@ async function loadMySales() {
                                 <tbody>${slabRows || '<tr><td colspan="2" style="color:var(--muted);text-align:center;">No slabs configured</td></tr>'}</tbody>
                             </table>
                         </div>
-                        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><i class="fas fa-info-circle"></i> Incentive % is applied on monthly revenue achieved. Eligible when â‰¥ 100% of target is met.</div>
+                        <div style="font-size:11px;color:var(--muted);margin-top:8px;"><i class="fas fa-info-circle"></i> Incentive % is applied on monthly revenue achieved. Eligible when 100% of target is met.</div>
                         ${monthEndMotivation}
                     </div>
                     ${monthlyIncAmount > 0 ? `
@@ -885,8 +1259,20 @@ async function loadMySales() {
             return;
         }
 
-        const typeLabel = { 'one-time': 'One-Time', 'semester': 'Semester', 'annual': 'Annual' };
-        const typeBadge = { 'one-time': 'badge-blue', 'semester': 'badge-amber', 'annual': 'badge-green' };
+        const typeLabel = {
+            'one-time': 'One-Time',
+            yearly: 'Yearly',
+            'semester-wise': 'Semester-Wise',
+            semester: 'Semester (Legacy)',
+            annual: 'Annual (Legacy)'
+        };
+        const typeBadge = {
+            'one-time': 'badge-blue',
+            yearly: 'badge-green',
+            'semester-wise': 'badge-amber',
+            semester: 'badge-amber',
+            annual: 'badge-green'
+        };
 
         tbody.innerHTML = admList
             .sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate))
@@ -898,7 +1284,7 @@ async function loadMySales() {
                 <td style="color:var(--muted);font-size:12px;">${a.course || '—'}</td>
                 <td><span class="badge ${typeBadge[a.admissionType] || 'badge-blue'}" style="font-size:11px;">${typeLabel[a.admissionType] || a.admissionType || '—'}</span></td>
                 <td style="color:var(--muted);font-size:12px;">${a.universityName || '—'}</td>
-                <td style="color:var(--green);font-weight:700;">${fmtRupees(a.revenue || 0)}</td>
+                <td style="color:var(--green);font-weight:700;">${fmtRupees(getAdmissionCreditedRevenue(a))}</td>
                 <td>${(a.status || 'approved') === 'approved'
                     ? '<span class="badge badge-green" style="font-size:10px;">Approved</span>'
                     : ((a.status || 'pending') === 'rejected'
@@ -921,14 +1307,43 @@ async function submitMySalesRecord(event) {
     const customerEmail = document.getElementById('mySalesCustomerEmail').value.trim();
     const alternateCustomerPhone = document.getElementById('mySalesAlternatePhone').value.trim();
     const alternateCustomerEmail = document.getElementById('mySalesAlternateEmail').value.trim();
-    const course = document.getElementById('mySalesCourse').value.trim();
+    const universitySelect = document.getElementById('mySalesUniversity');
+    const courseSelect = document.getElementById('mySalesCourse');
+    const selectedUniversity = universitySelect.options[universitySelect.selectedIndex];
+    const selectedCourse = courseSelect.options[courseSelect.selectedIndex];
+    const universityId = universitySelect.value;
+    const courseId = courseSelect.value;
+    const course = selectedCourse?.dataset?.courseName || '';
+    const universityName = selectedUniversity?.dataset?.universityName || '';
     const admissionDate = document.getElementById('mySalesDate').value;
-    const admissionType = document.getElementById('mySalesType').value;
-    const revenueRaw = document.getElementById('mySalesRevenue').value;
-    const universityName = document.getElementById('mySalesUniversity').value.trim();
-    const revenue = parseFloat(String(revenueRaw).replace(/[^0-9.]/g, '')) || 0;
+    const admissionType = normalizeSalesAdmissionType(document.getElementById('mySalesType').value);
+    const discountType = String(document.getElementById('mySalesDiscountType').value || '').trim().toLowerCase();
+    const discountPercent = parseSalesNumber(document.getElementById('mySalesDiscountPercent').value);
+    const duration = parseSalesNumber(document.getElementById('mySalesDurationRaw').value);
+    const totalFees = parseSalesNumber(document.getElementById('mySalesTotalFeesRaw').value);
 
-    if (!customerName || !customerPhone || !customerEmail || !alternateCustomerPhone || !alternateCustomerEmail || !course || !admissionDate || !admissionType || !universityName || revenue <= 0) {
+    mySalesLiveCalculation = window.SalesFeeCalculator.buildLiveFeeCalculation({
+        admissionType,
+        discountType,
+        discountPercent: (discountType === 'yearly' || discountType === 'semester') ? 0 : discountPercent,
+        duration,
+        totalFees,
+        installmentDiscounts: (discountType === 'yearly' || discountType === 'semester')
+            ? getMySalesInstallmentDiscounts()
+            : undefined
+    });
+
+    const revenue = getFirstInstallmentRevenue(mySalesLiveCalculation);
+    const installments = buildMySalesInstallmentsPayload();
+
+    if (!mySalesLiveCalculation?.validation?.isValid) {
+        const firstError = mySalesLiveCalculation?.validation?.errors?.[0] || 'Please fix validation errors before submitting.';
+        notify('salesNotify', firstError, 'error');
+        renderMySalesLiveCalculation(mySalesLiveCalculation);
+        return;
+    }
+
+    if (!customerName || !customerPhone || !customerEmail || !courseId || !universityId || !admissionDate || !admissionType || !discountType || revenue <= 0) {
         notify('salesNotify', 'Please fill all required fields with valid values.', 'error');
         return;
     }
@@ -947,11 +1362,29 @@ async function submitMySalesRecord(event) {
                 customerEmail,
                 alternateCustomerPhone,
                 alternateCustomerEmail,
+                universityId,
+                courseId,
                 course,
                 universityName,
+                courseDuration: duration,
+                courseTotalFees: totalFees,
+                duration,
+                totalFees,
+                fees: totalFees,
                 admissionDate,
                 admissionType,
+                discountType,
+                discountPercent,
                 revenue,
+                feeManagement: {
+                    admissionType,
+                    discountType,
+                    duration,
+                    totalFees,
+                    discountPercent: (discountType === 'yearly' || discountType === 'semester') ? 0 : discountPercent,
+                    installmentDiscounts: (discountType === 'yearly' || discountType === 'semester') ? getMySalesInstallmentDiscounts() : undefined,
+                    installments
+                },
                 status: 'pending',
                 submittedBy: 'employee'
             })
@@ -960,6 +1393,17 @@ async function submitMySalesRecord(event) {
         notify('salesNotify', 'Sales record submitted. Waiting for admin approval.');
         document.getElementById('mySalesForm').reset();
         document.getElementById('mySalesDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('mySalesRevenue').value = '';
+        document.getElementById('mySalesDuration').value = '';
+        document.getElementById('mySalesDurationRaw').value = '';
+        document.getElementById('mySalesTotalFees').value = '';
+        document.getElementById('mySalesTotalFeesRaw').value = '';
+        document.getElementById('mySalesCourse').innerHTML = '<option value="">Select course...</option>';
+        document.getElementById('mySalesCourse').disabled = true;
+        mySalesInstallmentStatuses = {};
+        mySalesInstallmentDiscounts = {};
+        mySalesLiveCalculation = null;
+        renderMySalesLiveCalculation(null);
         await loadMySales();
     } catch (e) {
         notify('salesNotify', e.message || 'Failed to submit sales record.', 'error');
@@ -968,6 +1412,11 @@ async function submitMySalesRecord(event) {
         btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for Approval';
     }
 }
+
+window.recalculateMySalesLiveFees = recalculateMySalesLiveFees;
+window.markMySalesInstallmentPaid = markMySalesInstallmentPaid;
+window.markMySalesInstallmentPending = markMySalesInstallmentPending;
+window.markAllMySalesInstallmentsPaid = markAllMySalesInstallmentsPaid;
 // â”€â”€ Advances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function loadMyAdvances() {
@@ -1112,20 +1561,8 @@ async function loadSalaryBreakup() {
             ? `<div style="text-align:center;margin-bottom:16px;"><span class="badge badge-green"><i class="fas fa-check-circle"></i> Salary Credited</span></div>`
             : `<div style="text-align:center;margin-bottom:16px;"><span class="badge badge-amber"><i class="fas fa-clock"></i> Pending Credit</span></div>`;
 
-        const cycleStart = new Date(`${breakup.salaryPeriod?.start || breakup.cycleStart}T00:00:00`);
-        const cycleEnd = new Date(`${breakup.salaryPeriod?.end || breakup.cycleEnd}T00:00:00`);
-        const salaryPeriodStartLabel = cycleStart.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        const salaryPeriodEndLabel = cycleEnd.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-        const salaryPeriodHint = breakup.salaryPeriod?.isFirstSalaryMonth
-            ? 'First salary month (joining-date proration)'
-            : 'Standard monthly cycle (1st to last day)';
-
         content.innerHTML = `
             ${paidBadge}
-            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
-                <i class="fas fa-calendar-alt"></i> <strong>Salary Period:</strong> ${salaryPeriodStartLabel} to ${salaryPeriodEndLabel}<br>
-                <span>${salaryPeriodHint}</span>
-            </div>
             ${joiningDays > 0 ? `
             <div style="margin-bottom:12px;padding:10px 14px;background:#1e3a5f;border-left:4px solid #3b82f6;border-radius:10px;font-size:12px;color:#93c5fd;">
                 <i class="fas fa-user-plus"></i> <strong>First salary month proration:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked x INR ${Math.round(dailyRate)}/day = ${salaryDisplay(effectiveGross)}
@@ -1378,22 +1815,12 @@ async function loadMyAttendance() {
         // Use backend monthly report summary as source of truth to keep dashboard cards
         // aligned with centralized salary-cycle policy and future API refinements.
         const summary = reportData?.summary || null;
-        const salaryPeriod = reportData?.salaryPeriod || null;
         const presentForCard = summary ? (summary.presentDays ?? 0) : presentDays;
         const lateForCard = summary ? (summary.lateDays ?? 0) : lateDays;
         const absentForCard = summary ? (summary.absentDays ?? 0) : absentDays;
         const halfDays = summary
             ? (summary.lateHalfDays ?? 0)
             : (Math.floor(lateCount / attSettings.lateDaysHalfDay) * 0.5);
-
-        if (salaryPeriod?.start && salaryPeriod?.end) {
-            const startLabel = new Date(`${salaryPeriod.start}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-            const endLabel = new Date(`${salaryPeriod.end}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-            const periodHint = salaryPeriod.isFirstSalaryMonth
-                ? 'Joining month proration applies'
-                : 'Standard monthly cycle (1st to last day)';
-            policyBox.innerHTML += `<br><span><i class="fas fa-calendar-alt"></i> Salary Period: <strong>${startLabel}</strong> to <strong>${endLabel}</strong> &nbsp;&middot;&nbsp; ${periodHint}</span>`;
-        }
 
         statsDiv.innerHTML = `
             <div class="kpi-grid" style="margin-bottom:0;">
@@ -1477,6 +1904,7 @@ async function changeEmployeePassword() {
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProfile();
     initSalesMonths();
+    await initializeMySalesForm();
     initSalaryMonths();
     initAttendanceMonths();
     await loadCalendarData();
@@ -1553,7 +1981,7 @@ async function loadNavIncentive() {
             const approvedAdmissions = (Array.isArray(admissions) ? admissions : [])
                 .filter(a => (a.status || 'approved') === 'approved');
             const salesAchieved = approvedAdmissions.length;
-            const revAchieved   = approvedAdmissions.reduce((sum, a) => sum + (parseFloat(a.revenue) || 0), 0);
+            const revAchieved   = approvedAdmissions.reduce((sum, a) => sum + getAdmissionCreditedRevenue(a), 0);
             let achievementRate = 0;
             if (salesTarget > 0)    achievementRate = salesAchieved / salesTarget * 100;
             else if (revTarget > 0) achievementRate = revAchieved   / revTarget   * 100;

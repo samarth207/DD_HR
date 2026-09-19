@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DD HR portal - University Management</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .page-tools {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .table-container { overflow-x: auto; }
+
+        .employees-table { min-width: 760px; }
+
+        .form-error {
+            color: #b91c1c;
+            font-size: 12px;
+            padding: 0 24px 0;
+            min-height: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .header-right,
+            .page-tools {
+                width: 100%;
+            }
+
+            .header-right .btn,
+            .page-tools .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .filter-group { width: 100%; }
+            .filter-group select { flex: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon"><img src="assets/dd-hr-logo.png" alt="DD HR portal logo" style="width:100%;height:100%;object-fit:contain;"></div>
+                <div><h2 style="margin:0;">DD HR portal</h2><small>Management System</small></div>
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-section-title">Main Menu</div>
+                <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="employees.html" class="nav-item"><i class="fas fa-users"></i><span>Employees</span></a>
+                <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+                <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+                <a href="admissions-analytics.html" class="nav-item"><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
+                <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+                <div class="nav-section-title">Master Management</div>
+                <a href="universities.html" class="nav-item active"><i class="fas fa-university"></i><span>Universities</span></a>
+                <a href="courses.html" class="nav-item"><i class="fas fa-book"></i><span>Courses</span></a>
+                <div class="nav-section-title">Leave</div>
+                <a href="leave-management.html" class="nav-item"><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
+                <a href="leave-calendar.html" class="nav-item"><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
+                <a href="holidays.html" class="nav-item"><i class="fas fa-calendar-day"></i><span>Holidays</span></a>
+                <div class="nav-section-title">Tools</div>
+                <a href="chatbot.html" class="nav-item"><i class="fas fa-robot"></i><span>AI Assistant</span></a>
+                <a href="account.html" class="nav-item"><i class="fas fa-user-circle"></i><span>Account Details</span></a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-avatar">HR</div>
+                    <div class="sidebar-user-info"><p>HR Admin</p><span>Administrator</span></div>
+                </div>
+                <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h1>University Management</h1>
+                    <p class="subtitle">Manage university master records used in Admission Generation Flow</p>
+                </div>
+                <div class="header-right page-tools">
+                    <button class="btn btn-primary" onclick="openUniversityModal()">
+                        <i class="fas fa-plus"></i> Add University
+                    </button>
+                </div>
+            </header>
+
+            <div class="search-section">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search by university name" oninput="onUniversitySearch()">
+                </div>
+                <div class="filter-group">
+                    <select id="statusFilter" onchange="onUniversityStatusFilter()">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="deleted">Deleted</option>
+                        <option value="all">All</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="employees-table">
+                    <thead>
+                        <tr>
+                            <th>University Name</th>
+                            <th>Status</th>
+                            <th>Created Date</th>
+                            <th>Updated Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="universitiesTableBody">
+                        <tr><td colspan="5" class="no-data">Loading universities...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <div id="universityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="universityModalTitle">Add University</h2>
+                <button class="close-btn" onclick="closeUniversityModal()">&times;</button>
+            </div>
+            <form id="universityForm" onsubmit="saveUniversity(event)">
+                <div class="form-grid" style="grid-template-columns:repeat(2,1fr);">
+                    <div class="form-group full-width">
+                        <label for="universityName">University Name *</label>
+                        <input type="text" id="universityName" maxlength="160" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="universityIsActive">Status *</label>
+                        <select id="universityIsActive" required>
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="universityFormError" class="form-error"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeUniversityModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save University</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="auth-guard.js"></script>
+    <script>requireManagement();</script>
+    <script src="script.js"></script>
+    <script src="master-data-validation.js"></script>
+    <script src="universities-script.js"></script>
+</body>
+</html>

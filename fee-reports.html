@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DD HR portal - Fee Reports</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: #f0f2f8; }
+        .main-content { padding: 28px 32px; }
+        .page-header { display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px; }
+        .page-header h1 { margin:0;font-size:22px;font-weight:800;color:#111827; }
+        .page-header p { margin:4px 0 0;color:#6b7280;font-size:13px; }
+        .filter-row { display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:16px; }
+        .filter-row select,.filter-row button { padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:13px; }
+        .filter-row button { background:#6366f1;color:#fff;border-color:#6366f1;font-weight:600;cursor:pointer; }
+        .kpi-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px; }
+        .kpi { background:#fff;border-radius:14px;padding:16px;border:1px solid #e5e7eb; }
+        .kpi .lbl { font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700; }
+        .kpi .val { margin-top:6px;font-size:24px;font-weight:800;color:#111827; }
+        .kpi .sub { margin-top:4px;font-size:12px;color:#64748b; }
+        .kpi.outstanding { border-left:4px solid #ef4444; }
+        .kpi.collected { border-left:4px solid #10b981; }
+        .kpi.pending { border-left:4px solid #f59e0b; }
+        .kpi.discount { border-left:4px solid #6366f1; }
+        .charts { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px; }
+        .card { background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06); }
+        .card h3 { margin:0 0 12px;font-size:14px;color:#111827; }
+        .chart-wrap { height:280px; }
+        .table-wrap { overflow:auto;max-height:380px; }
+        table { width:100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding:10px 12px; border-bottom:1px solid #eef2f7; text-align:left; }
+        th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; background:#fafafa; position:sticky; top:0; }
+        @media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .charts { grid-template-columns:1fr; } }
+        @media (max-width: 640px) { .main-content { padding:16px; } .kpi-grid { grid-template-columns:1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon"><img src="assets/dd-hr-logo.png" alt="DD HR portal logo" style="width:100%;height:100%;object-fit:contain;"></div>
+            <div><h2 style="margin:0;">DD HR portal</h2><small>Management System</small></div>
+        </div>
+        <nav class="nav-menu">
+            <div class="nav-section-title">Main Menu</div>
+            <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="employees.html" class="nav-item"><i class="fas fa-users"></i><span>Employees</span></a>
+            <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+            <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+            <a href="admissions-analytics.html" class="nav-item"><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
+            <a href="fee-reports.html" class="nav-item active"><i class="fas fa-wallet"></i><span>Fee Reports</span></a>
+            <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <div class="page-header">
+            <div>
+                <h1><i class="fas fa-wallet" style="color:#6366f1;margin-right:8px;"></i>Fee Reports</h1>
+                <p>Additional fee analytics report. Existing admission reports are unchanged.</p>
+            </div>
+        </div>
+
+        <div class="filter-row">
+            <label for="feeMonthFilter" style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;">Month</label>
+            <select id="feeMonthFilter"></select>
+            <button id="feeRefreshBtn" type="button"><i class="fas fa-sync-alt"></i> Refresh</button>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi outstanding"><div class="lbl">Outstanding</div><div class="val" id="feeOutstanding">₹0</div><div class="sub" id="feeOutstandingSub">0 admissions</div></div>
+            <div class="kpi collected"><div class="lbl">Collected</div><div class="val" id="feeCollected">₹0</div><div class="sub" id="feeCollectedSub">0 installments</div></div>
+            <div class="kpi pending"><div class="lbl">Pending</div><div class="val" id="feePending">0</div><div class="sub" id="feePendingSub">₹0 pending amount</div></div>
+            <div class="kpi discount"><div class="lbl">Discount</div><div class="val" id="feeDiscount">₹0</div><div class="sub" id="feeDiscountSub">Across fee schedules</div></div>
+        </div>
+
+        <div class="charts">
+            <div class="card">
+                <h3>Fee Amount Breakdown</h3>
+                <div class="chart-wrap"><canvas id="feeBreakdownChart"></canvas></div>
+            </div>
+            <div class="card">
+                <h3>Monthly Fee Trend</h3>
+                <div class="chart-wrap"><canvas id="feeTrendChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Admission Fee Details</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Student</th>
+                            <th>Month</th>
+                            <th>Outstanding</th>
+                            <th>Collected</th>
+                            <th>Discount</th>
+                            <th>Pending</th>
+                        </tr>
+                    </thead>
+                    <tbody id="feeTableBody"><tr><td colspan="7">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="config.js"></script>
+<script src="auth-guard.js"></script>
+<script>requireManagement();</script>
+<script src="script.js"></script>
+<script src="fee-reporting-utils.js"></script>
+<script src="fee-reports-script.js"></script>
+</body>
+</html>

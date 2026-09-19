@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -59,6 +59,9 @@
                 <a href="sales-tracking.html" class="nav-item "><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
                 <a href="admissions-analytics.html" class="nav-item "><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
                 <a href="incentives.html" class="nav-item "><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+                <div class="nav-section-title">Master Management</div>
+                <a href="universities.html" class="nav-item "><i class="fas fa-university"></i><span>Universities</span></a>
+                <a href="courses.html" class="nav-item "><i class="fas fa-book"></i><span>Courses</span></a>
                 <div class="nav-section-title">Leave</div>
                 <a href="leave-management.html" class="nav-item "><i class="fas fa-calendar-check"></i><span>Leave Management</span></a>
                 <a href="leave-calendar.html" class="nav-item "><i class="fas fa-calendar-alt"></i><span>Leave Calendar</span></a>
@@ -190,8 +193,8 @@
                         <input type="date" id="hireDate" required>
                     </div>
                     <div class="form-group">
-                        <label for="salary">Salary (₹)</label>
-                        <input type="text" id="salary" inputmode="numeric" placeholder="₹0">
+                        <label for="salary">Salary (?)</label>
+                        <input type="text" id="salary" inputmode="numeric" placeholder="?0">
                     </div>
                     <div class="form-group">
                         <label for="status">Status *</label>
@@ -695,7 +698,7 @@
 
             const btn = document.getElementById('confirmDeleteBtn');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying�';
             document.getElementById('deletePasswordError').style.display = 'none';
 
             try {
@@ -717,7 +720,7 @@
                     return;
                 }
 
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting…';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting�';
 
                 const employees = getEmployees();
                 const employee = employees.find(e => e.id === deleteEmployeeId);
@@ -742,16 +745,16 @@
             document.getElementById('employeeModal').classList.remove('show');
         }
 
-        // ── Salary Till Date ─────────────────────────────────────────────
+        // -- Salary Till Date ---------------------------------------------
         async function showSalaryTillDate(empId) {
             const modal = document.getElementById('salaryTillDateModal');
             const content = document.getElementById('salaryTillDateContent');
-            content.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;color:#667eea;"></i><br><small style="color:#718096;margin-top:8px;display:block;">Calculating…</small></div>';
+            content.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;color:#667eea;"></i><br><small style="color:#718096;margin-top:8px;display:block;">Calculating�</small></div>';
             modal.classList.add('show');
 
             try {
                 const data = await apiCall(`/employees/${empId}/salary-till-date`);
-                const fmtINR = n => '₹' + (parseFloat(n)||0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+                const fmtINR = n => '?' + (parseFloat(n)||0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
                 content.innerHTML = `
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
                         <div style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;">${(data.employeeName||'?').split(' ').map(w=>w[0]).join('').toUpperCase()}</div>
@@ -767,11 +770,11 @@
                             <strong>${fmtINR(data.grossSalary)}</strong>
                         </div>
                         <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;">
-                            <span style="color:#718096;">Daily Rate (÷ ${data.daysInMonth} days)</span>
+                            <span style="color:#718096;">Daily Rate (� ${data.daysInMonth} days)</span>
                             <strong>${fmtINR(data.dailyRate)}</strong>
                         </div>
                         <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
-                            <span style="color:#065f46;"><i class="fas fa-calendar-check" style="margin-right:6px;"></i>Days worked × daily rate (${data.daysWorked}d)</span>
+                            <span style="color:#065f46;"><i class="fas fa-calendar-check" style="margin-right:6px;"></i>Days worked � daily rate (${data.daysWorked}d)</span>
                             <strong style="color:#065f46;">${fmtINR(data.proRatedGross)}</strong>
                         </div>
                         ${data.incentive > 0 ? `<div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
@@ -793,7 +796,7 @@
                     </div>
                     <div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:flex-start;gap:8px;">
                         <i class="fas fa-info-circle" style="margin-top:2px;flex-shrink:0;"></i>
-                        <span>This is a pro-rated calculation based on days worked from ${data.joiningDate ? data.joiningDate : '1st of month'} to today. Late attendance deductions are not included here — refer to the incentives page for full salary processing.</span>
+                        <span>This is a pro-rated calculation based on days worked from ${data.joiningDate ? data.joiningDate : '1st of month'} to today. Late attendance deductions are not included here � refer to the incentives page for full salary processing.</span>
                     </div>`;
             } catch (e) {
                 content.innerHTML = `<div style="color:#e53e3e;padding:20px;text-align:center;"><i class="fas fa-exclamation-triangle"></i> Failed to calculate: ${e.message}</div>`;
@@ -811,7 +814,7 @@
             document.getElementById('deletePasswordError').style.display = 'none';
         }
 
-        // ── Documents Modal ──────────────────────────────────────────────
+        // -- Documents Modal ----------------------------------------------
         let currentDocsEmployeeId = null;
         let currentDocsEmployee   = null;
         let pendingDocType        = null;
@@ -823,8 +826,8 @@
             currentDocsEmployeeId = empId;
             currentDocsEmployee   = emp;
 
-            document.getElementById('docsModalTitle').textContent = `${emp.firstName} ${emp.lastName} — Documents`;
-            document.getElementById('docsModalSubtitle').textContent = `${emp.position} · ${emp.department}`;
+            document.getElementById('docsModalTitle').textContent = `${emp.firstName} ${emp.lastName} � Documents`;
+            document.getElementById('docsModalSubtitle').textContent = `${emp.position} � ${emp.department}`;
             document.getElementById('documentsModal').classList.add('show');
             await renderDocsGrid();
         }
@@ -878,7 +881,7 @@
                         </div>
                     </div>
                     <div class="doc-card-label">${dt.label}</div>
-                    ${uploaded ? `<div class="doc-card-meta"><i class="fas fa-calendar-alt"></i> ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')} &nbsp;·&nbsp; ${(doc.size/1024).toFixed(0)} KB</div>` : ''}
+                    ${uploaded ? `<div class="doc-card-meta"><i class="fas fa-calendar-alt"></i> ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')} &nbsp;�&nbsp; ${(doc.size/1024).toFixed(0)} KB</div>` : ''}
                     <div class="doc-card-actions">
                         ${uploaded
                             ? `<button class="btn-doc-view"  onclick="viewDoc('${dt.key}','${doc.url}','${dt.label}')"><i class="fas fa-eye"></i> View</button>
