@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { ObjectId } = require('mongodb');
 const { sendMail } = require('../utils/mailer');
+const { buildIncentiveEmail } = require('../utils/emailTemplates');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
@@ -94,7 +95,7 @@ router.put('/payments/:id/mark-paid', async (req, res) => {
             const formattedDate = paymentDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
             const formattedAmount = `₹${Number(record.incentiveAmount).toLocaleString('en-IN')}`;
             const subject = 'Congratulations! 🎉 Your Incentive Has Been Credited';
-            const html = buildIncentiveEmailHtml({ name: empName, amount: formattedAmount, date: formattedDate });
+            const html = buildIncentiveEmail({ name: empName, amount: formattedAmount, date: formattedDate });
             const text = `Hi ${empName},\n\nCongratulations! 🎉\n\nYour performance incentive has been successfully processed and marked as paid.\n\n💰 Incentive Amount: ${formattedAmount}\n📅 Payment Date: ${formattedDate}\n\nYour dedication and hard work have made a valuable contribution to the company's success. Thank you for your outstanding efforts.\n\nBest Regards,\nHR Team\nDegreeDrishti`;
 
             const sent = await sendMail({ to: empEmail, subject, text, html });
@@ -153,58 +154,6 @@ router.get('/email-logs', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-function buildIncentiveEmailHtml({ name, amount, date }) {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Incentive Credited</title>
-<style>
-  body{margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;}
-  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
-  .header{background:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:40px 32px;text-align:center;}
-  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
-  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
-  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
-  .body{padding:36px 32px;}
-  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
-  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
-  .card{background:linear-gradient(135deg,#ecfdf5 0%,#d1fae5 100%);border:2px solid #6ee7b7;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
-  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
-  .card-row:last-child{margin-bottom:0;}
-  .card-icon{font-size:24px;}
-  .card-label{font-size:12px;color:#065f46;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
-  .card-value{font-size:20px;font-weight:800;color:#064e3b;}
-  .msg2{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
-  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
-  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
-  .footer strong{color:#374151;}
-</style></head>
-<body>
-<div class="wrap">
-  <div class="header">
-    <div class="badge">🎉 Incentive Credited</div>
-    <h1>Congratulations!</h1>
-    <p>Your performance incentive has been successfully processed.</p>
-  </div>
-  <div class="body">
-    <div class="greeting">Hi ${name},</div>
-    <p class="msg">We're delighted to inform you that your performance incentive has been successfully processed and marked as paid. Your dedication, commitment, and hard work have made a valuable contribution to the company's success.</p>
-    <div class="card">
-      <div class="card-row"><span class="card-icon">💰</span><div><div class="card-label">Incentive Amount</div><div class="card-value">${amount}</div></div></div>
-      <div class="card-row"><span class="card-icon">📅</span><div><div class="card-label">Payment Date</div><div class="card-value">${date}</div></div></div>
-    </div>
-    <p class="msg2">Thank you for your outstanding efforts and continued excellence. Keep up the amazing work — we look forward to celebrating many more achievements with you!</p>
-    <p class="msg2" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
-  </div>
-  <div class="footer">
-    <p><strong>DegreeDrishti HR Portal</strong></p>
-    <p>This is an automated message. Please do not reply to this email.</p>
-    <p style="margin-top:8px;font-size:11px;">© ${new Date().getFullYear()} DegreeDrishti. All rights reserved.</p>
-  </div>
-</div>
-</body></html>`;
-}
 
 // Get incentive configuration
 router.get('/config', async (req, res) => {
@@ -372,6 +321,32 @@ router.put('/advance/:id', async (req, res) => {
         }
         
         res.json({ success: true, message: 'Advance updated' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete salary advance
+router.delete('/advance/:id', async (req, res) => {
+    try {
+        const db = getDB();
+        const advanceId = parseInt(req.params.id);
+        
+        // First check if the advance exists and if it's already adjusted in salary
+        const advance = await db.collection('salary_advances').findOne({ id: advanceId });
+        
+        if (!advance) {
+            return res.status(404).json({ error: 'Advance not found' });
+        }
+        
+        // Prevent deletion if already adjusted in salary
+        if (advance.adjustedInSalary === true || advance.repaid === true) {
+            return res.status(409).json({ error: 'Cannot delete advance that has already been adjusted in salary' });
+        }
+        
+        await db.collection('salary_advances').deleteOne({ id: advanceId });
+        
+        res.json({ success: true, message: 'Advance deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

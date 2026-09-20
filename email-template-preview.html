@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Template Preview - DegreeDrishti HR</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .header p {
+            margin: 10px 0 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        .template-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .template-card h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .template-preview {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 15px;
+        }
+        .template-preview iframe {
+            width: 100%;
+            height: 400px;
+            border: none;
+        }
+        .color-legend {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .color-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+        .color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .features {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+            color: white;
+        }
+        .features h3 {
+            margin-top: 0;
+        }
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+        .features li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        .features li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 DegreeDrishti HR Email Templates</h1>
+            <p>Professional, responsive, and beautifully designed email notifications</p>
+        </div>
+
+        <div class="features">
+            <h3>✨ Key Features</h3>
+            <ul>
+                <li>🎯 Consistent design language across all email types</li>
+                <li>📱 Mobile-responsive layouts</li>
+                <li>🎨 Color-coded by email type (green=success, red=rejection, blue=info, purple=targets)</li>
+                <li>✨ Modern gradient headers with professional typography</li>
+                <li>🏢 Branded footer with company information</li>
+                <li>♿ Accessible design with proper contrast ratios</li>
+            </ul>
+        </div>
+
+        <div class="template-grid">
+            <div class="template-card">
+                <h3>🎉 Incentive Email</h3>
+                <p>Celebratory design for performance incentives</p>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box" style="background: linear-gradient(135deg,#10b981 0%,#059669 100%);"></div>
+                        <span>Green Gradient</span>
+                    </div>
+                </div>
+                <div class="template-preview">
+                    <iframe srcdoc='
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Incentive Credited</title>
+<style>
+  body{margin:0;padding:0;background:#f0f4f8;font-family:"Segoe UI",Arial,sans-serif;}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
+  .header{background:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:40px 32px;text-align:center;}
+  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
+  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .body{padding:36px 32px;}
+  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-icon{font-size:24px;}
+  .card-label{font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .card-value{font-size:16px;font-weight:600;color:#111827;}
+  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
+  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
+  .footer strong{color:#374151;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">🎉 Incentive Credited</div>
+    <h1>Congratulations!</h1>
+    <p>Your performance incentive has been successfully processed.</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi John Doe,</div>
+    <p class="msg">We are delighted to inform you that your performance incentive has been successfully processed and marked as paid. Your dedication, commitment, and hard work have made a valuable contribution to the company success.</p>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">💰</span><div><div class="card-label">Incentive Amount</div><div class="card-value">₹15,000</div></div></div>
+      <div class="card-row"><span class="card-icon">📅</span><div><div class="card-label">Payment Date</div><div class="card-value">20 September 2026</div></div></div>
+    </div>
+    <p class="msg">Thank you for your outstanding efforts and continued excellence. Keep up the amazing work!</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
+  </div>
+  <div class="footer">
+    <p><strong>DegreeDrishti HR Portal</strong></p>
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p style="margin-top:8px;font-size:11px;">© 2026 DegreeDrishti. All rights reserved.</p>
+  </div>
+</div>
+</body></html>'></iframe>
+                </div>
+            </div>
+
+            <div class="template-card">
+                <h3>✅ Leave Approved Email</h3>
+                <p>Professional approval notification</p>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box" style="background: linear-gradient(135deg,#10b981 0%,#059669 100%);"></div>
+                        <span>Green Gradient</span>
+                    </div>
+                </div>
+                <div class="template-preview">
+                    <iframe srcdoc='
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Leave Approved</title>
+<style>
+  body{margin:0;padding:0;background:#f0f4f8;font-family:"Segoe UI",Arial,sans-serif;}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
+  .header{background:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:40px 32px;text-align:center;}
+  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
+  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .body{padding:36px 32px;}
+  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-icon{font-size:24px;}
+  .card-label{font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .card-value{font-size:16px;font-weight:600;color:#111827;}
+  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
+  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
+  .footer strong{color:#374151;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">✅ Leave Approved</div>
+    <h1>Leave Approved</h1>
+    <p>Your leave request has been approved.</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi Jane Smith,</div>
+    <p class="msg">Good news! Your leave request has been approved. Please ensure proper handover of your responsibilities before your leave begins.</p>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">📋</span><div><div class="card-label">Leave Type</div><div class="card-value">Sick Leave</div></div></div>
+      <div class="card-row"><span class="card-icon">📅</span><div><div class="card-label">Start Date</div><div class="card-value">2026-09-25</div></div></div>
+      <div class="card-row"><span class="card-icon">📅</span><div><div class="card-label">End Date</div><div class="card-value">2026-09-26</div></div></div>
+      <div class="card-row"><span class="card-icon">⏱️</span><div><div class="card-label">Total Days</div><div class="card-value">2 day(s)</div></div></div>
+    </div>
+    <p class="msg">If you have any questions or need to make changes to your leave, please contact HR.</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
+  </div>
+  <div class="footer">
+    <p><strong>DegreeDrishti HR Portal</strong></p>
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p style="margin-top:8px;font-size:11px;">© 2026 DegreeDrishti. All rights reserved.</p>
+  </div>
+</div>
+</body></html>'></iframe>
+                </div>
+            </div>
+
+            <div class="template-card">
+                <h3>❌ Leave Rejected Email</h3>
+                <p>Clear rejection with helpful guidance</p>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box" style="background: linear-gradient(135deg,#ef4444 0%,#dc2626 100%);"></div>
+                        <span>Red Gradient</span>
+                    </div>
+                </div>
+                <div class="template-preview">
+                    <iframe srcdoc='
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Leave Rejected</title>
+<style>
+  body{margin:0;padding:0;background:#f0f4f8;font-family:"Segoe UI",Arial,sans-serif;}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
+  .header{background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);padding:40px 32px;text-align:center;}
+  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
+  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .body{padding:36px 32px;}
+  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-icon{font-size:24px;}
+  .card-label{font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .card-value{font-size:16px;font-weight:600;color:#111827;}
+  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
+  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
+  .footer strong{color:#374151;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">❌ Leave Rejected</div>
+    <h1>Leave Request Update</h1>
+    <p>Your leave request could not be approved at this time.</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi Bob Johnson,</div>
+    <p class="msg">We regret to inform you that your leave request has been rejected. This decision was made after careful consideration of business requirements and team availability.</p>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">📋</span><div><div class="card-label">Leave Type</div><div class="card-value">Casual Leave</div></div></div>
+      <div class="card-row"><span class="card-icon">📅</span><div><div class="card-label">Requested Dates</div><div class="card-value">2026-09-28 to 2026-09-30</div></div></div>
+    </div>
+    <p class="msg">If you believe this decision needs review or if you would like to discuss alternative dates, please contact HR.</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
+  </div>
+  <div class="footer">
+    <p><strong>DegreeDrishti HR Portal</strong></p>
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p style="margin-top:8px;font-size:11px;">© 2026 DegreeDrishti. All rights reserved.</p>
+  </div>
+</div>
+</body></html>'></iframe>
+                </div>
+            </div>
+
+            <div class="template-card">
+                <h3>🎯 Sales Approved Email</h3>
+                <p>Professional sales confirmation</p>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box" style="background: linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);"></div>
+                        <span>Blue Gradient</span>
+                    </div>
+                </div>
+                <div class="template-preview">
+                    <iframe srcdoc='
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sales Approved</title>
+<style>
+  body{margin:0;padding:0;background:#f0f4f8;font-family:"Segoe UI",Arial,sans-serif;}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
+  .header{background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);padding:40px 32px;text-align:center;}
+  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
+  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .body{padding:36px 32px;}
+  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-icon{font-size:24px;}
+  .card-label{font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .card-value{font-size:16px;font-weight:600;color:#111827;}
+  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
+  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
+  .footer strong{color:#374151;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">🎯 Sales Approved</div>
+    <h1>Sales Record Approved</h1>
+    <p>Your admission has been successfully recorded and approved.</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi Alice Williams,</div>
+    <p class="msg">Great work! Your sales record has been approved and the admission has been successfully processed. Your contribution helps us grow and achieve our targets.</p>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">👤</span><div><div class="card-label">Student Name</div><div class="card-value">Rahul Kumar</div></div></div>
+      <div class="card-row"><span class="card-icon">🎓</span><div><div class="card-label">University</div><div class="card-value">Delhi University</div></div></div>
+      <div class="card-row"><span class="card-icon">💰</span><div><div class="card-label">Revenue</div><div class="card-value">₹45,000.00</div></div></div>
+      <div class="card-row"><span class="card-icon">📅</span><div><div class="card-label">Admission Date</div><div class="card-value">2026-09-20</div></div></div>
+    </div>
+    <p class="msg">Thank you for your dedication and effort in bringing this admission. Keep up the excellent work!</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
+  </div>
+  <div class="footer">
+    <p><strong>DegreeDrishti HR Portal</strong></p>
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p style="margin-top:8px;font-size:11px;">© 2026 DegreeDrishti. All rights reserved.</p>
+  </div>
+</div>
+</body></html>'></iframe>
+                </div>
+            </div>
+
+            <div class="template-card">
+                <h3>💳 Salary Credited Email</h3>
+                <p>Comprehensive salary breakup</p>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box" style="background: linear-gradient(135deg,#10b981 0%,#059669 100%);"></div>
+                        <span>Green Gradient</span>
+                    </div>
+                </div>
+                <div class="template-preview">
+                    <iframe srcdoc='
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Salary Credited</title>
+<style>
+  body{margin:0;padding:0;background:#f0f4f8;font-family:"Segoe UI",Arial,sans-serif;}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
+  .header{background:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:40px 32px;text-align:center;}
+  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
+  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .body{padding:36px 32px;}
+  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-icon{font-size:24px;}
+  .card-label{font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .card-value{font-size:16px;font-weight:600;color:#111827;}
+  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
+  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
+  .footer strong{color:#374151;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">💳 Salary Credited</div>
+    <h1>Salary Credited</h1>
+    <p>Your salary for September 2026 has been successfully processed.</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi David Brown,</div>
+    <p class="msg">Your salary for <strong>September 2026</strong> has been credited to your account. Below is the detailed breakup for your reference.</p>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">🆔</span><div><div class="card-label">Employee ID</div><div class="card-value">123</div></div></div>
+      <div class="card-row"><span class="card-icon">🏢</span><div><div class="card-label">Department</div><div class="card-value">Sales</div></div></div>
+      <div class="card-row"><span class="card-icon">💼</span><div><div class="card-label">Designation</div><div class="card-value">Sales Executive</div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">💰</span><div><div class="card-label">Gross Salary</div><div class="card-value">₹50,000.00</div></div></div>
+      <div class="card-row"><span class="card-icon">🎁</span><div><div class="card-label">Monthly Incentive</div><div class="card-value">₹5,000.00</div></div></div>
+      <div class="card-row"><span class="card-icon">🎯</span><div><div class="card-label">Daily Bonuses</div><div class="card-value">₹2,000.00</div></div></div>
+      <div class="card-row" style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;"><span class="card-icon">💵</span><div><div class="card-label">Net Salary</div><div class="card-value" style="font-size:18px;font-weight:800;color:#059669;">₹57,000.00</div></div></div>
+    </div>
+    <p class="msg">If you have any questions about your salary breakup, please contact HR.</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
+  </div>
+  <div class="footer">
+    <p><strong>DegreeDrishti HR Portal</strong></p>
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p style="margin-top:8px;font-size:11px;">© 2026 DegreeDrishti. All rights reserved.</p>
+  </div>
+</div>
+</body></html>'></iframe>
+                </div>
+            </div>
+
+            <div class="template-card">
+                <h3>🎯 Target Set Email</h3>
+                <p>Monthly target assignment</p>
+                <div class="color-legend">
+                    <div class="color-item">
+                        <div class="color-box" style="background: linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%);"></div>
+                        <span>Purple Gradient</span>
+                    </div>
+                </div>
+                <div class="template-preview">
+                    <iframe srcdoc='
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Target Set</title>
+<style>
+  body{margin:0;padding:0;background:#f0f4f8;font-family:"Segoe UI",Arial,sans-serif;}
+  .wrap{max-width:600px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.10);}
+  .header{background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%);padding:40px 32px;text-align:center;}
+  .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
+  .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
+  .badge{display:inline-block;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .body{padding:36px 32px;}
+  .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
+  .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
+  .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;margin-bottom:28px;}
+  .card-row{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-icon{font-size:24px;}
+  .card-label{font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+  .card-value{font-size:16px;font-weight:600;color:#111827;}
+  .footer{background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 32px;text-align:center;}
+  .footer p{font-size:12px;color:#9ca3af;margin:4px 0;}
+  .footer strong{color:#374151;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">🎯 Target Set</div>
+    <h1>Monthly Target Assigned</h1>
+    <p>Your targets for September 2026 have been updated.</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi Emma Davis,</div>
+    <p class="msg">Your monthly targets have been set for <strong>September 2026</strong>. Please review the targets below and plan your activities accordingly to achieve them.</p>
+    <div class="card">
+      <div class="card-row"><span class="card-icon">🎯</span><div><div class="card-label">Sales Target</div><div class="card-value">10 admissions</div></div></div>
+      <div class="card-row"><span class="card-icon">💰</span><div><div class="card-label">Revenue Target</div><div class="card-value">₹500,000</div></div></div>
+    </div>
+    <div class="card" style="background:#f0fdf4;border-color:#86efac;">
+      <div class="card-row"><span class="card-icon">📊</span><div><div class="card-label">Previous Sales Target</div><div class="card-value">8 admissions</div></div></div>
+      <div class="card-row"><span class="card-icon">💰</span><div><div class="card-label">Previous Revenue Target</div><div class="card-value">₹400,000</div></div></div>
+    </div>
+    <p class="msg">We believe in your potential and are confident you will achieve these targets. Good luck!</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>
+  </div>
+  <div class="footer">
+    <p><strong>DegreeDrishti HR Portal</strong></p>
+    <p>This is an automated message. Please do not reply to this email.</p>
+    <p style="margin-top:8px;font-size:11px;">© 2026 DegreeDrishti. All rights reserved.</p>
+  </div>
+</div>
+</body></html>'></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

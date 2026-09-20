@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
+const { buildSalaryCreditedEmail } = require('../utils/emailTemplates');
 const salaryCycleUtils = require('../../salary-cycle-utils');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
@@ -380,52 +381,12 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
         'DegreeDrishti HR'
     ].join('\n');
 
-    const row = (label, value, isDeduction = false) => `<tr><td style="padding:8px 0;color:#475569;">${label}</td><td style="padding:8px 0;text-align:right;font-weight:600;color:${isDeduction ? '#b91c1c' : '#0f172a'};">${isDeduction && !String(value).startsWith('-') ? `- ${value}` : value}</td></tr>`;
-    const html = `
-        <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;line-height:1.6;">
-            <div style="max-width:720px;margin:0 auto;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;background:#fff;">
-                <div style="background:linear-gradient(135deg,#111827,#1f2937);color:#fff;padding:24px 28px;">
-                    <div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#93c5fd;">DegreeDrishti HR</div>
-                    <div style="font-size:24px;font-weight:700;margin-top:6px;">Salary Credit Confirmation</div>
-                    <div style="font-size:14px;color:#cbd5e1;margin-top:4px;">${monthLabel}</div>
-                </div>
-                <div style="padding:28px;">
-                    <p style="margin:0 0 18px;">Hi ${fullName},</p>
-                    <p style="margin:0 0 18px;color:#334155;">Your salary for <strong>${monthLabel}</strong> has been credited. The complete breakup is below.</p>
-                    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                        ${row('Employee ID', employee.id)}
-                        ${row('Department', employee.department || '—')}
-                        ${row('Designation', employee.position || employee.designation || '—')}
-                        <tr><td colspan="2" style="padding:10px 0;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
-                        ${row('Gross Salary', formatRupees(breakup.grossSalary))}
-                        ${row('Daily Rate', `${formatRupees(breakup.dailyRate)} / day`)}
-                        ${breakup.joiningDays > 0 ? row('Pro-rated Gross', formatRupees(breakup.effectiveGross)) : ''}
-                        ${row('Monthly Incentive', formatRupees(breakup.monthlyIncentive))}
-                        ${row('Daily Bonuses', formatRupees(breakup.dailyBonusTotal))}
-                        <tr><td colspan="2" style="padding:10px 0;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
-                        ${row('Unpaid Leave Deduction', formatRupees(breakup.unpaidLeaveDeduction), true)}
-                        ${row('Late Attendance Deduction', formatRupees(breakup.lateAttendanceDeduction), true)}
-                        ${row('LOP Deduction (included in leave + late)', formatRupees(breakup.lopDeduction), false)}
-                        ${row('Outstanding Advance Deduction', formatRupees(breakup.advanceDeduction), true)}
-                        ${row('Total Deductions', formatRupees(breakup.totalDeductions), true)}
-                        <tr><td colspan="2" style="padding:10px 0;"><div style="height:1px;background:#e5e7eb;"></div></td></tr>
-                        <tr>
-                            <td style="padding:8px 0;font-size:16px;font-weight:700;color:#0f172a;">Net Salary</td>
-                            <td style="padding:8px 0;text-align:right;font-size:18px;font-weight:800;color:#059669;">${formatRupees(breakup.netSalary)}</td>
-                        </tr>
-                    </table>
-                    <div style="margin-top:18px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;font-size:13px;color:#475569;">
-                        <div><strong>Paid At:</strong> ${new Date(record.paidAt).toLocaleString()}</div>
-                        <div><strong>Payroll Cycle:</strong> ${breakup.cycleStart} to ${breakup.cycleEnd}</div>
-                        <div><strong>Working Days:</strong> ${breakup.joiningDays > 0 ? `${breakup.joiningDays} joined-days` : 'full month'}</div>
-                        <div><strong>Leave Deductions:</strong> ${breakup.unpaidLeaveDays} day(s)</div>
-                        <div><strong>Late Attendance:</strong> ${breakup.lateCount} late day(s)</div>
-                        <div><strong>LOP:</strong> ${breakup.lopDays} day(s)</div>
-                    </div>
-                    <p style="margin:18px 0 0;color:#334155;">Regards,<br/>DegreeDrishti HR</p>
-                </div>
-            </div>
-        </div>`;
+    const html = buildSalaryCreditedEmail({ 
+        name: fullName, 
+        month: monthLabel, 
+        breakup, 
+        employee 
+    });
     await sendMail({ to: employee.email, subject, text, html });
 }
 

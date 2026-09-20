@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
+const { buildLeaveApprovedEmail, buildLeaveRejectedEmail } = require('../utils/emailTemplates');
 const salaryCycleUtils = require('../../salary-cycle-utils');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
@@ -18,7 +19,13 @@ async function sendLeaveApprovedNotification(db, leave, employee) {
     const leaveDays = calculateDays(leave.startDate, leave.endDate, leave.halfDay || leave.leaveType === 'Half Day') + (leave.paidSandwichDays ?? leave.sandwichDays ?? 0);
     const subject = 'Leave Approved | DegreeDrishti HR';
     const text = `Hi ${fullName},\n\nYour leave request has been approved.\n\nLeave type: ${leave.leaveType}\nDates: ${leave.startDate} to ${leave.endDate}\nTotal days: ${leaveDays}\n\nIf you have questions, please contact HR.\n\nRegards,\nDegreeDrishti HR`;
-    const html = `<p>Hi ${fullName},</p><p>Your leave request has been approved.</p><ul><li><strong>Leave type:</strong> ${leave.leaveType}</li><li><strong>Dates:</strong> ${leave.startDate} to ${leave.endDate}</li><li><strong>Total days:</strong> ${leaveDays}</li></ul><p>If you have questions, please contact HR.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    const html = buildLeaveApprovedEmail({ 
+        name: fullName, 
+        leaveType: leave.leaveType, 
+        startDate: leave.startDate, 
+        endDate: leave.endDate, 
+        totalDays: leaveDays 
+    });
     await sendMail({ to: employee.email, subject, text, html });
 }
 
@@ -28,7 +35,12 @@ async function sendLeaveRejectedNotification(db, leave, employee) {
     const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
     const subject = 'Leave Rejected | DegreeDrishti HR';
     const text = `Hi ${fullName},\n\nYour leave request has been rejected.\n\nLeave type: ${leave.leaveType}\nDates: ${leave.startDate} to ${leave.endDate}\n\nIf you have questions, please contact HR.\n\nRegards,\nDegreeDrishti HR`;
-    const html = `<p>Hi ${fullName},</p><p>Your leave request has been rejected.</p><ul><li><strong>Leave type:</strong> ${leave.leaveType}</li><li><strong>Dates:</strong> ${leave.startDate} to ${leave.endDate}</li></ul><p>If you have questions, please contact HR.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    const html = buildLeaveRejectedEmail({ 
+        name: fullName, 
+        leaveType: leave.leaveType, 
+        startDate: leave.startDate, 
+        endDate: leave.endDate 
+    });
     await sendMail({ to: employee.email, subject, text, html });
 }
 const DEFAULT_PAID_LEAVE = 12;

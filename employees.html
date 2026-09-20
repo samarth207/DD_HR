@@ -98,7 +98,7 @@
             <div class="search-section">
                 <div class="search-box">
                     <i class="fas fa-search"></i>
-                    <input type="text" id="searchInput" placeholder="Search by name, email, or department..." onkeyup="filterEmployees()">
+                    <input type="text" id="searchInput" placeholder="Search by name, company email, or department..." onkeyup="filterEmployees()">
                 </div>
                 <div class="filter-group">
                     <select id="statusFilter" onchange="filterEmployees()">
@@ -126,7 +126,6 @@
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
-                            <th>Email</th>
                             <th>Company Email</th>
                             <th>Department</th>
                             <th>Position</th>
@@ -455,7 +454,7 @@
             const tbody = document.getElementById('employeesTableBody');
             
             if (employees.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="no-data">No employees found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="no-data">No employees found</td></tr>';
                 return;
             }
             
@@ -473,7 +472,6 @@
                 <tr>
                     <td>${emp.id}</td>
                     <td>${emp.firstName} ${emp.lastName}${probationBadge}</td>
-                    <td>${emp.email}</td>
                     <td>${emp.companyEmail || '-'}</td>
                     <td>${emp.department}</td>
                     <td>${emp.position}</td>
@@ -516,7 +514,7 @@
                 const matchesSearch = 
                     (emp.firstName || '').toLowerCase().includes(searchTerm) ||
                     (emp.lastName || '').toLowerCase().includes(searchTerm) ||
-                    (emp.email || '').toLowerCase().includes(searchTerm) ||
+                    (emp.companyEmail || '').toLowerCase().includes(searchTerm) ||
                     (emp.department || '').toLowerCase().includes(searchTerm) ||
                     (emp.position || '').toLowerCase().includes(searchTerm);
                 
@@ -698,7 +696,7 @@
 
             const btn = document.getElementById('confirmDeleteBtn');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifyingï¿½';
             document.getElementById('deletePasswordError').style.display = 'none';
 
             try {
@@ -720,7 +718,7 @@
                     return;
                 }
 
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting…';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deletingï¿½';
 
                 const employees = getEmployees();
                 const employee = employees.find(e => e.id === deleteEmployeeId);
@@ -749,7 +747,7 @@
         async function showSalaryTillDate(empId) {
             const modal = document.getElementById('salaryTillDateModal');
             const content = document.getElementById('salaryTillDateContent');
-            content.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;color:#667eea;"></i><br><small style="color:#718096;margin-top:8px;display:block;">Calculating…</small></div>';
+            content.innerHTML = '<div style="text-align:center;padding:30px;"><i class="fas fa-spinner fa-spin" style="font-size:24px;color:#667eea;"></i><br><small style="color:#718096;margin-top:8px;display:block;">Calculatingï¿½</small></div>';
             modal.classList.add('show');
 
             try {
@@ -770,11 +768,11 @@
                             <strong>${fmtINR(data.grossSalary)}</strong>
                         </div>
                         <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;">
-                            <span style="color:#718096;">Daily Rate (÷ ${data.daysInMonth} days)</span>
+                            <span style="color:#718096;">Daily Rate (ï¿½ ${data.daysInMonth} days)</span>
                             <strong>${fmtINR(data.dailyRate)}</strong>
                         </div>
                         <div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
-                            <span style="color:#065f46;"><i class="fas fa-calendar-check" style="margin-right:6px;"></i>Days worked × daily rate (${data.daysWorked}d)</span>
+                            <span style="color:#065f46;"><i class="fas fa-calendar-check" style="margin-right:6px;"></i>Days worked ï¿½ daily rate (${data.daysWorked}d)</span>
                             <strong style="color:#065f46;">${fmtINR(data.proRatedGross)}</strong>
                         </div>
                         ${data.incentive > 0 ? `<div style="display:flex;justify-content:space-between;padding:11px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;background:#f0fdf4;">
@@ -796,7 +794,7 @@
                     </div>
                     <div style="margin-top:14px;padding:10px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;display:flex;align-items:flex-start;gap:8px;">
                         <i class="fas fa-info-circle" style="margin-top:2px;flex-shrink:0;"></i>
-                        <span>This is a pro-rated calculation based on days worked from ${data.joiningDate ? data.joiningDate : '1st of month'} to today. Late attendance deductions are not included here — refer to the incentives page for full salary processing.</span>
+                        <span>This is a pro-rated calculation based on days worked from ${data.joiningDate ? data.joiningDate : '1st of month'} to today. Late attendance deductions are not included here ï¿½ refer to the incentives page for full salary processing.</span>
                     </div>`;
             } catch (e) {
                 content.innerHTML = `<div style="color:#e53e3e;padding:20px;text-align:center;"><i class="fas fa-exclamation-triangle"></i> Failed to calculate: ${e.message}</div>`;
@@ -826,8 +824,8 @@
             currentDocsEmployeeId = empId;
             currentDocsEmployee   = emp;
 
-            document.getElementById('docsModalTitle').textContent = `${emp.firstName} ${emp.lastName} — Documents`;
-            document.getElementById('docsModalSubtitle').textContent = `${emp.position} · ${emp.department}`;
+            document.getElementById('docsModalTitle').textContent = `${emp.firstName} ${emp.lastName} ï¿½ Documents`;
+            document.getElementById('docsModalSubtitle').textContent = `${emp.position} ï¿½ ${emp.department}`;
             document.getElementById('documentsModal').classList.add('show');
             await renderDocsGrid();
         }
@@ -881,7 +879,7 @@
                         </div>
                     </div>
                     <div class="doc-card-label">${dt.label}</div>
-                    ${uploaded ? `<div class="doc-card-meta"><i class="fas fa-calendar-alt"></i> ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')} &nbsp;·&nbsp; ${(doc.size/1024).toFixed(0)} KB</div>` : ''}
+                    ${uploaded ? `<div class="doc-card-meta"><i class="fas fa-calendar-alt"></i> ${new Date(doc.uploadedAt).toLocaleDateString('en-IN')} &nbsp;ï¿½&nbsp; ${(doc.size/1024).toFixed(0)} KB</div>` : ''}
                     <div class="doc-card-actions">
                         ${uploaded
                             ? `<button class="btn-doc-view"  onclick="viewDoc('${dt.key}','${doc.url}','${dt.label}')"><i class="fas fa-eye"></i> View</button>

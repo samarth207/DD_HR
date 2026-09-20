@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
+const { buildTargetSetEmail } = require('../utils/emailTemplates');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
@@ -30,7 +31,14 @@ async function sendTargetSetNotification({ employee, month, salesTarget, revenue
         'DegreeDrishti HR'
     ].join('\n');
 
-    const html = `<p>Hi ${fullName},</p><p>Your monthly target has been set for <strong>${monthLabel}</strong>.</p><ul><li><strong>Sales target:</strong> ${salesTarget ?? 0}</li></ul><p><strong>Previous sales target:</strong> ${previousSalesTarget ?? 0}</p><p>Please plan your month accordingly.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    const html = buildTargetSetEmail({ 
+        name: fullName, 
+        month: monthLabel, 
+        salesTarget, 
+        revenueTarget, 
+        previousSalesTarget, 
+        previousRevenueTarget 
+    });
 
     await sendMail({ to: employee.email, subject, text, html });
 }

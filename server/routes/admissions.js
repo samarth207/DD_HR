@@ -3,6 +3,7 @@ const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { ObjectId } = require('mongodb');
 const { sendMail } = require('../utils/mailer');
+const { buildSalesApprovedEmail, buildSalesRejectedEmail } = require('../utils/emailTemplates');
 const {
     normalizeAdmissionFeeManagement,
     buildLegacyFeeManagement,
@@ -22,7 +23,29 @@ async function sendSalesApprovedNotification(admission, employee) {
     const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
     const subject = 'Sales Record Approved | DegreeDrishti HR';
     const text = `Hi ${fullName},\n\nYour sales record has been approved.\n\nStudent: ${admission.customerName}\nUniversity: ${admission.universityName}\nRevenue: ₹${parseFloat(admission.revenue || 0).toFixed(2)}\n\nThank you for your effort.\n\nRegards,\nDegreeDrishti HR`;
-    const html = `<p>Hi ${fullName},</p><p>Your sales record has been approved.</p><ul><li><strong>Student:</strong> ${admission.customerName}</li><li><strong>University:</strong> ${admission.universityName}</li><li><strong>Revenue:</strong> ₹${parseFloat(admission.revenue || 0).toFixed(2)}</li></ul><p>Thank you for your effort.</p><p>Regards,<br/>DegreeDrishti HR</p>`;
+    const html = buildSalesApprovedEmail({ 
+        name: fullName, 
+        customerName: admission.customerName, 
+        universityName: admission.universityName, 
+        revenue: admission.revenue || 0,
+        admissionDate: admission.admissionDate 
+    });
+    await sendMail({ to: employee.email, subject, text, html });
+}
+
+async function sendSalesRejectedNotification(admission, employee, reviewNote) {
+    if (!employee || !employee.email) return;
+    const fullName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+    const subject = 'Sales Record Rejected | DegreeDrishti HR';
+    const text = `Hi ${fullName},\n\nYour sales record has been rejected.\n\nStudent: ${admission.customerName}\nUniversity: ${admission.universityName}\nRevenue: ₹${parseFloat(admission.revenue || 0).toFixed(2)}\n${reviewNote ? `Review Note: ${reviewNote}` : ''}\n\nIf you have questions or need to provide additional information, please contact HR.\n\nRegards,\nDegreeDrishti HR`;
+    const html = buildSalesRejectedEmail({ 
+        name: fullName, 
+        customerName: admission.customerName, 
+        universityName: admission.universityName, 
+        revenue: admission.revenue || 0,
+        admissionDate: admission.admissionDate,
+        reviewNote 
+    });
     await sendMail({ to: employee.email, subject, text, html });
 }
 
@@ -576,6 +599,10 @@ router.put('/:id/status', async (req, res) => {
                 }
             );
         }
+
+        // Send rejection notification email
+        const employee = await getEmployeeById(db, previousAdmission.employeeId);
+        await sendSalesRejectedNotification(previousAdmission, employee, reviewNote);
 
         res.json({ success: true, message: 'Admission rejected' });
     } catch (error) {

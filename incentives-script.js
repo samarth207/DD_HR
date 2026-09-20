@@ -1001,6 +1001,33 @@ async function markAdvanceRepaid(advanceId, employeeName, amount) {
     }
 }
 
+async function deleteAdvance(advanceId, employeeName, amount) {
+    if (!confirm(`Are you sure you want to delete this salary advance for ${employeeName} of ${formatRupees(amount)}? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/incentives/advance/${advanceId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete advance');
+        }
+
+        // Force fresh data after deletion
+        cachedIncentiveData = null;
+
+        addLog('salary', `Deleted salary advance for ${employeeName}: ${formatRupees(amount)}`);
+        showNotification('Advance deleted successfully!', 'success');
+        await loadSalaryAdvances();
+    } catch (error) {
+        console.error('Error deleting advance:', error);
+        showNotification('Failed to delete advance: ' + error.message, 'error');
+    }
+}
+
 async function loadSalaryAdvances() {
     const incentiveData = await getIncentiveData();
     const container = document.getElementById('advancesContainer');
@@ -1015,6 +1042,40 @@ async function loadSalaryAdvances() {
     
     container.innerHTML = '';
     
+    if (advances.length === 0) {
+        container.innerHTML = `
+            <div class="no-data-message">
+                <i class="fas fa-money-bill-wave"></i>
+                <h3>No Salary Advances</h3>
+                <p>No salary advances have been given yet.</p>
+            </div>
+        `;
+        document.getElementById('totalAdvances').textContent = formatRupees(totalAdvances);
+        document.getElementById('thisMonthAdvances').textContent = formatRupees(thisMonthAdvances);
+        document.getElementById('outstandingAdvances').textContent = formatRupees(outstandingAdvances);
+        return;
+    }
+    
+    // Create table
+    const table = document.createElement('table');
+    table.className = 'advances-table';
+    
+    // Create table header
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th>Employee</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>Amount</th>
+            <th>Actions</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+    
+    // Create table body
+    const tbody = document.createElement('tbody');
+    
     advances.forEach(advance => {
         totalAdvances += advance.amount;
         if (!advance.adjustedInSalary) {
@@ -1026,43 +1087,66 @@ async function loadSalaryAdvances() {
             thisMonthAdvances += advance.amount;
         }
         
-        const card = document.createElement('div');
-        card.className = 'advance-card';
-        card.innerHTML = `
-            <div class="advance-header" style="display: flex; align-items: center; gap: 15px;">
-                <div style="flex: 1;">
-                    <div class="advance-employee">${advance.employeeName}</div>
-                    <div class="advance-date">${new Date(advance.date).toLocaleDateString('en-US', { 
-                        year: 'numeric', month: 'short', day: 'numeric' 
-                    })}</div>
-                </div>
-                <div style="flex: 2; padding: 10px 15px; background: #f7fafc; border-radius: 8px;">
-                    <div style="font-size: 11px; color: #718096; margin-bottom: 3px;">Reason</div>
-                    <div style="font-size: 13px; color: #2d3748;">${advance.reason}</div>
-                </div>
-                <div style="text-align: center;">
-                    <span class="status-badge ${advance.adjustedInSalary ? 'paid' : 'pending'}">${advance.adjustedInSalary ? 'Adjusted' : 'Pending Adjustment'}</span>
-                    <div style="font-size: 10px; color: #a0aec0; margin-top: 4px;">${advance.adjustedInSalary ? (advance.adjustedMonth ? `Adjusted in ${advance.adjustedMonth}` : 'Adjusted in salary') : 'Will be deducted in salary'}</div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 11px; color: #718096; margin-bottom: 2px;">Amount</div>
-                    <div class="advance-amount">${formatRupees(advance.amount)}</div>
-                </div>
-            </div>
-        `;
+        // Get initials for avatar
+        const initials = advance.employeeName
+            .split(' ')
+            .map(name => name.charAt(0))
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
         
-        container.appendChild(card);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <div class="advance-employee-info">
+                    <div class="advance-avatar">${initials}</div>
+                    <div class="advance-employee-details">
+                        <div class="advance-employee-name">${advance.employeeName}</div>
+                        <div class="advance-employee-date">${new Date(advance.date).toLocaleDateString('en-US', { 
+                            year: 'numeric', month: 'short', day: 'numeric' 
+                        })}</div>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="advance-reason-box">
+                    <div class="advance-reason-label">Reason</div>
+                    <div class="advance-reason-text">${advance.reason}</div>
+                </div>
+            </td>
+            <td>
+                <div class="advance-status-container">
+                    <span class="advance-status-badge ${advance.adjustedInSalary ? 'adjusted' : 'pending'}">
+                        ${advance.adjustedInSalary ? 'Adjusted' : 'Pending'}
+                    </span>
+                    <div class="advance-status-note">
+                        ${advance.adjustedInSalary 
+                            ? (advance.adjustedMonth ? `Adjusted in ${advance.adjustedMonth}` : 'Adjusted in salary') 
+                            : 'Will be deducted in salary'}
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="advance-amount-container">
+                    <div class="advance-amount-label">Amount</div>
+                    <div class="advance-amount-value">${formatRupees(advance.amount)}</div>
+                </div>
+            </td>
+            <td>
+                <div class="advance-actions">
+                    ${!advance.adjustedInSalary ? `
+                        <button class="advance-action-btn delete" onclick="deleteAdvance(${advance.id}, '${advance.employeeName}', ${advance.amount})">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    ` : '<span style="color: #a0aec0; font-size: 12px;">Locked</span>'}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
     });
     
-    if (advances.length === 0) {
-        container.innerHTML = `
-            <div class="no-data-message">
-                <i class="fas fa-money-bill-wave"></i>
-                <h3>No Salary Advances</h3>
-                <p>No salary advances have been given yet.</p>
-            </div>
-        `;
-    }
+    table.appendChild(tbody);
+    container.appendChild(table);
     
     document.getElementById('totalAdvances').textContent = formatRupees(totalAdvances);
     document.getElementById('thisMonthAdvances').textContent = formatRupees(thisMonthAdvances);
