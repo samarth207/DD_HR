@@ -272,6 +272,114 @@ router.post('/', requireManagement, async (req, res) => {
     }
 });
 
+// POST /api/courses/bulk
+router.post('/bulk', requireManagement, async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { universityId, courses: coursesPayload } = req.body || {};
+
+        if (!universityId) {
+            return res.status(400).json({ error: 'universityId is required' });
+        }
+
+        if (!Array.isArray(coursesPayload) || coursesPayload.length === 0) {
+            return res.status(400).json({ error: 'courses array is required and must not be empty' });
+        }
+
+        // Validate university
+        const universityIdObj = parseUniversityId(universityId);
+        const university = await getActiveUniversity(db, universityIdObj);
+        if (!university) {
+            return res.status(400).json({ error: 'Active university not found for universityId' });
+        }
+
+        const now = new Date();
+        const coursesToInsert = [];
+        const errors = [];
+
+        // Validate and prepare all courses
+        for (let i = 0; i < coursesPayload.length; i++) {
+            const courseData = coursesPayload[i];
+            try {
+                const name = normalizeCourseName(courseData.name);
+                if (!name) {
+                    throw new Error('Course name is required');
+                }
+                if (name.length < COURSE_NAME_MIN || name.length > COURSE_NAME_MAX) {
+                    throw new Error(`Course name must be between ${COURSE_NAME_MIN} and ${COURSE_NAME_MAX} characters`);
+                }
+
+                const duration = validateDuration(courseData.duration);
+                const totalFees = validateTotalFees(courseData.totalFees);
+
+                // Check for duplicate course name within this batch
+                const normalizedName = name.toLowerCase();
+                const duplicateInBatch = coursesToInsert.some(
+                    c => c.normalizedName === normalizedName
+                );
+                if (duplicateInBatch) {
+                    throw new Error('Duplicate course name in batch');
+                }
+
+                // Check for existing course with same name for this university
+                const existingCourse = await db.collection('courses').findOne({
+                    normalizedName,
+                    universityId: universityIdObj,
+                    isDeleted: { $ne: true }
+                });
+
+                if (existingCourse) {
+                    throw new Error('Course with same name already exists for this university');
+                }
+
+                coursesToInsert.push({
+                    name,
+                    normalizedName,
+                    universityId: universityIdObj,
+                    universityName: university.name,
+                    duration,
+                    totalFees,
+                    isActive: courseData.isActive !== false,
+                    isDeleted: false,
+                    createdAt: now,
+                    updatedAt: now,
+                    deletedAt: null,
+                    deletedBy: null,
+                    createdBy: req.auth ? req.auth.role || 'system' : 'system',
+                    updatedBy: req.auth ? req.auth.role || 'system' : 'system'
+                });
+            } catch (error) {
+                errors.push({
+                    index: i,
+                    course: courseData.name || 'Unknown',
+                    error: error.message
+                });
+            }
+        }
+
+        if (errors.length > 0) {
+            return res.status(400).json({
+                error: 'Some courses failed validation',
+                errors
+            });
+        }
+
+        // Insert all courses
+        const result = await db.collection('courses').insertMany(coursesToInsert);
+
+        res.status(201).json({
+            success: true,
+            message: `Successfully created ${coursesToInsert.length} courses`,
+            count: coursesToInsert.length,
+            courseIds: result.insertedIds
+        });
+    } catch (error) {
+        const status = /required|must be|already exists|not found/i.test(error.message) ? 400 : 500;
+        res.status(status).json({ error: error.message });
+    }
+});
+
 // PUT /api/courses/:id
 router.put('/:id', requireManagement, async (req, res) => {
     if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);

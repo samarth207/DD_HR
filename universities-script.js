@@ -16,6 +16,13 @@ function universityApi(path, options) {
     });
 }
 
+function coursesApi(path, options) {
+    return fetch(`${API_BASE_URL}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...(options && options.headers ? options.headers : {}) },
+        ...(options || {})
+    });
+}
+
 function formatDate(value) {
     if (!value) return '-';
     const date = new Date(value);
@@ -249,14 +256,185 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target === modal) closeUniversityModal();
     });
 
+    const coursesModal = document.getElementById('universityWithCoursesModal');
+    coursesModal.addEventListener('click', function(event) {
+        if (event.target === coursesModal) closeUniversityWithCoursesModal();
+    });
+
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape' && modal.classList.contains('show')) {
             closeUniversityModal();
+        }
+        if (event.key === 'Escape' && coursesModal.classList.contains('show')) {
+            closeUniversityWithCoursesModal();
         }
     });
 
     loadUniversities();
 });
+
+function openUniversityWithCoursesModal() {
+    const modal = document.getElementById('universityWithCoursesModal');
+    document.getElementById('universityWithCoursesName').value = '';
+    document.getElementById('universityWithCoursesIsActive').value = 'true';
+    document.getElementById('universityWithCoursesFormError').textContent = '';
+
+    // Reset courses container to single empty row
+    const container = document.getElementById('coursesContainer');
+    container.innerHTML = `
+        <div class="course-row" data-course-index="0">
+            <div class="form-grid" style="grid-template-columns:repeat(3,1fr); gap: 8px; padding-right: 32px;">
+                <div class="form-group">
+                    <input type="text" class="course-name" placeholder="Course Name *" maxlength="160" required>
+                </div>
+                <div class="form-group">
+                    <input type="number" class="course-duration" placeholder="Duration (Years) *" min="1" step="1" required>
+                </div>
+                <div class="form-group">
+                    <input type="number" class="course-fees" placeholder="Total Fees *" min="1" step="0.01" required>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add('show');
+}
+
+function closeUniversityWithCoursesModal() {
+    document.getElementById('universityWithCoursesModal').classList.remove('show');
+}
+
+function addCourseRow() {
+    const container = document.getElementById('coursesContainer');
+    const courseCount = container.querySelectorAll('.course-row').length;
+    const newRow = document.createElement('div');
+    newRow.className = 'course-row';
+    newRow.setAttribute('data-course-index', courseCount);
+    newRow.innerHTML = `
+        <button type="button" class="remove-course" onclick="removeCourseRow(this)" title="Remove Course">
+            <i class="fas fa-times"></i>
+        </button>
+        <div class="form-grid" style="grid-template-columns:repeat(3,1fr); gap: 8px; padding-right: 32px;">
+            <div class="form-group">
+                <input type="text" class="course-name" placeholder="Course Name *" maxlength="160" required>
+            </div>
+            <div class="form-group">
+                <input type="number" class="course-duration" placeholder="Duration (Years) *" min="1" step="1" required>
+            </div>
+            <div class="form-group">
+                <input type="number" class="course-fees" placeholder="Total Fees *" min="1" step="0.01" required>
+            </div>
+        </div>
+    `;
+    container.appendChild(newRow);
+}
+
+function removeCourseRow(button) {
+    const container = document.getElementById('coursesContainer');
+    const courseRows = container.querySelectorAll('.course-row');
+    if (courseRows.length <= 1) {
+        if (typeof showNotification === 'function') {
+            showNotification('At least one course is required', 'error');
+        }
+        return;
+    }
+    button.closest('.course-row').remove();
+}
+
+async function saveUniversityWithCourses(event) {
+    event.preventDefault();
+
+    const name = document.getElementById('universityWithCoursesName').value;
+    const isActive = document.getElementById('universityWithCoursesIsActive').value === 'true';
+    const errorBox = document.getElementById('universityWithCoursesFormError');
+
+    // Validate university
+    const universityValidation = window.MasterDataValidation.validateUniversityInput(
+        { name, isActive },
+        {
+            maxNameLength: 160,
+            existingItems: universities,
+            editingId: null
+        }
+    );
+
+    if (!universityValidation.ok) {
+        errorBox.textContent = universityValidation.error;
+        return;
+    }
+
+    // Collect courses
+    const courseRows = document.querySelectorAll('.course-row');
+    const courses = [];
+
+    for (const row of courseRows) {
+        const courseName = row.querySelector('.course-name').value.trim();
+        const duration = row.querySelector('.course-duration').value;
+        const totalFees = row.querySelector('.course-fees').value;
+
+        if (!courseName || !duration || !totalFees) {
+            errorBox.textContent = 'All course fields are required';
+            return;
+        }
+
+        courses.push({
+            name: courseName,
+            duration: parseInt(duration, 10),
+            totalFees: parseFloat(totalFees),
+            isActive: true
+        });
+    }
+
+    if (courses.length === 0) {
+        errorBox.textContent = 'At least one course is required';
+        return;
+    }
+
+    try {
+        // First create the university
+        const universityPayload = universityValidation.value;
+        const universityResponse = await universityApi('/universities', {
+            method: 'POST',
+            body: JSON.stringify(universityPayload)
+        });
+        const universityData = await universityResponse.json();
+
+        if (!universityResponse.ok) {
+            throw new Error(universityData.error || 'Failed to create university');
+        }
+
+        const universityId = universityData.id;
+
+        // Then create all courses in bulk
+        const coursesResponse = await coursesApi('/courses/bulk', {
+            method: 'POST',
+            body: JSON.stringify({
+                universityId: universityId,
+                courses: courses
+            })
+        });
+
+        const coursesData = await coursesResponse.json();
+
+        if (!coursesResponse.ok) {
+            // Handle validation errors for specific courses
+            if (coursesData.errors && Array.isArray(coursesData.errors)) {
+                const errorMessages = coursesData.errors.map(e => `Course "${e.course}": ${e.error}`).join(', ');
+                throw new Error(errorMessages);
+            }
+            throw new Error(coursesData.error || 'Failed to create courses');
+        }
+
+        localStorage.setItem('masterDataVersion', String(Date.now()));
+        if (typeof showNotification === 'function') {
+            showNotification(`University and ${coursesData.count} course(s) added successfully`, 'success');
+        }
+        closeUniversityWithCoursesModal();
+        await loadUniversities();
+    } catch (error) {
+        errorBox.textContent = error.message;
+    }
+}
 
 window.openUniversityModal = openUniversityModal;
 window.closeUniversityModal = closeUniversityModal;
@@ -265,3 +443,8 @@ window.deleteUniversity = deleteUniversity;
 window.restoreUniversity = restoreUniversity;
 window.onUniversitySearch = onUniversitySearch;
 window.onUniversityStatusFilter = onUniversityStatusFilter;
+window.openUniversityWithCoursesModal = openUniversityWithCoursesModal;
+window.closeUniversityWithCoursesModal = closeUniversityWithCoursesModal;
+window.addCourseRow = addCourseRow;
+window.removeCourseRow = removeCourseRow;
+window.saveUniversityWithCourses = saveUniversityWithCourses;
