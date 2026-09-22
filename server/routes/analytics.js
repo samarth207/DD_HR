@@ -266,36 +266,114 @@ router.get('/charts', async (req, res) => {
 });
 
 // GET /api/analytics/company
-// Overall company KPI stats
+// Overall company KPI stats with optional filters and YoY comparison
 router.get('/company', async (req, res) => {
     if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
+        const { month, year, employeeId, department, university, course, startDate, endDate, yoy = false } = req.query;
         const now = new Date();
         const today = now.toISOString().substring(0, 10);
         const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
+        // Build date filter
+        const dateFilter = buildDateFilter({ month, year, startDate, endDate });
+
+        // Build base admissions filter
+        const admissionsFilter = { status: 'approved', ...dateFilter };
+        if (employeeId) admissionsFilter.employeeId = parseInt(employeeId);
+        if (university) admissionsFilter.universityName = university;
+        if (course) admissionsFilter.course = course;
+
+        // Build YoY comparison filter (same period last year)
+        let yoyFilter = null;
+        if (yoy === 'true') {
+            if (month) {
+                const [mYear, mMonth] = month.split('-');
+                const lastYearMonth = `${parseInt(mYear) - 1}-${mMonth}`;
+                yoyFilter = { status: 'approved', month: lastYearMonth };
+                if (employeeId) yoyFilter.employeeId = parseInt(employeeId);
+                if (university) yoyFilter.universityName = university;
+                if (course) yoyFilter.course = course;
+            } else if (year) {
+                const lastYear = String(parseInt(year) - 1);
+                yoyFilter = { status: 'approved', month: { $regex: `^${lastYear}-` } };
+                if (employeeId) yoyFilter.employeeId = parseInt(employeeId);
+                if (university) yoyFilter.universityName = university;
+                if (course) yoyFilter.course = course;
+            } else if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const daysDiff = Math.floor((end - start) / (1000 * 60 * 60 * 24));
+                const lastYearStart = new Date(start);
+                lastYearStart.setFullYear(start.getFullYear() - 1);
+                const lastYearEnd = new Date(lastYearStart);
+                lastYearEnd.setDate(lastYearStart.getDate() + daysDiff);
+                yoyFilter = { 
+                    status: 'approved',
+                    admissionDate: { $gte: lastYearStart.toISOString().substring(0, 10), $lte: lastYearEnd.toISOString().substring(0, 10) }
+                };
+                if (employeeId) yoyFilter.employeeId = parseInt(employeeId);
+                if (university) yoyFilter.universityName = university;
+                if (course) yoyFilter.course = course;
+            } else {
+                // Default: compare this month to same month last year
+                const lastYearMonth = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                yoyFilter = { status: 'approved', month: lastYearMonth };
+                if (employeeId) yoyFilter.employeeId = parseInt(employeeId);
+                if (university) yoyFilter.universityName = university;
+                if (course) yoyFilter.course = course;
+            }
+        }
+
         const [
             allEmployees,
             allApproved,
             pendingAdmissions,
-            rejectedAdmissions
+            rejectedAdmissions,
+            yoyApproved
         ] = await Promise.all([
             db.collection('employees').find({}).toArray(),
-            db.collection('admissions').find({ status: 'approved' }).toArray(),
-            db.collection('admissions').countDocuments({ status: 'pending' }),
-            db.collection('admissions').countDocuments({ status: 'rejected' })
+            db.collection('admissions').find(admissionsFilter).toArray(),
+            db.collection('admissions').countDocuments({ status: 'pending', ...dateFilter }),
+            db.collection('admissions').countDocuments({ status: 'rejected', ...dateFilter }),
+            yoyFilter ? db.collection('admissions').find(yoyFilter).toArray() : Promise.resolve([])
         ]);
 
-        const totalEmployees = allEmployees.length;
-        const totalAdmissions = allApproved.length;
-        const totalRevenue = allApproved.reduce((s, a) => s + (parseFloat(a.revenue) || 0), 0);
+        // Build employee lookup map
+        const empMap = {};
+        allEmployees.forEach(e => { empMap[e.id] = e; });
 
-        const thisMonthAdmissions = allApproved.filter(a => a.month === thisMonth);
-        const lastMonthAdmissions = allApproved.filter(a => a.month === lastMonth);
-        const todayAdmissions = allApproved.filter(a => a.admissionDate === today);
+        // Filter by department if set
+        let filteredApproved = allApproved;
+        let filteredYoy = yoyApproved;
+        if (department) {
+            filteredApproved = allApproved.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+            filteredYoy = yoyApproved.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+        }
+
+        const totalEmployees = allEmployees.length;
+        const totalAdmissions = filteredApproved.length;
+        const totalRevenue = filteredApproved.reduce((s, a) => s + (parseFloat(a.revenue) || 0), 0);
+
+        // YoY comparison data
+        const yoyTotalAdmissions = filteredYoy.length;
+        const yoyTotalRevenue = filteredYoy.reduce((s, a) => s + (parseFloat(a.revenue) || 0), 0);
+        const yoyGrowth = yoyTotalAdmissions > 0 
+            ? Math.round(((totalAdmissions - yoyTotalAdmissions) / yoyTotalAdmissions) * 100) 
+            : totalAdmissions > 0 ? 100 : 0;
+
+        const thisMonthAdmissions = filteredApproved.filter(a => a.month === thisMonth);
+        const lastMonthAdmissions = filteredApproved.filter(a => a.month === lastMonth);
+        const todayAdmissions = filteredApproved.filter(a => a.admissionDate === today);
 
         const countThisMonth = thisMonthAdmissions.length;
         const countLastMonth = lastMonthAdmissions.length;
@@ -306,12 +384,9 @@ router.get('/company', async (req, res) => {
             ? Math.round(((countThisMonth - countLastMonth) / countLastMonth) * 100)
             : countThisMonth > 0 ? 100 : 0;
 
-        // Per-employee stats
-        const empMap = {};
-        allEmployees.forEach(e => { empMap[e.id] = e; });
-
+        // Per-employee stats (using filtered data)
         const empCounts = {};
-        allApproved.forEach(a => {
+        filteredApproved.forEach(a => {
             const eid = a.employeeId;
             if (!empCounts[eid]) empCounts[eid] = { count: 0, thisMonth: 0 };
             empCounts[eid].count++;
@@ -370,7 +445,14 @@ router.get('/company', async (req, res) => {
             growth,
             growthDirection: growth > 0 ? 'up' : growth < 0 ? 'down' : 'flat',
             targetCompletion,
-            performanceScore: Math.round(performanceScore)
+            performanceScore: Math.round(performanceScore),
+            // YoY comparison data
+            yoy: {
+                totalAdmissions: yoyTotalAdmissions,
+                totalRevenue: Math.round(yoyTotalRevenue * 100) / 100,
+                growth: yoyGrowth,
+                growthDirection: yoyGrowth > 0 ? 'up' : yoyGrowth < 0 ? 'down' : 'flat'
+            }
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -378,11 +460,12 @@ router.get('/company', async (req, res) => {
 });
 
 // GET /api/analytics/insights
-// Auto-generated insights
+// Auto-generated insights with optional filters
 router.get('/insights', async (req, res) => {
     if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
+        const { month, year, employeeId, department, startDate, endDate } = req.query;
         const now = new Date();
         const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -390,14 +473,32 @@ router.get('/insights', async (req, res) => {
         const twoMonthsAgoDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
         const twoMonthsAgo = `${twoMonthsAgoDate.getFullYear()}-${String(twoMonthsAgoDate.getMonth() + 1).padStart(2, '0')}`;
 
-        const allApproved = await db.collection('admissions').find({ status: 'approved' }).toArray();
+        // Build date filter
+        const dateFilter = buildDateFilter({ month, year, startDate, endDate });
+
+        // Build base admissions filter
+        const admissionsFilter = { status: 'approved', ...dateFilter };
+        if (employeeId) admissionsFilter.employeeId = parseInt(employeeId);
+        if (university) admissionsFilter.universityName = university;
+        if (course) admissionsFilter.course = course;
+
+        const allApproved = await db.collection('admissions').find(admissionsFilter).toArray();
         const employees = await db.collection('employees').find({}).toArray();
         const empMap = {};
         employees.forEach(e => { empMap[e.id] = e; });
 
+        // Filter by department if set
+        let filteredApproved = allApproved;
+        if (department) {
+            filteredApproved = allApproved.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+        }
+
         const countByMonth = {};
         const empCountThisMonth = {};
-        allApproved.forEach(a => {
+        filteredApproved.forEach(a => {
             const m = a.month || (a.admissionDate ? a.admissionDate.substring(0, 7) : null);
             if (m) countByMonth[m] = (countByMonth[m] || 0) + 1;
             if (m === thisMonth) {
@@ -457,7 +558,7 @@ router.get('/insights', async (req, res) => {
         }
 
         // Revenue insight
-        const revThisMonth = allApproved
+        const revThisMonth = filteredApproved
             .filter(a => a.month === thisMonth)
             .reduce((s, a) => s + (parseFloat(a.revenue) || 0), 0);
         if (revThisMonth > 0) {
@@ -485,6 +586,287 @@ router.get('/departments', async (req, res) => {
         const db = getDB();
         const depts = await db.collection('employees').distinct('department');
         res.json({ departments: depts.filter(Boolean).sort() });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/analytics/universities
+// University-wise admission analytics
+router.get('/universities', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { month, year, employeeId, department, startDate, endDate } = req.query;
+        
+        const dateFilter = buildDateFilter({ month, year, startDate, endDate });
+        const admissionsFilter = { status: 'approved', ...dateFilter };
+        if (employeeId) admissionsFilter.employeeId = parseInt(employeeId);
+        
+        const admissions = await db.collection('admissions').find(admissionsFilter).toArray();
+        const employees = await db.collection('employees').find({}).toArray();
+        const empMap = {};
+        employees.forEach(e => { empMap[e.id] = e; });
+        
+        // Filter by department if set
+        let filtered = admissions;
+        if (department) {
+            filtered = admissions.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+        }
+        
+        // Aggregate by university
+        const universityStats = {};
+        filtered.forEach(a => {
+            const uni = a.universityName || 'Unknown';
+            if (!universityStats[uni]) {
+                universityStats[uni] = {
+                    university: uni,
+                    admissions: 0,
+                    revenue: 0,
+                    courses: new Set()
+                };
+            }
+            universityStats[uni].admissions++;
+            universityStats[uni].revenue += parseFloat(a.revenue) || 0;
+            if (a.course) universityStats[uni].courses.add(a.course);
+        });
+        
+        const result = Object.values(universityStats).map(u => ({
+            university: u.university,
+            admissions: u.admissions,
+            revenue: Math.round(u.revenue * 100) / 100,
+            revenuePerAdmission: u.admissions > 0 ? Math.round((u.revenue / u.admissions) * 100) / 100 : 0,
+            uniqueCourses: u.courses.size
+        })).sort((a, b) => b.admissions - a.admissions);
+        
+        res.json({ universities: result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/analytics/courses
+// Course-wise admission analytics
+router.get('/courses', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { month, year, employeeId, department, startDate, endDate } = req.query;
+        
+        const dateFilter = buildDateFilter({ month, year, startDate, endDate });
+        const admissionsFilter = { status: 'approved', ...dateFilter };
+        if (employeeId) admissionsFilter.employeeId = parseInt(employeeId);
+        
+        const admissions = await db.collection('admissions').find(admissionsFilter).toArray();
+        const employees = await db.collection('employees').find({}).toArray();
+        const empMap = {};
+        employees.forEach(e => { empMap[e.id] = e; });
+        
+        // Filter by department if set
+        let filtered = admissions;
+        if (department) {
+            filtered = admissions.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+        }
+        
+        // Aggregate by course
+        const courseStats = {};
+        filtered.forEach(a => {
+            const course = a.course || 'Unknown';
+            if (!courseStats[course]) {
+                courseStats[course] = {
+                    course: course,
+                    admissions: 0,
+                    revenue: 0,
+                    universities: new Set()
+                };
+            }
+            courseStats[course].admissions++;
+            courseStats[course].revenue += parseFloat(a.revenue) || 0;
+            if (a.universityName) courseStats[course].universities.add(a.universityName);
+        });
+        
+        const result = Object.values(courseStats).map(c => ({
+            course: c.course,
+            admissions: c.admissions,
+            revenue: Math.round(c.revenue * 100) / 100,
+            revenuePerAdmission: c.admissions > 0 ? Math.round((c.revenue / c.admissions) * 100) / 100 : 0,
+            uniqueUniversities: c.universities.size
+        })).sort((a, b) => b.admissions - a.admissions);
+        
+        res.json({ courses: result });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/analytics/leaderboard
+// Employee performance leaderboard with rankings
+router.get('/leaderboard', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { month, year, department, startDate, endDate } = req.query;
+        
+        const dateFilter = buildDateFilter({ month, year, startDate, endDate });
+        const admissionsFilter = { status: 'approved', ...dateFilter };
+        
+        const admissions = await db.collection('admissions').find(admissionsFilter).toArray();
+        const employees = await db.collection('employees').find({}).toArray();
+        const empMap = {};
+        employees.forEach(e => { empMap[e.id] = e; });
+        
+        // Filter by department if set
+        let filtered = admissions;
+        if (department) {
+            filtered = admissions.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+        }
+        
+        // Aggregate by employee
+        const empStats = {};
+        filtered.forEach(a => {
+            const eid = a.employeeId;
+            if (!empStats[eid]) {
+                empStats[eid] = {
+                    employeeId: eid,
+                    admissions: 0,
+                    revenue: 0,
+                    universities: new Set(),
+                    courses: new Set()
+                };
+            }
+            empStats[eid].admissions++;
+            empStats[eid].revenue += parseFloat(a.revenue) || 0;
+            if (a.universityName) empStats[eid].universities.add(a.universityName);
+            if (a.course) empStats[eid].courses.add(a.course);
+        });
+        
+        // Add employee details and calculate metrics
+        const leaderboard = Object.values(empStats).map(e => {
+            const emp = empMap[e.employeeId];
+            return {
+                employeeId: e.employeeId,
+                name: emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : `Emp ${e.employeeId}`,
+                department: emp ? emp.department : 'Unknown',
+                admissions: e.admissions,
+                revenue: Math.round(e.revenue * 100) / 100,
+                revenuePerAdmission: e.admissions > 0 ? Math.round((e.revenue / e.admissions) * 100) / 100 : 0,
+                uniqueUniversities: e.universities.size,
+                uniqueCourses: e.courses.size
+            };
+        }).sort((a, b) => b.admissions - a.admissions);
+        
+        // Add rankings
+        leaderboard.forEach((entry, index) => {
+            entry.rank = index + 1;
+        });
+        
+        // Calculate top performer metrics
+        const topPerformer = leaderboard.length > 0 ? leaderboard[0] : null;
+        const avgAdmissions = leaderboard.length > 0 
+            ? Math.round(leaderboard.reduce((sum, e) => sum + e.admissions, 0) / leaderboard.length * 10) / 10 
+            : 0;
+        
+        res.json({ 
+            leaderboard: leaderboard.slice(0, 20), // Top 20
+            topPerformer,
+            avgAdmissions,
+            totalEmployees: leaderboard.length
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/analytics/revenue
+// Enhanced revenue analytics with distribution and trends
+router.get('/revenue', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { month, year, employeeId, department, startDate, endDate } = req.query;
+        
+        const dateFilter = buildDateFilter({ month, year, startDate, endDate });
+        const admissionsFilter = { status: 'approved', ...dateFilter };
+        if (employeeId) admissionsFilter.employeeId = parseInt(employeeId);
+        
+        const admissions = await db.collection('admissions').find(admissionsFilter).toArray();
+        const employees = await db.collection('employees').find({}).toArray();
+        const empMap = {};
+        employees.forEach(e => { empMap[e.id] = e; });
+        
+        // Filter by department if set
+        let filtered = admissions;
+        if (department) {
+            filtered = admissions.filter(a => {
+                const emp = empMap[a.employeeId];
+                return emp && emp.department === department;
+            });
+        }
+        
+        // Calculate revenue metrics
+        const totalRevenue = filtered.reduce((sum, a) => sum + (parseFloat(a.revenue) || 0), 0);
+        const avgRevenue = filtered.length > 0 ? totalRevenue / filtered.length : 0;
+        
+        // Revenue distribution by ranges
+        const distribution = {
+            low: 0,      // < 10,000
+            medium: 0,   // 10,000 - 50,000
+            high: 0,     // 50,000 - 100,000
+            premium: 0   // > 100,000
+        };
+        
+        filtered.forEach(a => {
+            const rev = parseFloat(a.revenue) || 0;
+            if (rev < 10000) distribution.low++;
+            else if (rev < 50000) distribution.medium++;
+            else if (rev < 100000) distribution.high++;
+            else distribution.premium++;
+        });
+        
+        // Top revenue admissions
+        const topRevenueAdmissions = filtered
+            .map(a => ({
+                id: a.id,
+                studentName: a.studentName || 'Unknown',
+                university: a.universityName || 'Unknown',
+                course: a.course || 'Unknown',
+                revenue: parseFloat(a.revenue) || 0,
+                employeeId: a.employeeId,
+                employeeName: empMap[a.employeeId] ? `${empMap[a.employeeId].firstName || ''} ${empMap[a.employeeId].lastName || ''}`.trim() : 'Unknown'
+            }))
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 10);
+        
+        // Revenue by month (for trend)
+        const revenueByMonth = {};
+        filtered.forEach(a => {
+            if (a.month) {
+                if (!revenueByMonth[a.month]) revenueByMonth[a.month] = 0;
+                revenueByMonth[a.month] += parseFloat(a.revenue) || 0;
+            }
+        });
+        
+        const monthlyRevenue = Object.entries(revenueByMonth)
+            .map(([month, revenue]) => ({ month, revenue: Math.round(revenue * 100) / 100 }))
+            .sort((a, b) => a.month.localeCompare(b.month));
+        
+        res.json({
+            totalRevenue: Math.round(totalRevenue * 100) / 100,
+            avgRevenue: Math.round(avgRevenue * 100) / 100,
+            distribution,
+            topRevenueAdmissions,
+            monthlyRevenue,
+            totalAdmissions: filtered.length
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
