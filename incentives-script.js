@@ -235,11 +235,99 @@ async function saveConfiguration(event) {
     addLog('system', 'Updated incentive configuration settings');
     showNotification('Configuration saved successfully!', 'success');
     closeConfigModal();
-    
+
     // Refresh current tab
     const activeTabContent = document.querySelector('.tab-content.active');
     const activeTab = activeTabContent ? activeTabContent.id.replace('-tab', '') : 'monthly';
     switchTab(activeTab);
+}
+
+async function openEmailPreviewModal() {
+    const config = await getIncentiveConfig();
+
+    // Get a sample sales employee for preview
+    const employees = window.getEmployees ? window.getEmployees() : [];
+    const sampleEmployee = employees.find(emp => emp.department === 'Sales' && emp.status === 'Active');
+    const sampleName = sampleEmployee ? `${sampleEmployee.firstName || ''} ${sampleEmployee.lastName || ''}`.trim() : 'John Doe';
+
+    // Show modal
+    document.getElementById('emailPreviewModal').style.display = 'flex';
+
+    // Add event listeners for checkboxes
+    document.getElementById('includeSlabs').addEventListener('change', updateEmailPreview);
+    document.getElementById('includeRewards').addEventListener('change', updateEmailPreview);
+
+    // Generate initial preview
+    await updateEmailPreview(config, sampleName);
+}
+
+function closeEmailPreviewModal() {
+    document.getElementById('emailPreviewModal').style.display = 'none';
+}
+
+async function updateEmailPreview(config = null, sampleName = null) {
+    if (!config) {
+        config = await getIncentiveConfig();
+    }
+
+    if (!sampleName) {
+        const employees = window.getEmployees ? window.getEmployees() : [];
+        const sampleEmployee = employees.find(emp => emp.department === 'Sales' && emp.status === 'Active');
+        sampleName = sampleEmployee ? `${sampleEmployee.firstName || ''} ${sampleEmployee.lastName || ''}`.trim() : 'John Doe';
+    }
+
+    const includeSlabs = document.getElementById('includeSlabs').checked;
+    const includeRewards = document.getElementById('includeRewards').checked;
+
+    try {
+        const result = await apiCall('/incentives/config/preview', 'POST', {
+            name: sampleName,
+            includeSlabs,
+            includeRewards
+        });
+
+        if (result && result.html) {
+            document.getElementById('emailPreviewContent').innerHTML = result.html;
+        } else {
+            document.getElementById('emailPreviewContent').innerHTML = `<p style="color: #e53e3e;">Error generating preview: ${result?.error || 'Unknown error'}</p>`;
+        }
+    } catch (error) {
+        console.error('Error generating email preview:', error);
+        document.getElementById('emailPreviewContent').innerHTML = `<p style="color: #e53e3e;">Error generating preview: ${error.message}</p>`;
+    }
+}
+
+async function sendSelectedNotification() {
+    const includeSlabs = document.getElementById('includeSlabs').checked;
+    const includeRewards = document.getElementById('includeRewards').checked;
+
+    if (!includeSlabs && !includeRewards) {
+        showNotification('Please select at least one option to include in the notification', 'error');
+        return;
+    }
+
+    try {
+        const result = await apiCall('/incentives/config/notify', 'POST', {
+            includeSlabs,
+            includeRewards
+        });
+
+        if (result && result.success) {
+            addLog('system', `Sent incentive config notification to ${result.sentCount} employees`);
+            showNotification(
+                `Notification sent successfully to ${result.sentCount} employees!${result.failedCount > 0 ? ` (${result.failedCount} failed)` : ''}`,
+                result.failedCount > 0 ? 'warning' : 'success'
+            );
+            closeEmailPreviewModal();
+        } else {
+            addLog('error', `Failed to send notification: ${result?.error || 'Unknown error'}`);
+            showNotification(`Failed to send notification: ${result?.error || 'Unknown error'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error sending incentive config notification:', error);
+        addLog('error', `Error sending notification: ${error.message}`);
+        showNotification('Error sending notification. Please try again.', 'error');
+    }
 }
 
 // Monthly Incentives
@@ -1582,7 +1670,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Add Escape key listener for closing modals
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape' || event.key === 'Esc') {
-            const modals = ['configModal', 'dailyBonusModal', 'advanceModal'];
+            const modals = ['configModal', 'dailyBonusModal', 'advanceModal', 'emailPreviewModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal && modal.style.display === 'flex') {
@@ -1591,9 +1679,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             });
         }
     });
-    
+
     // Click outside to close modals
-    const modals = ['configModal', 'dailyBonusModal', 'advanceModal'];
+    const modals = ['configModal', 'dailyBonusModal', 'advanceModal', 'emailPreviewModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (modal) {
@@ -1611,6 +1699,10 @@ window.switchTab = switchTab;
 window.openConfigModal = openConfigModal;
 window.closeConfigModal = closeConfigModal;
 window.saveConfiguration = saveConfiguration;
+window.openEmailPreviewModal = openEmailPreviewModal;
+window.closeEmailPreviewModal = closeEmailPreviewModal;
+window.updateEmailPreview = updateEmailPreview;
+window.sendSelectedNotification = sendSelectedNotification;
 window.openDailyBonusModal = openDailyBonusModal;
 window.closeDailyBonusModal = closeDailyBonusModal;
 window.calculateDailyReward = calculateDailyReward;

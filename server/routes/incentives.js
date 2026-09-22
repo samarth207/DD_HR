@@ -3,7 +3,7 @@ const router = express.Router();
 const { getDB, isDBConnected } = require('../db');
 const { ObjectId } = require('mongodb');
 const { sendMail } = require('../utils/mailer');
-const { buildIncentiveEmail } = require('../utils/emailTemplates');
+const { buildIncentiveEmail, buildIncentiveConfigEmail } = require('../utils/emailTemplates');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
@@ -183,14 +183,188 @@ router.post('/config', async (req, res) => {
     try {
         const db = getDB();
         const config = req.body;
-        
+
         await db.collection('incentive_config').updateOne(
             {},
             { $set: config },
             { upsert: true }
         );
-        
+
         res.json({ success: true, message: 'Configuration saved' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST /api/incentives/config/preview - generate email preview
+router.post('/config/preview', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { name, includeSlabs = true, includeRewards = true } = req.body;
+
+        // Get current incentive configuration
+        const config = await db.collection('incentive_config').findOne({});
+        if (!config) {
+            return res.status(404).json({ error: 'No incentive configuration found' });
+        }
+
+        // Build email with selected options
+        const slabs = includeSlabs ? config.slabs : null;
+        const courseRewards = includeRewards ? config.courseRewards : null;
+        const highPriority = includeSlabs;
+
+        const html = buildIncentiveConfigEmail({
+            name: name || 'Employee Name',
+            slabs,
+            courseRewards,
+            highPriority
+        });
+
+        res.json({ success: true, html });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST /api/incentives/config/notify - send incentive configuration notification to sales employees
+router.post('/config/notify', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        const db = getDB();
+        const { includeSlabs = true, includeRewards = true } = req.body;
+
+        // Get current incentive configuration
+        const config = await db.collection('incentive_config').findOne({});
+        if (!config) {
+            return res.status(404).json({ error: 'No incentive configuration found' });
+        }
+
+        // Get all active sales employees
+        const salesEmployees = await db.collection('employees').find({
+            department: 'Sales',
+            status: 'Active'
+        }).toArray();
+
+        if (salesEmployees.length === 0) {
+            return res.status(404).json({ error: 'No active sales employees found' });
+        }
+
+        const subject = includeSlabs ? '[IMPORTANT] Incentive Policy Update | New Monthly Targets Announced' : 'Incentive Policy Update | New Monthly Targets Announced';
+        let sentCount = 0;
+        let failedCount = 0;
+        const results = [];
+
+        // Build email content based on selections
+        const slabs = includeSlabs ? config.slabs : null;
+        const courseRewards = includeRewards ? config.courseRewards : null;
+
+        // Set email priority to high if Monthly Incentive Slabs are included
+        const emailPriority = includeSlabs ? 'high' : 'normal';
+        const highPriority = includeSlabs;
+
+        // Send email to each sales employee
+        for (const employee of salesEmployees) {
+            const empEmail = employee?.email || employee?.companyEmail;
+            const empName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim();
+
+            if (!empEmail) {
+                results.push({
+                    employeeId: employee.id,
+                    employeeName: empName,
+                    status: 'skipped',
+                    error: 'No email address found'
+                });
+                failedCount++;
+                continue;
+            }
+
+            try {
+                const html = buildIncentiveConfigEmail({
+                    name: empName,
+                    slabs,
+                    courseRewards,
+                    highPriority
+                });
+
+                // Build plain text version based on selections
+                let message = '';
+                if (includeSlabs && includeRewards) {
+                    message = "We're excited to announce the updated monthly incentive structure for our sales team. The new incentive slabs and admission type rewards have been configured to reward your outstanding performance.";
+                } else if (includeSlabs) {
+                    message = "We're excited to announce the updated monthly incentive structure for our sales team. The new incentive slabs have been configured to reward your outstanding performance.";
+                } else if (includeRewards) {
+                    message = "We're excited to announce the updated admission type rewards for our sales team. The new course-specific rewards have been configured to recognize your performance based on admission types.";
+                } else {
+                    message = "We're excited to announce updates to our incentive policy for the sales team.";
+                }
+
+                let textContent = `Hi ${empName},\n\nIncentive Policy Update\n\n${message}\n\n`;
+
+                if (includeSlabs && config.slabs) {
+                    textContent += `Monthly Incentive Slabs:\n🎯 100% Achievement: ${config.slabs[100] ?? 0}% of revenue\n🎯 150% Achievement: ${config.slabs[150] ?? 0}% of revenue\n🎯 200% Achievement: ${config.slabs[200] ?? 0}% of revenue\n\n`;
+                }
+
+                if (includeRewards && config.courseRewards) {
+                    textContent += `Course Rewards:\n🎓 One-time Course: ₹${Number(config.courseRewards.onetime || 0).toLocaleString('en-IN')}\n🎓 Annual Course: ₹${Number(config.courseRewards.annual || 0).toLocaleString('en-IN')}\n🎓 Semester Course: ₹${Number(config.courseRewards.semester || 0).toLocaleString('en-IN')}\n\n`;
+                }
+
+                textContent += `These new incentive rates are designed to recognize and reward your hard work. We believe in your potential to achieve and exceed these targets!\n\nReview your monthly targets and plan your strategy to maximize your earnings.\n\nBest Regards,\nHR Team\nDegreeDrishti`;
+
+                const sent = await sendMail({ to: empEmail, subject, text: textContent, html, priority: emailPriority });
+
+                if (sent) {
+                    sentCount++;
+                    results.push({
+                        employeeId: employee.id,
+                        employeeName: empName,
+                        status: 'sent',
+                        email: empEmail
+                    });
+                } else {
+                    failedCount++;
+                    results.push({
+                        employeeId: employee.id,
+                        employeeName: empName,
+                        status: 'failed',
+                        error: 'SMTP delivery failed',
+                        email: empEmail
+                    });
+                }
+            } catch (error) {
+                failedCount++;
+                results.push({
+                    employeeId: employee.id,
+                    employeeName: empName,
+                    status: 'failed',
+                    error: error.message,
+                    email: empEmail
+                });
+            }
+        }
+
+        // Log the bulk email notification
+        await db.collection('email_logs').insertOne({
+            type: 'incentive_config_notification',
+            subject,
+            recipientCount: salesEmployees.length,
+            sentCount,
+            failedCount,
+            results,
+            includeSlabs,
+            includeRewards,
+            priority: emailPriority,
+            sentAt: new Date()
+        });
+
+        res.json({
+            success: true,
+            message: `Notification sent to ${sentCount} employees`,
+            totalRecipients: salesEmployees.length,
+            sentCount,
+            failedCount,
+            results
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

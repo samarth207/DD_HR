@@ -3,7 +3,7 @@
  * Provides consistent, beautifully designed email templates
  */
 
-function buildEmailBase({ title, subtitle, badge, badgeColor = 'green' }) {
+function buildEmailBase({ title, subtitle, badge, badgeColor = 'green', highPriority = false }) {
     const colorSchemes = {
         green: { gradient: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', badgeBg: 'rgba(255,255,255,.2)', badgeBorder: 'rgba(255,255,255,.4)' },
         blue: { gradient: 'linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%)', badgeBg: 'rgba(255,255,255,.2)', badgeBorder: 'rgba(255,255,255,.4)' },
@@ -11,7 +11,7 @@ function buildEmailBase({ title, subtitle, badge, badgeColor = 'green' }) {
         purple: { gradient: 'linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%)', badgeBg: 'rgba(255,255,255,.2)', badgeBorder: 'rgba(255,255,255,.4)' },
         orange: { gradient: 'linear-gradient(135deg,#f97316 0%,#ea580c 100%)', badgeBg: 'rgba(255,255,255,.2)', badgeBorder: 'rgba(255,255,255,.4)' }
     };
-    
+
     const scheme = colorSchemes[badgeColor] || colorSchemes.green;
     
     return `<!DOCTYPE html>
@@ -25,6 +25,7 @@ function buildEmailBase({ title, subtitle, badge, badgeColor = 'green' }) {
   .header h1{color:#fff;font-size:28px;font-weight:800;margin:0 0 8px;}
   .header p{color:rgba(255,255,255,.85);font-size:15px;margin:0;}
   .badge{display:inline-block;background:${scheme.badgeBg};border:2px solid ${scheme.badgeBorder};border-radius:50px;padding:6px 20px;color:#fff;font-weight:700;font-size:14px;margin-bottom:16px;}
+  .priority-badge{display:inline-block;background:#ef4444;border:2px solid #dc2626;border-radius:50px;padding:4px 12px;color:#fff;font-weight:700;font-size:11px;margin-left:8px;vertical-align:middle;}
   .body{padding:36px 32px;}
   .greeting{font-size:18px;font-weight:700;color:#111827;margin-bottom:8px;}
   .msg{font-size:14px;color:#4b5563;line-height:1.7;margin-bottom:28px;}
@@ -41,7 +42,7 @@ function buildEmailBase({ title, subtitle, badge, badgeColor = 'green' }) {
 <body>
 <div class="wrap">
   <div class="header">
-    ${badge ? `<div class="badge">${badge}</div>` : ''}
+    ${badge ? `<div class="badge">${badge}${highPriority ? '<span class="priority-badge">HIGH PRIORITY</span>' : ''}</div>` : ''}
     <h1>${title}</h1>
     <p>${subtitle}</p>
   </div>
@@ -228,6 +229,73 @@ function buildSalesRejectedEmail({ name, customerName, universityName, revenue, 
     return base + body + buildEmailFooter();
 }
 
+function buildIncentiveConfigEmail({ name, slabs, courseRewards, highPriority = false }) {
+    // Determine what sections are included
+    const hasSlabs = slabs !== null;
+    const hasRewards = courseRewards !== null && (courseRewards.onetime > 0 || courseRewards.annual > 0 || courseRewards.semester > 0);
+
+    // Dynamic title and subtitle based on what's included
+    let title = 'Incentive Policy Update';
+    let subtitle = '';
+
+    if (hasSlabs && hasRewards) {
+        subtitle = 'New monthly incentive slabs and admission type rewards have been configured';
+    } else if (hasSlabs) {
+        subtitle = 'New monthly incentive slabs have been configured';
+    } else if (hasRewards) {
+        subtitle = 'New admission type rewards have been configured';
+    } else {
+        subtitle = 'Incentive policy has been updated';
+    }
+
+    const base = buildEmailBase({
+        title,
+        subtitle,
+        badge: '📢 Policy Update',
+        badgeColor: 'blue',
+        highPriority
+    });
+
+    let contentSections = '';
+
+    if (slabs) {
+        contentSections += `    <div class="card">
+      <div class="card-row"><span class="card-icon">🎯</span><div><div class="card-label">100% Achievement</div><div class="card-value">${slabs[100] ?? 0}% of revenue</div></div></div>
+      <div class="card-row"><span class="card-icon">🎯</span><div><div class="card-label">150% Achievement</div><div class="card-value">${slabs[150] ?? 0}% of revenue</div></div></div>
+      <div class="card-row"><span class="card-icon">🎯</span><div><div class="card-label">200% Achievement</div><div class="card-value">${slabs[200] ?? 0}% of revenue</div></div></div>
+    </div>`;
+    }
+
+    if (courseRewards && (courseRewards.onetime > 0 || courseRewards.annual > 0 || courseRewards.semester > 0)) {
+        contentSections += `    <div class="card">
+      <div class="card-row"><span class="card-icon">🎓</span><div><div class="card-label">One-time Course Reward</div><div class="card-value">₹${Number(courseRewards.onetime || 0).toLocaleString('en-IN')}</div></div></div>
+      <div class="card-row"><span class="card-icon">🎓</span><div><div class="card-label">Annual Course Reward</div><div class="card-value">₹${Number(courseRewards.annual || 0).toLocaleString('en-IN')}</div></div></div>
+      <div class="card-row"><span class="card-icon">🎓</span><div><div class="card-label">Semester Course Reward</div><div class="card-value">₹${Number(courseRewards.semester || 0).toLocaleString('en-IN')}</div></div></div>
+    </div>`;
+    }
+
+    // Dynamic message based on what's included
+    let message = '';
+    if (hasSlabs && hasRewards) {
+        message = "We're excited to announce the updated monthly incentive structure for our sales team. The new incentive slabs and admission type rewards have been configured to reward your outstanding performance.";
+    } else if (hasSlabs) {
+        message = "We're excited to announce the updated monthly incentive structure for our sales team. The new incentive slabs have been configured to reward your outstanding performance.";
+    } else if (hasRewards) {
+        message = "We're excited to announce the updated admission type rewards for our sales team. The new course-specific rewards have been configured to recognize your performance based on admission types.";
+    } else {
+        message = "We're excited to announce updates to our incentive policy for the sales team.";
+    }
+
+    const body = `    <div class="greeting">Hi ${name},</div>
+    <p class="msg">${message}</p>
+    ${contentSections}
+    <p class="msg">These new incentive rates are designed to recognize and reward your hard work. We believe in your potential to achieve and exceed these targets!</p>
+    <p class="msg">Review your monthly targets and plan your strategy to maximize your earnings.</p>
+    <p class="msg" style="font-weight:600;color:#374151;">Best Regards,<br>HR Team<br>DegreeDrishti</p>`;
+
+    return base + body + buildEmailFooter();
+}
+
 module.exports = {
     buildIncentiveEmail,
     buildLeaveApprovedEmail,
@@ -235,5 +303,6 @@ module.exports = {
     buildSalesApprovedEmail,
     buildSalesRejectedEmail,
     buildSalaryCreditedEmail,
-    buildTargetSetEmail
+    buildTargetSetEmail,
+    buildIncentiveConfigEmail
 };

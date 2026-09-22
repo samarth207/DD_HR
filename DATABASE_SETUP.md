@@ -119,6 +119,8 @@ For example in `employees.html`:
 ### Incentives
 - `GET /api/incentives/config` - Get configuration
 - `POST /api/incentives/config` - Save configuration
+- `POST /api/incentives/config/preview` - Generate email preview for incentive configuration
+- `POST /api/incentives/config/notify` - Send incentive configuration notification to sales employees
 - `GET /api/incentives/data` - Get all incentive data
 - `POST /api/incentives/monthly` - Save monthly incentive
 - `POST /api/incentives/daily` - Add daily bonus

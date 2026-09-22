@@ -951,9 +951,51 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                    <button type="button" class="btn btn-info" onclick="openEmailPreviewModal()">
+                        <i class="fas fa-envelope"></i> Send Notification
+                    </button>
                     <button type="submit" class="btn btn-primary">Save Configuration</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Email Preview Modal -->
+    <div id="emailPreviewModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2>Email Preview</h2>
+                <button class="close-btn" onclick="closeEmailPreviewModal()">&times;</button>
+            </div>
+            <div style="padding: 30px;">
+                <div class="form-group">
+                    <label><strong>Select what to include in the notification:</strong></label>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                            <input type="checkbox" id="includeSlabs" checked style="margin-right: 10px;">
+                            <span>Monthly Incentive Slabs <span style="color: #e53e3e; font-size: 12px; margin-left: 8px;">(High Priority)</span></span>
+                        </label>
+                        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                            <input type="checkbox" id="includeRewards" checked style="margin-right: 10px;">
+                            <span>Admission Type Rewards</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><strong>Email Preview:</strong></label>
+                    <div id="emailPreviewContent" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; background: #f7fafc; max-height: 400px; overflow-y: auto; margin-top: 10px;">
+                        <p style="color: #718096; text-align: center;">Loading preview...</p>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="margin-top: 20px; padding: 0;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEmailPreviewModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="sendSelectedNotification()">
+                        <i class="fas fa-paper-plane"></i> Send Notification
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -26,7 +26,7 @@ if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
     console.warn('⚠️ Email mailer is not fully configured. Email notifications are disabled. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and MAIL_FROM in server/.env.');
 }
 
-async function sendMail({ to, subject, text, html }) {
+async function sendMail({ to, subject, text, html, priority = 'normal' }) {
     if (!transporter) {
         console.warn(`⚠️ Skipping email to ${to}: mailer not configured.`);
         return false;
@@ -39,7 +39,8 @@ async function sendMail({ to, subject, text, html }) {
             to,
             subject,
             text,
-            html
+            html,
+            priority
         });
         return true;
     } catch (error) {
