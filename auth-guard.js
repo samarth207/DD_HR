@@ -14,7 +14,8 @@
     const HR_RESTRICTED_PAGES = new Set([
         'sales-tracking.html',
         'admissions-analytics.html',
-        'incentives.html'
+        'incentives.html',
+        'fee-reports.html'
     ]);
 
     function parseJsonSafe(value) {

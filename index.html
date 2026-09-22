@@ -438,8 +438,26 @@
     document.addEventListener('DOMContentLoaded', async ()=>{
         setGreeting();
         setDate();
+        
+        // Hide Fee Analytics Snapshot for HR users
+        const userRole = typeof window.getAuthRole === 'function' ? window.getAuthRole() : '';
+        if (userRole === 'hr') {
+            const feeSection = document.querySelector('.dash-card .dash-card-title');
+            if (feeSection && feeSection.textContent.includes('Fee Analytics Snapshot')) {
+                feeSection.closest('.dash-card').style.display = 'none';
+            }
+        }
+        
         await Promise.all([loadEmployees(), loadLeaves()]);
         await updateStats();
+        
+        // Setup password modal event listener
+        const modal = document.getElementById('adminPwdModal');
+        if (modal) {
+            modal.addEventListener('click', e => {
+                if (e.target === modal) closeAdminPwdModal();
+            });
+        }
     });
 
     // ── Change Portal Password Modal (Admin/HR) ─────────────────────────────
@@ -514,11 +532,7 @@
             btn.disabled = false; btn.textContent = 'Update Password';
         }
     }
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('adminPwdModal').addEventListener('click', e => {
-            if (e.target === document.getElementById('adminPwdModal')) closeAdminPwdModal();
-        });
-    });
+    
     window.openAdminPwdModal  = openAdminPwdModal;
     window.closeAdminPwdModal = closeAdminPwdModal;
     window.saveAdminPassword  = saveAdminPassword;
