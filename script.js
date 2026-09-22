@@ -229,7 +229,6 @@ async function checkServerConnection() {
     try {
         const response = await fetch(`${API_BASE_URL}/health`);
         if (response.ok) {
-            console.log('✅ Connected to MongoDB server');
             // Load initial data from DB
             await Promise.all([loadEmployees(), loadLeaves()]);
             return true;
@@ -321,7 +320,6 @@ async function processMonthlyLeaveAccrual() {
     try {
         // This would be handled by backend cron job or manual trigger
         // For now, this is a placeholder for future implementation
-        console.log('Leave accrual should be processed on the backend');
     } catch (error) {
         console.error('Failed to process leave accrual:', error);
     }

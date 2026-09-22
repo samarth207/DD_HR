@@ -178,7 +178,13 @@ router.post('/employee-login', async (req, res) => {
             position: emp.position
         });
     } catch (err) {
-        res.status(500).json({ error: 'Login failed' });
+        console.error('Employee login error:', err);
+        // In development, send detailed error; in production, send generic message
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        res.status(500).json({ 
+            error: isDevelopment ? err.message : 'Login failed',
+            ...(isDevelopment && { stack: err.stack })
+        });
     }
 });
 

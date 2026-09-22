@@ -290,19 +290,7 @@ async function calculateMonthlyIncentive(employeeId, month) {
     
     // Calculate incentive amount as percentage of REVENUE achieved
     const incentiveAmount = (revenueAchieved * incentivePercentage) / 100;
-    
-    console.log('Calculation result:', {
-        achievementBasis,
-        salesTarget,
-        salesAchieved,
-        revenueTarget,
-        revenueAchieved,
-        achievementRate: Math.round(achievementRate),
-        incentivePercentage,
-        incentiveAmount,
-        eligible: achievementRate >= 100
-    });
-    
+
     return {
         eligible: achievementRate >= 100,
         amount: Math.round(incentiveAmount),
@@ -495,8 +483,6 @@ async function markIncentivePaid(monthKey, amount, employeeName, month) {
 
 // Daily Bonuses
 function openDailyBonusModal() {
-    console.log('🚀 Opening Daily Bonus Modal');
-    
     // Set initial values
     document.getElementById('bonusDate').valueAsDate = new Date();
     document.getElementById('oneTimeCount').value = 0;
@@ -560,42 +546,23 @@ function closeDailyBonusModal() {
 }
 
 async function calculateDailyReward() {
-    console.log('🔢 calculateDailyReward called');
-    
     const selectedDate = document.getElementById('bonusDate')?.value;
-    console.log('📅 Selected date:', selectedDate);
-    
+
     if (!selectedDate) {
-        console.log('⚠️ No date selected, setting reward to 0');
         document.getElementById('bonusAmount').value = 0;
         return;
     }
-    
+
     const config = await getIncentiveConfig();
-    console.log('⚙️ Config loaded:', config);
-    
+
     // Get counts directly from inputs
     const oneTimeEl = document.getElementById('oneTimeCount');
     const annualEl = document.getElementById('annualCount');
     const semesterEl = document.getElementById('semesterCount');
-    
-    console.log('📝 Elements found:', {
-        oneTime: oneTimeEl ? 'YES' : 'NO',
-        annual: annualEl ? 'YES' : 'NO',
-        semester: semesterEl ? 'YES' : 'NO'
-    });
-    
-    console.log('🔍 RAW VALUES:', {
-        oneTimeRaw: oneTimeEl?.value,
-        annualRaw: annualEl?.value,
-        semesterRaw: semesterEl?.value
-    });
-    
+
     const oneTimeCount = parseInt(oneTimeEl?.value || '0');
     const annualCount = parseInt(annualEl?.value || '0');
     const semesterCount = parseInt(semesterEl?.value || '0');
-    
-    console.log('🔢 Counts:', { oneTimeCount, annualCount, semesterCount });
     
     // Check if reward dates are within 24 hours of selected date
     const isRewardValidForDate = (rewardDate, targetDate) => {
@@ -610,21 +577,16 @@ async function calculateDailyReward() {
     const onetimeReward = isRewardValidForDate(config.courseRewards.onetimeDate, selectedDate) ? config.courseRewards.onetime : 0;
     const annualReward = isRewardValidForDate(config.courseRewards.annualDate, selectedDate) ? config.courseRewards.annual : 0;
     const semesterReward = isRewardValidForDate(config.courseRewards.semesterDate, selectedDate) ? config.courseRewards.semester : 0;
-    
-    console.log('💰 Reward rates:', { onetimeReward, annualReward, semesterReward });
-    
+
     // Calculate total reward
     const totalReward = (oneTimeCount * onetimeReward) + (annualCount * annualReward) + (semesterCount * semesterReward);
-    
-    console.log('🧮 Calculation:', `(${oneTimeCount} × ${onetimeReward}) + (${annualCount} × ${annualReward}) + (${semesterCount} × ${semesterReward}) = ${totalReward}`);
-    
+
     // Update the total reward field
     const bonusAmountEl = document.getElementById('bonusAmount');
     if (bonusAmountEl) {
         bonusAmountEl.value = totalReward;
-        console.log('✅ Total reward field updated to:', totalReward);
     } else {
-        console.error('❌ bonusAmount element not found!');
+        console.error('bonusAmount element not found!');
     }
 }
 
@@ -717,9 +679,7 @@ async function loadDailyBonuses() {
     const config = await getIncentiveConfig();
     const container = document.getElementById('dailyBonusesContainer');
     const bonuses = incentiveData.dailyBonuses.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    console.log('Loading daily bonuses:', bonuses);
-    
+
     let totalBonuses = 0;
     let totalSales = 0;
     let totalCourseAdmissions = 0;
@@ -733,9 +693,6 @@ async function loadDailyBonuses() {
     container.innerHTML = '';
     
     bonuses.forEach(bonus => {
-        console.log('Processing bonus:', bonus);
-        console.log('Bonus amount:', bonus.amount, 'Sales count:', bonus.salesCount);
-        
         totalBonuses += (bonus.amount || 0);
         totalSales += (bonus.salesCount || 0);
         
@@ -1611,29 +1568,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.addEventListener('input', function(event) {
         const target = event.target;
         if (target.id === 'oneTimeCount' || target.id === 'annualCount' || target.id === 'semesterCount') {
-            console.log(`📊 ${target.id} changed to:`, target.value);
-            console.log('🔍 Checking for duplicate IDs...');
-            
-            // Check if there are multiple elements with the same ID
-            const allElements = document.querySelectorAll(`#${target.id}`);
-            console.log(`Found ${allElements.length} elements with id="${target.id}"`);
-            allElements.forEach((el, idx) => {
-                console.log(`  [${idx}] value="${el.value}", visible=${el.offsetParent !== null}`);
-            });
-            
             calculateDailyReward();
         }
     });
-    
+
     // Event delegation for date change
     document.addEventListener('change', function(event) {
         if (event.target.id === 'bonusDate') {
-            console.log('📅 Date changed to:', event.target.value);
             onDateChange();
         }
     });
-    
-    console.log('✅ Event delegation set up for admission inputs');
     
     // Add Escape key listener for closing modals
     document.addEventListener('keydown', function(event) {
