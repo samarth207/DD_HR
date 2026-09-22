@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const { getDB, isDBConnected } = require('../db');
+const { validatePassword } = require('../middleware/security');
 const {
     deletePasswordHash,
     deletePasswordSalt,
@@ -192,7 +193,12 @@ router.post('/change-employee-password', async (req, res) => {
 
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    
+    // Validate new password strength
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+    }
 
     try {
         const db  = getDB();
@@ -230,7 +236,12 @@ router.post('/change-admin-password', async (req, res) => {
 
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    
+    // Validate new password strength
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+    }
 
     try {
         const { storedHash, storedSalt } = await resolvePrivilegedPassword('adminPassword', deletePasswordHash, deletePasswordSalt);
@@ -263,7 +274,12 @@ router.post('/change-hr-password', async (req, res) => {
 
     const { currentPassword, newPassword } = req.body || {};
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
-    if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    
+    // Validate new password strength
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+    }
 
     try {
         const hrPasswordConfigured = await hasPrivilegedPasswordSetting('hrPassword');

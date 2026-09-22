@@ -137,16 +137,97 @@ function savePassword(event) {
         return;
     }
     
-    if (newPassword.length < 8) {
-        showNotification('Password must be at least 8 characters!', 'error');
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.valid) {
+        showNotification(passwordValidation.message, 'error');
         return;
     }
     
-    // In a real application, you would verify the current password and update it securely
-    addLog('edit', 'Changed account password');
-    showNotification('Password updated successfully!', 'success');
-    closePasswordModal();
-    document.getElementById('passwordForm').reset();
+    // Call the API to change password
+    changePasswordAPI(currentPassword, newPassword);
+}
+
+function validatePasswordStrength(password) {
+    if (!password || typeof password !== 'string') {
+        return { valid: false, message: 'Password is required' };
+    }
+    
+    if (password.length < 12) {
+        return { valid: false, message: 'Password must be at least 12 characters long' };
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+        return { valid: false, message: 'Password must contain at least one uppercase letter' };
+    }
+    
+    if (!/[a-z]/.test(password)) {
+        return { valid: false, message: 'Password must contain at least one lowercase letter' };
+    }
+    
+    if (!/[0-9]/.test(password)) {
+        return { valid: false, message: 'Password must contain at least one number' };
+    }
+    
+    if (!/[^A-Za-z0-9]/.test(password)) {
+        return { valid: false, message: 'Password must contain at least one special character' };
+    }
+    
+    return { valid: true };
+}
+
+async function changePasswordAPI(currentPassword, newPassword) {
+    const auth = getAuth();
+    if (!auth || !auth.token) {
+        showNotification('Authentication required', 'error');
+        return;
+    }
+
+    const endpoint = auth.role === 'admin' 
+        ? `${API_BASE_URL}/auth/change-admin-password`
+        : auth.role === 'hr'
+        ? `${API_BASE_URL}/auth/change-hr-password`
+        : `${API_BASE_URL}/auth/change-employee-password`;
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${auth.token}`
+            },
+            body: JSON.stringify({
+                currentPassword: currentPassword,
+                newPassword: newPassword
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            addLog('edit', 'Changed account password');
+            showNotification('Password updated successfully!', 'success');
+            closePasswordModal();
+            document.getElementById('passwordForm').reset();
+        } else {
+            showNotification(data.error || 'Failed to change password', 'error');
+        }
+    } catch (error) {
+        console.error('Error changing password:', error);
+        showNotification('Failed to change password. Please try again.', 'error');
+    }
+}
+
+function getAuth() {
+    const raw = localStorage.getItem('hrPortalAuth');
+    if (raw) {
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+    return null;
 }
 
 function toggleTwoFactor() {

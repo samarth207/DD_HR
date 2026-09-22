@@ -78,12 +78,33 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
     fileFilter: (req, file, cb) => {
-        const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+        const allowedMimeTypes = [
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+        
+        // Check MIME type
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+            return cb(new Error('Invalid file type. Only PDF, images, and Word documents are allowed.'), false);
+        }
+        
+        // Check file extension
         const ext = path.extname(file.originalname).toLowerCase();
-        if (allowed.includes(ext)) cb(null, true);
-        else cb(new Error('Only PDF, image, and Word documents are allowed'));
+        if (!allowedExtensions.includes(ext)) {
+            return cb(new Error('Invalid file extension. Only PDF, images, and Word documents are allowed.'), false);
+        }
+        
+        // Sanitize filename to prevent path traversal
+        const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        file.originalname = sanitizedFilename;
+        
+        cb(null, true);
     }
 });
 

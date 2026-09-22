@@ -80,25 +80,15 @@ async function createIndexes() {
 
         await db.collection('universities').createIndex(
             { normalizedName: 1 },
-            { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
-        );
-        await db.collection('universities').createIndex(
-            { code: 1 },
-            { unique: true, partialFilterExpression: { isDeleted: { $ne: true }, code: { $type: 'string', $ne: '' } } }
+            { unique: true, partialFilterExpression: { isDeleted: false } }
         );
         await db.collection('universities').createIndex({ isDeleted: 1, isActive: 1, name: 1 });
-        await db.collection('universities').createIndex({ name: 'text', code: 'text', country: 'text', state: 'text', city: 'text' });
 
         await db.collection('courses').createIndex(
             { universityId: 1, normalizedName: 1 },
-            { unique: true, partialFilterExpression: { isDeleted: { $ne: true } } }
-        );
-        await db.collection('courses').createIndex(
-            { code: 1 },
-            { unique: true, partialFilterExpression: { isDeleted: { $ne: true }, code: { $type: 'string', $ne: '' } } }
+            { unique: true, partialFilterExpression: { isDeleted: false } }
         );
         await db.collection('courses').createIndex({ universityId: 1, isDeleted: 1, isActive: 1, name: 1 });
-        await db.collection('courses').createIndex({ name: 'text', code: 'text', universityName: 'text' });
 
         await db.collection('admissions').createIndex({ employeeId: 1, month: 1 });
         await db.collection('admissions').createIndex({ employeeId: 1, month: 1, status: 1, admissionDate: -1 });
