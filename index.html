@@ -205,8 +205,26 @@
             <div class="dash-header-right">
                 <div class="date-chip"><i class="fas fa-calendar"></i><span id="todayDate"></span></div>
                 <div class="header-btn header-badge" title="Notifications"><i class="fas fa-bell"></i></div>
+                <button onclick="showEmailBannerTest()" class="header-btn" title="Test Email Banner" style="margin-right:8px;"><i class="fas fa-envelope"></i></button>
                 <a href="account.html" class="header-btn" title="Settings"><i class="fas fa-cog"></i></a>
             </div>
+        </div>
+
+        <!-- Email Disabled Warning Banner -->
+        <div id="emailDisabledBanner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;margin-bottom:20px;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;background:#fee2e2;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas fa-envelope-slash" style="color:#dc2626;font-size:18px;"></i>
+            </div>
+            <div style="flex:1;">
+                <h4 style="margin:0 0 4px;font-size:14px;font-weight:700;color:#991b1b;">Email Sending Disabled</h4>
+                <p style="margin:0;font-size:13px;color:#b91c1c;">Automatic email sending is currently disabled. Enable it in Account Settings to send notifications.</p>
+            </div>
+            <button onclick="window.location.href='account.html'" style="background:#dc2626;color:white;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                <i class="fas fa-cog"></i> Enable Emails
+            </button>
+            <button onclick="dismissEmailBanner()" style="background:none;border:none;color:#991b1b;font-size:20px;cursor:pointer;padding:4px;">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
 
         <!-- KPI Row -->
@@ -349,6 +367,82 @@
         document.getElementById('todayDate').textContent = d.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     }
 
+    // Check email status and show banner if disabled
+    async function checkEmailStatus(){
+        try {
+            console.log('🔍 Checking email status...');
+            
+            // Use the global getAuthToken function from auth-guard.js
+            const token = typeof window.getAuthToken === 'function' ? window.getAuthToken() : null;
+            console.log('🔑 Token available:', !!token);
+            
+            if (!token) {
+                console.log('⚠️ No auth token available');
+                return;
+            }
+
+            const response = await fetch(`${API_BASE_URL}/admin/email-settings`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            console.log('📡 Email settings response status:', response.status);
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('📧 Email settings data:', data);
+                
+                if (!data.enabled) {
+                    console.log('🚫 Email is disabled, showing banner');
+                    // Check if user has dismissed the banner
+                    const dismissed = localStorage.getItem('emailBannerDismissed');
+                    console.log('👁️ Banner previously dismissed:', !!dismissed);
+                    
+                    if (!dismissed) {
+                        const banner = document.getElementById('emailDisabledBanner');
+                        if (banner) {
+                            banner.style.display = 'flex';
+                            console.log('✅ Banner displayed');
+                        } else {
+                            console.log('❌ Banner element not found');
+                        }
+                    }
+                } else {
+                    console.log('✅ Email is enabled, no banner needed');
+                }
+            } else {
+                console.log('❌ Failed to fetch email settings');
+            }
+        } catch (error) {
+            console.error('❌ Error checking email status:', error);
+        }
+    }
+
+    // Dismiss email banner
+    function dismissEmailBanner(){
+        const banner = document.getElementById('emailDisabledBanner');
+        if (banner) {
+            banner.style.display = 'none';
+            localStorage.setItem('emailBannerDismissed', 'true');
+            console.log('🚫 Banner dismissed');
+        }
+    }
+
+    // Manual test function to show banner (for debugging)
+    function showEmailBannerTest(){
+        localStorage.removeItem('emailBannerDismissed');
+        const banner = document.getElementById('emailDisabledBanner');
+        if (banner) {
+            banner.style.display = 'flex';
+            console.log('🧪 Test banner displayed');
+        }
+    }
+
+    // Make test function available globally
+    window.showEmailBannerTest = showEmailBannerTest;
+
     // KPI stats
     async function updateStats(){
         const employees = await loadEmployees();
@@ -450,6 +544,9 @@
         
         await Promise.all([loadEmployees(), loadLeaves()]);
         await updateStats();
+        
+        // Check email status and show banner if disabled
+        await checkEmailStatus();
         
         // Setup password modal event listener
         const modal = document.getElementById('adminPwdModal');

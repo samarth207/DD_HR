@@ -26,9 +26,36 @@ if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {
     console.warn('⚠️ Email mailer is not fully configured. Email notifications are disabled. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and MAIL_FROM in server/.env.');
 }
 
+// Helper function to check if emails are enabled
+async function isEmailEnabled() {
+    try {
+        const { getDB, isDBConnected } = require('../db');
+        if (!isDBConnected()) return true; // Default to enabled if DB not connected
+        
+        const db = getDB();
+        const setting = await db.collection('appSettings').findOne({ _id: 'emailSettings' });
+        
+        // If setting doesn't exist, default to enabled
+        if (!setting) return true;
+        
+        // Check the enabled flag
+        return setting.enabled !== false;
+    } catch (error) {
+        console.error('Error checking email enabled status:', error);
+        return true; // Default to enabled on error
+    }
+}
+
 async function sendMail({ to, subject, text, html, priority = 'normal' }) {
     if (!transporter) {
         console.warn(`⚠️ Skipping email to ${to}: mailer not configured.`);
+        return false;
+    }
+
+    // Check if emails are enabled
+    const emailEnabled = await isEmailEnabled();
+    if (!emailEnabled) {
+        console.warn(`⚠️ Email sending is disabled by admin. Skipping email to ${to}.`);
         return false;
     }
 

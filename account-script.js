@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadAccountDetails();
     updateSystemInfo();
     updateLastLogin();
+    loadEmailSettings();
     
     // Add Escape key listener for closing modals
     document.addEventListener('keydown', function(event) {
@@ -250,6 +251,80 @@ function toggleEmailNotif() {
     const status = enabled ? 'enabled' : 'disabled';
     addLog('edit', `Email notifications ${status}`);
     showNotification(`Email notifications ${status}!`, 'success');
+}
+
+// Email sending toggle functions
+async function loadEmailSettings() {
+    try {
+        const auth = getAuth();
+        if (!auth || !auth.token) {
+            console.warn('Authentication required for email settings');
+            return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/admin/email-settings`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${auth.token}`
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const toggle = document.getElementById('emailSendingToggle');
+            if (toggle) {
+                toggle.checked = data.enabled;
+            }
+        } else {
+            console.error('Failed to load email settings');
+        }
+    } catch (error) {
+        console.error('Error loading email settings:', error);
+    }
+}
+
+async function toggleEmailSending() {
+    const enabled = document.getElementById('emailSendingToggle').checked;
+    
+    try {
+        const auth = getAuth();
+        if (!auth || !auth.token) {
+            showNotification('Authentication required', 'error');
+            // Revert the toggle
+            document.getElementById('emailSendingToggle').checked = !enabled;
+            return;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/admin/email-settings`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${auth.token}`
+            },
+            body: JSON.stringify({ enabled })
+        });
+
+        if (response.ok) {
+            const status = enabled ? 'enabled' : 'disabled';
+            addLog('edit', `Email sending ${status} system-wide`);
+            showNotification(`Email sending ${status} system-wide!`, 'success');
+            
+            // Show warning if disabled
+            if (!enabled) {
+                showNotification('⚠️ Email sending is now disabled. No automatic emails will be sent.', 'warning');
+            }
+        } else {
+            const data = await response.json();
+            showNotification(data.error || 'Failed to update email settings', 'error');
+            // Revert the toggle on failure
+            document.getElementById('emailSendingToggle').checked = !enabled;
+        }
+    } catch (error) {
+        console.error('Error toggling email sending:', error);
+        showNotification('Failed to update email settings. Please try again.', 'error');
+        // Revert the toggle on error
+        document.getElementById('emailSendingToggle').checked = !enabled;
+    }
 }
 
 function clearAllData() {
