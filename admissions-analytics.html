@@ -59,7 +59,7 @@
 
         /* KPI Cards - Premium Design */
         .kpi-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px; }
-        .kpi-card { background:var(--bg-card);border-radius:16px;padding:20px 22px 16px;position:relative;overflow:hidden;cursor:default;transition:transform .2s,box-shadow .2s;border:1px solid var(--border-color); }
+        .kpi-card { background:var(--bg-card);border-radius:16px;padding:20px 22px 16px;position:relative;cursor:default;transition:transform .2s,box-shadow .2s;border:1px solid var(--border-color); }
         .kpi-card:hover { transform:translateY(-3px);box-shadow:0 16px 40px rgba(0,0,0,.13);border-color:var(--border-color); }
         .kpi-c1 { border-left:4px solid #2563EB; }
         .kpi-c2 { border-left:4px solid #22C55E; }
@@ -84,9 +84,9 @@
         .kpi-c8 .kpi-icon-bg { color:#F97316;background:#ffedd5; }
         
         /* Tooltip */
-        .kpi-tooltip { position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border-color);color:var(--text-secondary);font-size:10px;font-weight:700;cursor:help;transition:all .15s; }
+        .kpi-tooltip { position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--border-color);color:var(--text-secondary);font-size:10px;font-weight:700;cursor:help;transition:all .15s;z-index:1; }
         .kpi-tooltip:hover { background:#2563EB;color:#fff; }
-        .kpi-tooltip::after { content:attr(data-tooltip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:400;white-space:nowrap;z-index:100;opacity:0;visibility:hidden;transition:all .15s;pointer-events:none;min-width:200px;text-align:left;line-height:1.4; }
+        .kpi-tooltip::after { content:attr(data-tooltip);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:400;white-space:nowrap;z-index:9999;opacity:0;visibility:hidden;transition:all .15s;pointer-events:none;min-width:200px;text-align:left;line-height:1.4;box-shadow:0 4px 12px rgba(0,0,0,0.15); }
         .kpi-tooltip:hover::after { opacity:1;visibility:visible;bottom:calc(100% + 10px); }
         [data-theme="dark"] .kpi-tooltip::after { background:#374151; }
         
@@ -100,7 +100,7 @@
         .trend-flat { background:var(--bg-primary);color:var(--text-secondary); }
 
         /* Card */
-        .dash-card { background:var(--bg-card);border-radius:16px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;border:1px solid var(--border-color); }
+        .dash-card { background:var(--bg-card);border-radius:16px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:20px;border:1px solid var(--border-color);overflow:visible; }
         .card-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px; }
         .card-title { font-size:15px;font-weight:700;color:var(--text-primary);margin:0;display:flex;align-items:center;gap:8px; }
         .card-title i { color:#2563EB; }
@@ -389,17 +389,17 @@
 
         <!-- Company Insight Cards -->
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;" id="companyInsightCards">
-            <div class="dash-card" style="margin:0;border-left:4px solid #22C55E;">
+            <div class="dash-card" style="margin:0;border-left:4px solid #22C55E;overflow:visible;">
                 <div style="font-size:11px;text-transform:uppercase;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;margin-bottom:4px;display:flex;align-items:center;gap:6px;">Best Performer This Month <span class="kpi-tooltip" data-tooltip="Employee with the highest number of admissions this month. Helps identify top performers for recognition and best practices.">?</span></div>
                 <div style="font-size:16px;font-weight:800;color:var(--text-primary);" id="kBestEmp">–</div>
                 <div style="font-size:12px;color:#22C55E;font-weight:600;" id="kBestCount"></div>
             </div>
-            <div class="dash-card" style="margin:0;border-left:4px solid #F59E0B;">
+            <div class="dash-card" style="margin:0;border-left:4px solid #F59E0B;overflow:visible;">
                 <div style="font-size:11px;text-transform:uppercase;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;margin-bottom:4px;display:flex;align-items:center;gap:6px;">Pending Admissions <span class="kpi-tooltip" data-tooltip="Number of admissions awaiting approval. Shows workload for approval team and potential pipeline.">?</span></div>
                 <div style="font-size:16px;font-weight:800;color:var(--text-primary);" id="kPending">–</div>
                 <div style="font-size:12px;color:#F59E0B;font-weight:600;">Awaiting approval</div>
             </div>
-            <div class="dash-card" style="margin:0;border-left:4px solid #2563EB;">
+            <div class="dash-card" style="margin:0;border-left:4px solid #2563EB;overflow:visible;">
                 <div style="font-size:11px;text-transform:uppercase;font-weight:700;color:var(--text-secondary);letter-spacing:.05em;margin-bottom:4px;display:flex;align-items:center;gap:6px;">Month-over-Month Growth <span class="kpi-tooltip" data-tooltip="Percentage change in admissions compared to last month. Positive growth indicates improvement, negative shows decline.">?</span></div>
                 <div style="font-size:16px;font-weight:800;color:var(--text-primary);" id="kGrowth">–</div>
                 <div style="font-size:12px;color:var(--text-secondary);font-weight:600;" id="kGrowthSub"></div>
@@ -1009,12 +1009,23 @@ async function loadCompanyStats() {
 
 // ─── Insights ──────────────────────────────────────────────────────────────
 async function loadInsights() {
+    const container = document.getElementById('insightsList');
     try {
-        const qs = buildFilterQS();
-        const res = await fetch(`${API_BASE_URL}/analytics/insights?${qs}`, { headers: authHeaders() });
-        if (!res.ok) return;
+        const { year, month, emp, dept, sd, ed } = getFilters();
+        const p = new URLSearchParams();
+        if (year && !month)  p.set('year', year);
+        if (year && month)   p.set('month', `${year}-${month}`);
+        if (!year && month)  p.set('month', `${new Date().getFullYear()}-${month}`);
+        if (emp)   p.set('employeeId', emp);
+        if (dept)  p.set('department', dept);
+        if (sd && ed) { p.set('startDate', sd); p.set('endDate', ed); }
+
+        const res = await fetch(`${API_BASE_URL}/analytics/insights?${p}`, { headers: authHeaders() });
+        if (!res.ok) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Failed to load insights. Please try again.</p></div>';
+            return;
+        }
         const { insights } = await res.json();
-        const container = document.getElementById('insightsList');
         if (!insights.length) {
             container.innerHTML = '<div class="empty-state"><i class="fas fa-lightbulb"></i><p>No insights available yet. Add more admission data.</p></div>';
             return;
@@ -1022,7 +1033,10 @@ async function loadInsights() {
         container.innerHTML = insights.map(i =>
             `<div class="insight-item ${i.type}"><span class="insight-icon">${i.icon}</span><span>${i.text}</span></div>`
         ).join('');
-    } catch (e) { console.error('Insights error:', e); }
+    } catch (e) {
+        console.error('Insights error:', e);
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Failed to load insights. Please try again.</p></div>';
+    }
 }
 
 // ─── Charts ────────────────────────────────────────────────────────────────

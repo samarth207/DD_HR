@@ -479,8 +479,6 @@ router.get('/insights', async (req, res) => {
         // Build base admissions filter
         const admissionsFilter = { status: 'approved', ...dateFilter };
         if (employeeId) admissionsFilter.employeeId = parseInt(employeeId);
-        if (university) admissionsFilter.universityName = university;
-        if (course) admissionsFilter.course = course;
 
         const allApproved = await db.collection('admissions').find(admissionsFilter).toArray();
         const employees = await db.collection('employees').find({}).toArray();
@@ -836,7 +834,7 @@ router.get('/revenue', async (req, res) => {
         const topRevenueAdmissions = filtered
             .map(a => ({
                 id: a.id,
-                studentName: a.studentName || 'Unknown',
+                studentName: a.customerName || 'Unknown',
                 university: a.universityName || 'Unknown',
                 course: a.course || 'Unknown',
                 revenue: parseFloat(a.revenue) || 0,
