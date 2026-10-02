@@ -1,5 +1,6 @@
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const path = require('path');
+const { ensureAdmissionManagementIndexes } = require('./utils/admission-indexes');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const uri = process.env.MONGODB_URI;
@@ -113,6 +114,7 @@ async function createIndexes() {
             { 'feeManagementMigration.rollbackAvailable': 1 },
             { sparse: true }
         );
+        await ensureAdmissionManagementIndexes(db);
         
         await db.collection('sales').createIndex({ month: 1, employeeId: 1 });
         

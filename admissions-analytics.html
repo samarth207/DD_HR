@@ -240,6 +240,7 @@
             <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
             <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
             <a href="admissions-analytics.html" class="nav-item active"><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
+            <a href="admission-allocation-dashboard.html" class="nav-item"><i class="fas fa-layer-group"></i><span>Admission Allocation</span></a>
             <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
                 <div class="nav-section-title">Master Management</div>
                 <a href="universities.html" class="nav-item "><i class="fas fa-university"></i><span>Universities</span></a>
@@ -436,9 +437,16 @@
             </div>
         </div>
 
-        <!-- ── CHARTS ROW 2: Growth + Pie ── -->
-        <div class="charts-grid-3" style="margin-top:20px;">
-            <div class="dash-card" style="margin:0;">
+        <div class="dash-card" style="margin-top:20px;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-layer-group"></i> Admissions by Type</span>
+                <span style="font-size:12px;color:var(--text-secondary);">Selected chart year</span>
+            </div>
+            <div class="chart-wrap" style="height:220px;"><canvas id="chartAdmissionTypes"></canvas></div>
+        </div>
+
+        <!-- ── COMPANY GROWTH ── -->
+        <div class="dash-card" style="margin-top:20px;">
                 <div class="card-header">
                     <span class="card-title"><i class="fas fa-chart-line"></i> Monthly Company Growth</span>
                     <div class="toggle-group" id="growthToggle">
@@ -448,13 +456,6 @@
                     </div>
                 </div>
                 <div class="chart-wrap" style="height:260px;"><canvas id="chartGrowth"></canvas></div>
-            </div>
-            <div class="dash-card" style="margin:0;">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-crown"></i> Top Performers</span>
-                </div>
-                <div class="chart-wrap" style="height:260px;"><canvas id="chartTopPerf"></canvas></div>
-            </div>
         </div>
 
         <!-- ── CHART ROW 3: Trend Area Chart ── -->
@@ -507,22 +508,6 @@
                         <tr><td colspan="8"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading leaderboard...</p></div></td></tr>
                     </tbody>
                 </table>
-            </div>
-        </div>
-
-        <!-- ── REVENUE ANALYTICS ── -->
-        <div class="charts-grid-2" style="margin-top:20px;">
-            <div class="dash-card" style="margin:0;">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-coins"></i> Revenue Distribution</span>
-                </div>
-                <div class="chart-wrap"><canvas id="chartRevenueDist"></canvas></div>
-            </div>
-            <div class="dash-card" style="margin:0;">
-                <div class="card-header">
-                    <span class="card-title"><i class="fas fa-chart-line"></i> Revenue Trend</span>
-                </div>
-                <div class="chart-wrap"><canvas id="chartRevenueTrend"></canvas></div>
             </div>
         </div>
 
@@ -638,9 +623,15 @@ function toggleTheme() {
     Object.values(charts).forEach(chart => {
         if (chart) {
             const isDark = html.getAttribute('data-theme') === 'dark';
-            chart.options.scales.x.grid.color = isDark ? '#374151' : '#f3f4f6';
-            chart.options.scales.y.grid.color = isDark ? '#374151' : '#f3f4f6';
-            chart.options.plugins.legend.labels.color = isDark ? '#e5e7eb' : '#374151';
+            const axisColor = isDark ? '#ffffff' : '#6b7280';
+            const gridColor = isDark ? '#374151' : '#f3f4f6';
+            Object.values(chart.options.scales || {}).forEach(scale => {
+                if (scale.ticks) scale.ticks.color = axisColor;
+                if (scale.title) scale.title.color = axisColor;
+                if (scale.grid && scale.grid.display !== false) scale.grid.color = gridColor;
+            });
+            const legendLabels = chart.options.plugins?.legend?.labels;
+            if (legendLabels) legendLabels.color = isDark ? '#ffffff' : '#374151';
             chart.update();
         }
     });
@@ -1055,9 +1046,9 @@ async function loadCharts() {
         const data = await res.json();
 
         buildMonthWiseChart(data.monthWise);
+        buildAdmissionTypeChart(data.admissionTypes || []);
         buildEmpWiseChart(data.empWise);
         buildGrowthChart(data.growth);
-        buildTopPerfChart(data.topPerformers);
         buildTrendChart(data.trend);
         
         // Load university and course analytics
@@ -1164,13 +1155,7 @@ async function loadRevenueAnalytics() {
 
         const res = await fetch(`${API_BASE_URL}/analytics/revenue?${p}`, { headers: authHeaders() });
         if (!res.ok) return;
-        const { totalRevenue, avgRevenue, distribution, topRevenueAdmissions, monthlyRevenue } = await res.json();
-        
-        // Build revenue distribution chart
-        buildRevenueDistChart(distribution);
-        
-        // Build revenue trend chart
-        buildRevenueTrendChart(monthlyRevenue);
+        const { topRevenueAdmissions } = await res.json();
         
         // Render top revenue admissions table
         const tbody = document.getElementById('topRevenueBody');
@@ -1236,7 +1221,7 @@ function buildMonthWiseChart({ labels, data }) {
                     grid: { color: isDark ? '#374151' : '#f3f4f6' }, 
                     ticks: { 
                         stepSize: 1,
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1244,7 +1229,7 @@ function buildMonthWiseChart({ labels, data }) {
                 x: { 
                     grid: { display: false },
                     ticks: { 
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1297,7 +1282,7 @@ function buildEmpWiseChart({ labels, data }) {
                     beginAtZero: true, 
                     grid: { color: isDark ? '#374151' : '#f3f4f6' },
                     ticks: { 
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1306,7 +1291,7 @@ function buildEmpWiseChart({ labels, data }) {
                     grid: { display: false }, 
                     ticks: { 
                         font: { size: 11, family: 'Inter' },
-                        color: isDark ? '#9ca3af' : '#6b7280'
+                        color: isDark ? '#ffffff' : '#6b7280'
                     },
                     border: { display: false }
                 } 
@@ -1389,11 +1374,11 @@ function buildGrowthChart(growthData) {
                     title: { 
                         display: true, 
                         text: 'Admissions',
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     ticks: { 
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1405,11 +1390,11 @@ function buildGrowthChart(growthData) {
                     title: { 
                         display: true, 
                         text: 'Revenue (₹)',
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     ticks: { 
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1417,7 +1402,7 @@ function buildGrowthChart(growthData) {
                 x:  { 
                     grid: { display: false },
                     ticks: { 
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1431,53 +1416,52 @@ function buildGrowthChart(growthData) {
     });
 }
 
-function buildTopPerfChart({ labels, data }) {
-    destroyChart('topPerf');
-    if (!labels.length) return;
-    const ctx = document.getElementById('chartTopPerf').getContext('2d');
+function buildAdmissionTypeChart(admissionTypes) {
+    destroyChart('admissionTypes');
+    const ctx = document.getElementById('chartAdmissionTypes').getContext('2d');
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    
-    charts.topPerf = new Chart(ctx, {
-        type: 'doughnut',
-        data: { 
-            labels, 
-            datasets: [{ 
-                data, 
-                backgroundColor: CHART_COLORS, 
-                borderWidth: 2, 
-                borderColor: isDark ? '#1f2937' : '#fff',
-                hoverOffset: 4
-            }] 
+    const colors = ['#E76F51', '#2A9D8F', '#457B9D'];
+    const totalAdmissions = admissionTypes.reduce((total, item) => total + (Number(item.admissions) || 0), 0);
+    const admissionShares = admissionTypes.map(item => totalAdmissions
+        ? (Number(item.admissions) || 0) / totalAdmissions * 100
+        : 0);
+
+    charts.admissionTypes = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: admissionTypes.map((item, index) => `${item.label} (${admissionShares[index].toFixed(1)}%)`),
+            datasets: [{
+                label: 'Admissions',
+                data: admissionTypes.map(item => item.admissions),
+                backgroundColor: colors,
+                borderRadius: 7,
+                borderSkipped: false,
+                revenue: admissionTypes.map(item => item.revenue)
+            }]
         },
         options: {
-            responsive: true, 
-            maintainAspectRatio: false, 
-            cutout: '60%',
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: { 
-                    position: 'bottom', 
-                    labels: { 
-                        font: { size: 11, family: 'Inter' }, 
-                        boxWidth: 12, 
-                        padding: 8,
-                        color: isDark ? '#e5e7eb' : '#374151',
-                        usePointStyle: true
-                    } 
-                },
-                tooltip: { 
-                    backgroundColor: isDark ? '#1f2937' : '#fff',
-                    titleColor: isDark ? '#f9fafb' : '#111827',
-                    bodyColor: isDark ? '#e5e7eb' : '#374151',
-                    borderColor: isDark ? '#374151' : '#e5e7eb',
-                    borderWidth: 1,
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} admissions` } 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: context => ` ${context.parsed.x} admissions (${admissionShares[context.dataIndex].toFixed(1)}% of total)`,
+                        afterLabel: context => `Revenue: ₹${Number(context.dataset.revenue[context.dataIndex]).toLocaleString('en-IN')}`
+                    }
                 }
             },
-            animation: {
-                duration: 750,
-                easing: 'easeInOutQuart'
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { precision: 0, color: isDark ? '#ffffff' : '#6b7280' },
+                    grid: { color: isDark ? '#374151' : '#f3f4f6' }
+                },
+                y: {
+                    ticks: { color: isDark ? '#ffffff' : '#374151' },
+                    grid: { display: false }
+                }
             }
         }
     });
@@ -1528,7 +1512,7 @@ function buildTrendChart(trendData) {
                     beginAtZero: true, 
                     grid: { color: isDark ? '#374151' : '#f3f4f6' },
                     ticks: { 
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1538,7 +1522,7 @@ function buildTrendChart(trendData) {
                     ticks: { 
                         maxTicksLimit: 12, 
                         font: { size: 11, family: 'Inter' },
-                        color: isDark ? '#9ca3af' : '#6b7280'
+                        color: isDark ? '#ffffff' : '#6b7280'
                     },
                     border: { display: false }
                 } 
@@ -1597,7 +1581,7 @@ function buildUniversityChart({ labels, data, revenue }) {
                     beginAtZero: true,
                     grid: { color: isDark ? '#374151' : '#f3f4f6' },
                     ticks: {
-                        color: isDark ? '#9ca3af' : '#6b7280',
+                        color: isDark ? '#ffffff' : '#6b7280',
                         font: { size: 11, family: 'Inter' }
                     },
                     border: { display: false }
@@ -1606,7 +1590,7 @@ function buildUniversityChart({ labels, data, revenue }) {
                     grid: { display: false },
                     ticks: {
                         font: { size: 11, family: 'Inter' },
-                        color: isDark ? '#9ca3af' : '#6b7280'
+                        color: isDark ? '#ffffff' : '#6b7280'
                     },
                     border: { display: false }
                 }
@@ -1663,128 +1647,6 @@ function buildCourseChart({ labels, data }) {
                     callbacks: {
                         label: (ctx) => ` ${ctx.label}: ${ctx.parsed} admissions`
                     }
-                }
-            },
-            animation: {
-                duration: 750,
-                easing: 'easeInOutQuart'
-            }
-        }
-    });
-}
-
-function buildRevenueDistChart(distribution) {
-    destroyChart('revenueDist');
-    const ctx = document.getElementById('chartRevenueDist').getContext('2d');
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    
-    charts.revenueDist = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['< ₹10K', '₹10K-50K', '₹50K-100K', '> ₹100K'],
-            datasets: [{
-                data: [distribution.low, distribution.medium, distribution.high, distribution.premium],
-                backgroundColor: ['#EF4444', '#F59E0B', '#22C55E', '#2563EB'],
-                borderWidth: 2,
-                borderColor: isDark ? '#1f2937' : '#fff',
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '60%',
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: { size: 11, family: 'Inter' },
-                        boxWidth: 12,
-                        padding: 8,
-                        color: isDark ? '#e5e7eb' : '#374151',
-                        usePointStyle: true
-                    }
-                },
-                tooltip: {
-                    backgroundColor: isDark ? '#1f2937' : '#fff',
-                    titleColor: isDark ? '#f9fafb' : '#111827',
-                    bodyColor: isDark ? '#e5e7eb' : '#374151',
-                    borderColor: isDark ? '#374151' : '#e5e7eb',
-                    borderWidth: 1,
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: {
-                        label: (ctx) => ` ${ctx.label}: ${ctx.parsed} admissions`
-                    }
-                }
-            },
-            animation: {
-                duration: 750,
-                easing: 'easeInOutQuart'
-            }
-        }
-    });
-}
-
-function buildRevenueTrendChart(monthlyRevenue) {
-    destroyChart('revenueTrend');
-    if (!monthlyRevenue || !monthlyRevenue.length) return;
-    const ctx = document.getElementById('chartRevenueTrend').getContext('2d');
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    
-    charts.revenueTrend = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: monthlyRevenue.map(m => m.month),
-            datasets: [{
-                label: 'Revenue (₹)',
-                data: monthlyRevenue.map(m => m.revenue),
-                borderColor: '#22C55E',
-                backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: '#22C55E',
-                pointRadius: 3,
-                pointHoverRadius: 5,
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: isDark ? '#1f2937' : '#fff',
-                    titleColor: isDark ? '#f9fafb' : '#111827',
-                    bodyColor: isDark ? '#e5e7eb' : '#374151',
-                    borderColor: isDark ? '#374151' : '#e5e7eb',
-                    borderWidth: 1,
-                    padding: 12,
-                    cornerRadius: 8,
-                    callbacks: {
-                        label: (ctx) => `Revenue: ₹${ctx.parsed.y.toLocaleString('en-IN')}`
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: isDark ? '#374151' : '#f3f4f6' },
-                    ticks: {
-                        color: isDark ? '#9ca3af' : '#6b7280',
-                        font: { size: 11, family: 'Inter' },
-                        callback: (value) => '₹' + value.toLocaleString('en-IN')
-                    },
-                    border: { display: false }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: {
-                        color: isDark ? '#9ca3af' : '#6b7280',
-                        font: { size: 11, family: 'Inter' }
-                    },
-                    border: { display: false }
                 }
             },
             animation: {

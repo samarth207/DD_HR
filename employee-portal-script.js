@@ -8,6 +8,7 @@ const auth = JSON.parse(localStorage.getItem('hrPortalAuth') || '{}');
 const EMP_ID = auth.employeeId;
 let employeeProfile = {};
 const salaryCycleUtils = window.SalaryCycleUtils;
+let isSubmittingMySalesRecord = false;
 
 function isSalesDepartment(department) {
     return String(department || '').trim().toLowerCase().includes('sales');
@@ -1033,6 +1034,7 @@ async function initializeMySalesForm() {
     const typeSelect = document.getElementById('mySalesType');
     const discountTypeSelect = document.getElementById('mySalesDiscountType');
     const discountPercentInput = document.getElementById('mySalesDiscountPercent');
+    document.getElementById('mySalesAdmissionYear').value = String(new Date().getFullYear());
 
     universitySelect.addEventListener('change', async function() {
         try {
@@ -1089,7 +1091,7 @@ async function loadMySales() {
     const month = document.getElementById('salesMonthFilter').value;
     const tbody = document.getElementById('salesHistoryBody');
     const kpiDiv = document.getElementById('salesKPIs');
-    tbody.innerHTML = '<tr><td colspan="8" class="no-data"><div class="spinner"></div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="no-data"><div class="spinner"></div></td></tr>';
 
     try {
         const [currentEmployee, data, config, allSalesData, admissions] = await Promise.all([
@@ -1255,7 +1257,7 @@ async function loadMySales() {
 
         // Render admission records table
         if (!admList.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="no-data"><i class="fas fa-graduation-cap"></i><br>No admissions recorded for this month</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="no-data"><i class="fas fa-graduation-cap"></i><br>No admissions recorded for this month</td></tr>';
             return;
         }
 
@@ -1278,6 +1280,7 @@ async function loadMySales() {
             .sort((a, b) => new Date(b.admissionDate) - new Date(a.admissionDate))
             .map(a => `<tr>
                 <td>${fmt(a.admissionDate)}</td>
+                <td style="color:var(--muted);font-size:12px;white-space:nowrap;">${a.admissionYear ?? 'Unallocated'} / ${a.admissionDrive || 'Unallocated'}</td>
                 <td style="font-weight:600;">${a.customerName || '—'}</td>
                 <td style="color:var(--muted);font-size:12px;">${a.customerPhone || '—'}${a.alternateCustomerPhone ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerPhone}</span>` : ''}</td>
                 <td style="color:var(--muted);font-size:12px;">${a.customerEmail || '—'}${a.alternateCustomerEmail ? `<br><span style="color:#9ca3af;">Alt: ${a.alternateCustomerEmail}</span>` : ''}</td>
@@ -1291,15 +1294,17 @@ async function loadMySales() {
                         ? '<span class="badge badge-red" style="font-size:10px;">Rejected</span>'
                         : '<span class="badge badge-amber" style="font-size:10px;">Pending Review</span>')}
                     ${admissionReviewMeta(a)}</td>
+                <td><button type="button" class="btn-doc" onclick="openAdmissionReregistrationById('${String(a._id || '')}')">Period Fees</button></td>
             </tr>`).join('');
     } catch (e) {
         console.error('Sales load error:', e);
-        tbody.innerHTML = '<tr><td colspan="9" class="no-data">Failed to load sales data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="no-data">Failed to load sales data</td></tr>';
     }
 }
 
 async function submitMySalesRecord(event) {
     event.preventDefault();
+    if (isSubmittingMySalesRecord) return;
     const btn = document.getElementById('mySalesSubmitBtn');
     const currentMonth = document.getElementById('salesMonthFilter').value;
     const customerName = document.getElementById('mySalesCustomerName').value.trim();
@@ -1316,6 +1321,8 @@ async function submitMySalesRecord(event) {
     const course = selectedCourse?.dataset?.courseName || '';
     const universityName = selectedUniversity?.dataset?.universityName || '';
     const admissionDate = document.getElementById('mySalesDate').value;
+    const admissionYear = Number(document.getElementById('mySalesAdmissionYear').value);
+    const admissionDrive = document.getElementById('mySalesAdmissionDrive').value.trim();
     const admissionType = normalizeSalesAdmissionType(document.getElementById('mySalesType').value);
     const discountType = String(document.getElementById('mySalesDiscountType').value || '').trim().toLowerCase();
     const discountPercent = parseSalesNumber(document.getElementById('mySalesDiscountPercent').value);
@@ -1343,12 +1350,25 @@ async function submitMySalesRecord(event) {
         return;
     }
 
+    if (!Number.isInteger(admissionYear) || admissionYear < 1900 || admissionYear > 9999) {
+        notify('salesNotify', 'Enter a valid admission year.', 'error');
+        document.getElementById('mySalesAdmissionYear').focus();
+        return;
+    }
+
+    if (!['Drive 1', 'Drive 2'].includes(admissionDrive)) {
+        notify('salesNotify', 'Select Drive 1 or Drive 2 for this admission.', 'error');
+        document.getElementById('mySalesAdmissionDrive').focus();
+        return;
+    }
+
     if (!customerName || !customerPhone || !customerEmail || !courseId || !universityId || !admissionDate || !admissionType || !discountType || revenue <= 0) {
         notify('salesNotify', 'Please fill all required fields with valid values.', 'error');
         return;
     }
 
     btn.disabled = true;
+    isSubmittingMySalesRecord = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
 
     try {
@@ -1372,6 +1392,8 @@ async function submitMySalesRecord(event) {
                 totalFees,
                 fees: totalFees,
                 admissionDate,
+                admissionYear,
+                admissionDrive,
                 admissionType,
                 discountType,
                 discountPercent,
@@ -1390,9 +1412,11 @@ async function submitMySalesRecord(event) {
             })
         });
 
-        notify('salesNotify', 'Sales record submitted. Waiting for admin approval.');
+        notify('salesNotify', `Sales record for ${admissionYear}, ${admissionDrive} submitted. Waiting for admin approval.`);
         document.getElementById('mySalesForm').reset();
         document.getElementById('mySalesDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('mySalesAdmissionYear').value = String(new Date().getFullYear());
+        document.getElementById('mySalesAdmissionDrive').value = '';
         document.getElementById('mySalesRevenue').value = '';
         document.getElementById('mySalesDuration').value = '';
         document.getElementById('mySalesDurationRaw').value = '';
@@ -1408,6 +1432,7 @@ async function submitMySalesRecord(event) {
     } catch (e) {
         notify('salesNotify', e.message || 'Failed to submit sales record.', 'error');
     } finally {
+        isSubmittingMySalesRecord = false;
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit for Approval';
     }

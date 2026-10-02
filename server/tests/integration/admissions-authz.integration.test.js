@@ -27,6 +27,7 @@ describe('Integration: admissions authentication and authorization', () => {
     let adminToken;
     let hrToken;
     let employeeToken;
+    const csrfTokens = new Map();
     let createdAdmissionId;
 
     function isolatedDb(raw, suffix = '_AdmAuthTest') {
@@ -62,9 +63,15 @@ describe('Integration: admissions authentication and authorization', () => {
         hrToken = createToken({ role: 'hr' });
         employeeToken = createToken({ role: 'employee', employeeId: 5001, name: 'Auth Tester' });
 
+        for (const token of [adminToken, hrToken, employeeToken]) {
+            const csrf = await http.get('/api/csrf-token').set('Authorization', `Bearer ${token}`);
+            csrfTokens.set(token, csrf.body.csrfToken);
+        }
+
         const create = await http
             .post('/api/admissions')
             .set('Authorization', `Bearer ${adminToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(adminToken))
             .send({
                 employeeId: 5001,
                 month: '2026-11',
@@ -73,8 +80,11 @@ describe('Integration: admissions authentication and authorization', () => {
                 customerEmail: 'auth.protected@example.com',
                 admissionDate: '2026-11-11',
                 admissionType: 'one-time',
+                admissionYear: 2026,
+                admissionDrive: 'Drive 1',
                 revenue: 2000,
                 status: 'pending',
+                submittedBy: 'admin',
                 feeManagement: {
                     admissionType: 'one-time',
                     discountType: 'whole-fees',
@@ -116,10 +126,10 @@ describe('Integration: admissions authentication and authorization', () => {
         const approvalRes = await http.put(`/api/admissions/${createdAdmissionId}/status`).send({ status: 'approved' });
 
         expect(getRes.status).toBe(401);
-        expect(postRes.status).toBe(401);
-        expect(putRes.status).toBe(401);
-        expect(delRes.status).toBe(401);
-        expect(approvalRes.status).toBe(401);
+        expect(postRes.status).toBe(403);
+        expect(putRes.status).toBe(403);
+        expect(delRes.status).toBe(403);
+        expect(approvalRes.status).toBe(403);
     });
 
     test('authorization: employee role can create/read own admissions but is forbidden for management actions', async () => {
@@ -127,6 +137,7 @@ describe('Integration: admissions authentication and authorization', () => {
         const postRes = await http
             .post('/api/admissions')
             .set('Authorization', `Bearer ${employeeToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(employeeToken))
             .send({
                 employeeId: 5001,
                 month: '2026-11',
@@ -135,6 +146,8 @@ describe('Integration: admissions authentication and authorization', () => {
                 customerEmail: 'employee.own@example.com',
                 admissionDate: '2026-11-12',
                 admissionType: 'one-time',
+                admissionYear: 2026,
+                admissionDrive: 'Drive 2',
                 revenue: 1500,
                 status: 'pending',
                 feeManagement: {
@@ -163,6 +176,7 @@ describe('Integration: admissions authentication and authorization', () => {
         const editRes = await http
             .put(`/api/admissions/${createdAdmissionId}`)
             .set('Authorization', `Bearer ${employeeToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(employeeToken))
             .send({
                 customerName: 'Edited By Employee',
                 customerPhone: '9001001001',
@@ -174,16 +188,19 @@ describe('Integration: admissions authentication and authorization', () => {
 
         const deleteRes = await http
             .delete(`/api/admissions/${createdAdmissionId}`)
-            .set('Authorization', `Bearer ${employeeToken}`);
+            .set('Authorization', `Bearer ${employeeToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(employeeToken));
 
         const approvalRes = await http
             .put(`/api/admissions/${createdAdmissionId}/status`)
             .set('Authorization', `Bearer ${employeeToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(employeeToken))
             .send({ status: 'approved' });
 
         const impersonationRes = await http
             .post('/api/admissions')
             .set('Authorization', `Bearer ${employeeToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(employeeToken))
             .send({
                 employeeId: 9999,
                 month: '2026-11',
@@ -192,6 +209,8 @@ describe('Integration: admissions authentication and authorization', () => {
                 customerEmail: 'impersonation@example.com',
                 admissionDate: '2026-11-13',
                 admissionType: 'one-time',
+                admissionYear: 2026,
+                admissionDrive: 'Drive 1',
                 revenue: 1200,
                 status: 'approved',
                 feeManagement: {
@@ -219,6 +238,7 @@ describe('Integration: admissions authentication and authorization', () => {
         expect(postRes.status).toBe(200);
         expect(employeeOwn).toBeTruthy();
         expect(employeeOwn.status).toBe('pending');
+        expect(employeeOwn.submittedBy).toBe('employee');
         expect(editRes.status).toBe(403);
         expect(deleteRes.status).toBe(403);
         expect(approvalRes.status).toBe(403);
@@ -232,6 +252,7 @@ describe('Integration: admissions authentication and authorization', () => {
         const approvalRes = await http
             .put(`/api/admissions/${createdAdmissionId}/status`)
             .set('Authorization', `Bearer ${hrToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(hrToken))
             .send({ status: 'approved' });
 
         expect(approvalRes.status).toBe(200);
@@ -244,6 +265,7 @@ describe('Integration: admissions authentication and authorization', () => {
         const create = await http
             .post('/api/admissions')
             .set('Authorization', `Bearer ${adminToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(adminToken))
             .send({
                 employeeId: 5001,
                 month: '2026-12',
@@ -252,6 +274,8 @@ describe('Integration: admissions authentication and authorization', () => {
                 customerEmail: 'admin.managed@example.com',
                 admissionDate: '2026-12-01',
                 admissionType: 'one-time',
+                admissionYear: 2026,
+                admissionDrive: 'Drive 2',
                 revenue: 500,
                 status: 'pending',
                 feeManagement: {
@@ -282,6 +306,7 @@ describe('Integration: admissions authentication and authorization', () => {
         const edit = await http
             .put(`/api/admissions/${saved._id.toString()}`)
             .set('Authorization', `Bearer ${adminToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(adminToken))
             .send({
                 customerName: 'Admin Managed Record',
                 customerPhone: '9001001003',
@@ -296,7 +321,8 @@ describe('Integration: admissions authentication and authorization', () => {
 
         const del = await http
             .delete(`/api/admissions/${saved._id.toString()}`)
-            .set('Authorization', `Bearer ${adminToken}`);
+            .set('Authorization', `Bearer ${adminToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(adminToken));
 
         expect(del.status).toBe(200);
     });

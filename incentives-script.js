@@ -1491,13 +1491,31 @@ async function loadSalaryCrediting() {
 
         const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id, month);
 
-        // Unpaid leave deduction: daily rate × unpaid leave days (1 paid leave/month policy, 30-day basis)
-        const unpaidLeaveDays = getUnpaidLeaveDaysForMonth(emp.id, month, emp.hireDate);
-        const unpaidLeaveDeduction = Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
+        const [year, monthNumber] = month.split('-').map(Number);
+        let payrollPreview = null;
+        try {
+            const response = await fetch(`${API_BASE_URL}/salary-payments/preview?employeeId=${emp.id}&month=${monthNumber}&year=${year}`);
+            if (response.ok) {
+                const payload = await response.json();
+                payrollPreview = payload.breakup || null;
+            }
+        } catch (error) {
+            console.warn('Could not load canonical salary preview; using browser-side calculation.', error);
+        }
 
-        // Half-day attendance deduction: each accumulated half-day = 0.5 day × daily rate
-        const halfDayAttDays = await getHalfDayAttendanceDaysForMonth(emp.id, month, emp.hireDate);
-        const halfDayAttDeduction = Math.round(halfDayAttDays * dailyRate * 100) / 100;
+        // Prefer server-calculated values so salary crediting matches the employee portal and paid payroll.
+        const unpaidLeaveDays = payrollPreview
+            ? (parseFloat(payrollPreview.unpaidLeaveDays) || 0)
+            : getUnpaidLeaveDaysForMonth(emp.id, month, emp.hireDate);
+        const unpaidLeaveDeduction = payrollPreview
+            ? (parseFloat(payrollPreview.unpaidLeaveDeduction) || 0)
+            : Math.round(unpaidLeaveDays * dailyRate * 100) / 100;
+        const halfDayAttDays = payrollPreview
+            ? (parseFloat(payrollPreview.lateDays) || 0)
+            : await getHalfDayAttendanceDaysForMonth(emp.id, month, emp.hireDate);
+        const halfDayAttDeduction = payrollPreview
+            ? (parseFloat(payrollPreview.lateAttendanceDeduction) || 0)
+            : Math.round(halfDayAttDays * dailyRate * 100) / 100;
         
         // Calculate monthly incentive if sales department
         let monthlyIncentive = 0;

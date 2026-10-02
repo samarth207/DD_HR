@@ -184,6 +184,30 @@ router.get('/charts', async (req, res) => {
             filtered = filtered.filter(a => a.admissionDate >= startDate && a.admissionDate <= endDate);
         }
 
+        const admissionTypeMap = {
+            'one-time': { label: 'One-time', admissions: 0, revenue: 0 },
+            yearly: { label: 'Yearly', admissions: 0, revenue: 0 },
+            'semester-wise': { label: 'Semester-wise', admissions: 0, revenue: 0 }
+        };
+        filtered.forEach(admission => {
+            const rawType = admission.admissionType || admission.feeManagement?.admissionType || '';
+            const normalizedType = String(rawType).trim().toLowerCase().replace(/\s+/g, '-');
+            const type = normalizedType === 'annual' ? 'yearly'
+                : normalizedType === 'semester' ? 'semester-wise'
+                : normalizedType === 'onetime' ? 'one-time'
+                : normalizedType;
+            const period = admission.month || (admission.admissionDate ? admission.admissionDate.substring(0, 7) : '');
+            if (!period.startsWith(targetYear) || !admissionTypeMap[type]) return;
+            admissionTypeMap[type].admissions++;
+            admissionTypeMap[type].revenue += parseFloat(admission.revenue) || 0;
+        });
+        const admissionTypes = Object.entries(admissionTypeMap).map(([type, summary]) => ({
+            type,
+            label: summary.label,
+            admissions: summary.admissions,
+            revenue: Math.round(summary.revenue * 100) / 100
+        }));
+
         // Chart 1: Month-wise bar chart (for target year)
         const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const monthWise = Array(12).fill(0);
@@ -255,6 +279,7 @@ router.get('/charts', async (req, res) => {
 
         res.json({
             monthWise: { labels: MONTHS, data: monthWise },
+            admissionTypes,
             empWise: { labels: empWise.map(e => e.name), data: empWise.map(e => e.count), revenue: empWise.map(e => e.revenue) },
             growth: growthData,
             topPerformers: { labels: topPerformers.map(e => e.name), data: topPerformers.map(e => e.count) },
@@ -582,8 +607,11 @@ router.get('/departments', async (req, res) => {
     if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
     try {
         const db = getDB();
-        const depts = await db.collection('employees').distinct('department');
-        res.json({ departments: depts.filter(Boolean).sort() });
+        const departmentRows = await db.collection('employees').aggregate([
+            { $match: { department: { $exists: true, $nin: [null, ''] } } },
+            { $group: { _id: '$department' } }
+        ]).toArray();
+        res.json({ departments: departmentRows.map((row) => row._id).filter(Boolean).sort() });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

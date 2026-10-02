@@ -5,6 +5,23 @@ const request = require('supertest');
 const { setDBForTesting } = require('../../db');
 const { createApp } = require('../../app');
 
+function withAdmissionAllocationDefaults(agent) {
+    const post = agent.post.bind(agent);
+    agent.post = (path) => {
+        const test = post(path);
+        if (path === '/api/admissions') {
+            const send = test.send.bind(test);
+            test.send = (payload) => send({
+                admissionYear: new Date().getFullYear(),
+                admissionDrive: 'Drive 1',
+                ...(payload && typeof payload === 'object' ? payload : {})
+            });
+        }
+        return test;
+    };
+    return agent;
+}
+
 describe('Integration: course master APIs', () => {
     let mongod;
     let client;
@@ -32,7 +49,7 @@ describe('Integration: course master APIs', () => {
 
         db = isolatedDb(rawDb);
         setDBForTesting(db);
-        http = request(createApp({ includeAuthRoutes: false }));
+        http = withAdmissionAllocationDefaults(request(createApp({ includeAuthRoutes: false })));
 
         const uniRes = await http.post('/api/universities').send({ name: 'Course University', code: 'CU' });
         universityId = String(uniRes.body.id);

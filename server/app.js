@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const helmet = require('helmet');
 const { isDBConnected } = require('./db');
-const { requireAuth, requireManagement } = require('./middleware/authz');
+const { requireAuth, requireAdmin } = require('./middleware/authz');
 const {
     apiLimiter,
     authLimiter,
@@ -57,8 +57,8 @@ function createApp(options = {}) {
     }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
-    // CSRF protection for state-changing operations
-    app.use(csrfProtection);
+    // CSRF protection is paired with authenticated sessions in the normal app.
+    if (includeAuthRoutes) app.use(csrfProtection);
 
     app.use(express.static(path.join(__dirname, '..')));
     app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -76,14 +76,22 @@ function createApp(options = {}) {
     const salaryPaymentsRoutes = require('./routes/salaryPayments');
     const adminRoutes = require('./routes/admin');
     const analyticsRoutes = require('./routes/analytics');
+    const admissionReportsRoutes = require('./routes/admission-reports');
     let authRoutes = null;
     let admissionsRoutes = null;
+    let admissionReregistrationsRoutes = null;
     if (includeAuthRoutes) authRoutes = require('./routes/auth');
-    if (includeAdmissionsRoutes) admissionsRoutes = require('./routes/admissions');
+    if (includeAdmissionsRoutes) {
+        admissionsRoutes = require('./routes/admissions');
+        admissionReregistrationsRoutes = require('./routes/admission-reregistrations');
+    }
     const testingRoutes = require('./routes/testing');
     const authGuard = includeAuthRoutes ? requireAuth : (req, res, next) => next();
     const admissionsGuard = includeAuthRoutes
         ? [requireAuth]
+        : [];
+    const analyticsGuard = includeAuthRoutes
+        ? [requireAuth, requireAdmin]
         : [];
 
     // API Versioning - v1 endpoints
@@ -99,9 +107,11 @@ function createApp(options = {}) {
     app.use('/api/v1/courses', authGuard, coursesRoutes);
     app.use('/api/v1/salary-payments', authGuard, salaryPaymentsRoutes);
     app.use('/api/v1/admin', adminRoutes);
-    app.use('/api/v1/analytics', analyticsRoutes);
+    app.use('/api/v1/analytics', ...analyticsGuard, analyticsRoutes);
+    app.use('/api/v1/admission-reports', authGuard, admissionReportsRoutes);
     if (authRoutes) app.use('/api/v1/auth', authRoutes);
     if (admissionsRoutes) app.use('/api/v1/admissions', ...admissionsGuard, admissionsRoutes);
+    if (admissionReregistrationsRoutes) app.use('/api/v1/admissions', ...admissionsGuard, admissionReregistrationsRoutes);
     app.use('/api/v1/testing', testingRoutes);
 
     // Legacy routes (without version) for backward compatibility
@@ -116,9 +126,11 @@ function createApp(options = {}) {
     app.use('/api/courses', authGuard, coursesRoutes);
     app.use('/api/salary-payments', authGuard, salaryPaymentsRoutes);
     app.use('/api/admin', adminRoutes);
-    app.use('/api/analytics', analyticsRoutes);
+    app.use('/api/analytics', ...analyticsGuard, analyticsRoutes);
+    app.use('/api/admission-reports', authGuard, admissionReportsRoutes);
     if (authRoutes) app.use('/api/auth', authRoutes);
     if (admissionsRoutes) app.use('/api/admissions', ...admissionsGuard, admissionsRoutes);
+    if (admissionReregistrationsRoutes) app.use('/api/admissions', ...admissionsGuard, admissionReregistrationsRoutes);
     app.use('/api/testing', testingRoutes);
 
     app.get('/api/v1/health', (req, res) => {

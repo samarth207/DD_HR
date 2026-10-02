@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>html{visibility:hidden}</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DD HR portal - Admission Allocation</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="admission-allocation-dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+<div class="container">
+    <aside class="sidebar allocation-sidebar" id="allocationSidebar">
+        <div class="logo">
+            <div class="logo-icon"><img src="assets/dd-hr-logo.png" alt="DD HR portal logo" style="width:100%;height:100%;object-fit:contain;"></div>
+            <div><h2 style="margin:0;">DD HR portal</h2><small>Management System</small></div>
+        </div>
+        <nav class="nav-menu">
+            <div class="nav-section-title">Admissions</div>
+            <a href="sales-tracking.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Sales Tracking</span></a>
+            <a href="admissions-analytics.html" class="nav-item"><i class="fas fa-chart-bar"></i><span>Admissions Analytics</span></a>
+            <a href="admission-allocation-dashboard.html" class="nav-item active"><i class="fas fa-layer-group"></i><span>Admission Allocation</span></a>
+            <div class="nav-section-title">Main Menu</div>
+            <a href="index.html" class="nav-item"><i class="fas fa-home"></i><span>Dashboard</span></a>
+            <a href="employees.html" class="nav-item"><i class="fas fa-users"></i><span>Employees</span></a>
+            <a href="attendance.html" class="nav-item"><i class="fas fa-fingerprint"></i><span>Attendance</span></a>
+            <a href="incentives.html" class="nav-item"><i class="fas fa-hand-holding-usd"></i><span>Incentives &amp; Payments</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="sidebar-avatar" id="allocationAvatar">AD</div>
+                <div class="sidebar-user-info"><p id="allocationUserName">Admin Portal</p><span id="allocationUserRole">Administrator</span></div>
+            </div>
+            <button onclick="logout()" style="margin-top:10px;width:100%;background:rgba(245,87,108,.15);border:1px solid rgba(245,87,108,.3);color:#fca5a5;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </div>
+    </aside>
+
+    <main class="main-content allocation-main">
+        <header class="header allocation-header">
+            <div class="header-left">
+                <h1 id="allocationHeading">Admission Allocation</h1>
+                <p id="allocationSubtitle" class="subtitle">Drive-wise and year-wise admissions with scheduled semester/year fees</p>
+            </div>
+            <div class="allocation-header-actions">
+                <a id="employeePortalLink" class="btn btn-secondary" href="employee-portal.html" hidden><i class="fas fa-arrow-left"></i> Employee Portal</a>
+                <button class="btn btn-outline" id="refreshAllocation" type="button" title="Refresh data"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+        </header>
+
+        <section class="allocation-filters" aria-label="Admission filters">
+            <label>Year
+                <select id="filterYear" aria-label="Admission year"></select>
+            </label>
+            <label>Drive
+                <select id="filterDrive" aria-label="Admission drive">
+                    <option value="all">All drives</option>
+                    <option value="Drive 1">Drive 1</option>
+                    <option value="Drive 2">Drive 2</option>
+                </select>
+            </label>
+            <label>Course
+                <select id="filterCourse" aria-label="Course"><option value="all">All courses</option></select>
+            </label>
+            <label>Course fee schedule
+                <select id="filterType" aria-label="Course fee schedule">
+                    <option value="all">All types</option>
+                    <option value="semester-wise">Semester-wise</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </label>
+            <label>Payment status
+                <select id="filterPaymentStatus" aria-label="Payment status">
+                    <option value="all">All statuses</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="paid">Paid</option>
+                    <option value="pending">Pending verification</option>
+                    <option value="failed">Failed</option>
+                    <option value="na">NA</option>
+                </select>
+            </label>
+            <label id="employeeFilterWrap" hidden>Employee
+                <select id="filterEmployee" aria-label="Employee"><option value="all">All employees</option></select>
+            </label>
+            <label>Admission status
+                <select id="filterAdmissionStatus" aria-label="Admission status">
+                    <option value="all">All admissions</option>
+                    <option value="approved">Approved</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </label>
+            <label class="allocation-search">Search
+                <input id="filterSearch" type="search" maxlength="100" placeholder="Student, contact, course" autocomplete="off">
+            </label>
+        </section>
+
+        <nav class="allocation-tabs" role="tablist" aria-label="Admission dashboard views">
+            <button type="button" role="tab" data-view="drive-1">Drive 1 Admissions</button>
+            <button type="button" role="tab" data-view="drive-2">Drive 2 Admissions</button>
+            <button type="button" role="tab" data-view="combined" class="active" aria-selected="true">Combined Admission Summary</button>
+        </nav>
+
+        <div id="allocationMessage" class="allocation-message" role="status" aria-live="polite" hidden></div>
+        <section id="allocationMetrics" class="allocation-metrics" aria-label="Admission totals"></section>
+        <section id="allocationBreakdown" class="allocation-breakdown"></section>
+        <section id="reregistrationTables" class="reregistration-tables" hidden></section>
+
+        <dialog id="markPaidDialog" class="allocation-confirm-dialog" aria-labelledby="markPaidDialogTitle">
+            <form method="dialog">
+                <h2 id="markPaidDialogTitle">Confirm fee received</h2>
+                <p id="markPaidDialogMessage"></p>
+                <div id="markPaidDialogError" class="allocation-dialog-error" role="alert" hidden></div>
+                <div class="allocation-dialog-actions">
+                    <button type="submit" class="btn btn-outline" value="cancel" data-mark-paid-cancel>Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmMarkPaid"><i class="fas fa-check" aria-hidden="true"></i> Mark Paid</button>
+                </div>
+            </form>
+        </dialog>
+
+        <section class="allocation-records">
+            <div class="allocation-section-heading">
+                <h2 id="recordsHeading">Admissions</h2>
+                <span id="recordCount"></span>
+            </div>
+            <div class="table-wrap">
+                <table class="allocation-table">
+                    <thead>
+                        <tr>
+                            <th>Student / Admission</th>
+                            <th>Course</th>
+                            <th>Date</th>
+                            <th>Drive</th>
+                            <th>Employee</th>
+                            <th>Course fee schedule</th>
+                            <th>Applicable fees</th>
+                            <th>Paid</th>
+                            <th>Pending</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allocationRows"><tr><td colspan="9" class="no-data">Loading admissions...</td></tr></tbody>
+                </table>
+            </div>
+            <div class="allocation-pagination">
+                <span id="paginationText"></span>
+                <div>
+                    <button type="button" id="previousPage" class="btn btn-outline btn-sm">Previous</button>
+                    <button type="button" id="nextPage" class="btn btn-outline btn-sm">Next</button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="config.js"></script>
+<script src="auth-guard.js"></script>
+<script>
+    const allocationRole = getAuthRole();
+    if (allocationRole === 'employee') {
+        document.body.classList.add('employee-allocation-view');
+        requireEmployee();
+        document.getElementById('employeePortalLink').hidden = false;
+    } else {
+        requireManagement();
+    }
+</script>
+<script src="admission-allocation-dashboard.js"></script>
+</body>
+</html>

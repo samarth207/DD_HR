@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "migrate:salary-period": "node scripts/migrate-salary-period-fields.js",
     "migrate:admission-fees": "node scripts/migrate-admission-fee-management.js",
+    "migrate:admission-year-drive": "node scripts/migrate-admission-year-drive-reregistration.js",
     "rollback:admission-fees": "node scripts/rollback-admission-fee-management-migration.js",
     "benchmark:admissions": "node scripts/benchmark-admission-queries.js",
     "benchmark:admissions:local": "node scripts/benchmark-admission-queries-local.js",

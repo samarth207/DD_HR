@@ -10,6 +10,23 @@ jest.mock('../../utils/mailer', () => ({
     sendMail: jest.fn().mockResolvedValue(true)
 }));
 
+function withAdmissionAllocationDefaults(agent) {
+    const post = agent.post.bind(agent);
+    agent.post = (path) => {
+        const test = post(path);
+        if (path === '/api/admissions') {
+            const send = test.send.bind(test);
+            test.send = (payload) => send({
+                admissionYear: new Date().getFullYear(),
+                admissionDrive: 'Drive 1',
+                ...(payload && typeof payload === 'object' ? payload : {})
+            });
+        }
+        return test;
+    };
+    return agent;
+}
+
 describe('Integration: admission fee business rules', () => {
     let mongod;
     let client;
@@ -37,7 +54,7 @@ describe('Integration: admission fee business rules', () => {
         rawDb = client.db('hr_portal_fee_rules');
         db = isolatedDb(rawDb);
         setDBForTesting(db);
-        http = request(createApp({ includeAuthRoutes: false }));
+        http = withAdmissionAllocationDefaults(request(createApp({ includeAuthRoutes: false })));
 
         await db.collection('employees').insertOne({
             id: 3001,

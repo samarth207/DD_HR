@@ -23,6 +23,7 @@ describe('Integration: master data authentication and authorization', () => {
     let adminToken;
     let hrToken;
     let employeeToken;
+    const csrfTokens = new Map();
 
     function isolatedDb(raw, suffix = '_MasterAuthTest') {
         return {
@@ -47,6 +48,10 @@ describe('Integration: master data authentication and authorization', () => {
         adminToken = createToken({ role: 'admin' });
         hrToken = createToken({ role: 'hr' });
         employeeToken = createToken({ role: 'employee', employeeId: 7001, name: 'Master Viewer' });
+        for (const token of [adminToken, hrToken, employeeToken]) {
+            const csrf = await http.get('/api/csrf-token').set('Authorization', `Bearer ${token}`);
+            csrfTokens.set(token, csrf.body.csrfToken);
+        }
     });
 
     afterAll(async () => {
@@ -62,9 +67,9 @@ describe('Integration: master data authentication and authorization', () => {
         const courseCreate = await http.post('/api/courses').send({ name: 'Auth Course' });
 
         expect(uniList.status).toBe(401);
-        expect(uniCreate.status).toBe(401);
+        expect(uniCreate.status).toBe(403);
         expect(courseList.status).toBe(401);
-        expect(courseCreate.status).toBe(401);
+        expect(courseCreate.status).toBe(403);
     });
 
     test('authorization: employee can read but cannot mutate master data', async () => {
@@ -74,6 +79,7 @@ describe('Integration: master data authentication and authorization', () => {
         const uniCreate = await http
             .post('/api/universities')
             .set('Authorization', `Bearer ${employeeToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(employeeToken))
             .send({ name: 'Employee Forbidden Uni' });
 
         expect(uniList.status).toBe(200);
@@ -85,6 +91,7 @@ describe('Integration: master data authentication and authorization', () => {
         const uniCreate = await http
             .post('/api/universities')
             .set('Authorization', `Bearer ${hrToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(hrToken))
             .send({ name: 'HR Managed University', code: 'HRU', isActive: true });
 
         expect(uniCreate.status).toBe(201);
@@ -93,6 +100,7 @@ describe('Integration: master data authentication and authorization', () => {
         const uniUpdate = await http
             .put(`/api/universities/${universityId}`)
             .set('Authorization', `Bearer ${hrToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(hrToken))
             .send({ name: 'HR Managed University Updated', isActive: true });
 
         expect(uniUpdate.status).toBe(200);
@@ -100,6 +108,7 @@ describe('Integration: master data authentication and authorization', () => {
         const courseCreate = await http
             .post('/api/courses')
             .set('Authorization', `Bearer ${hrToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(hrToken))
             .send({
                 name: 'HR Course',
                 universityId,
@@ -113,12 +122,14 @@ describe('Integration: master data authentication and authorization', () => {
 
         const deleted = await http
             .delete(`/api/courses/${courseId}`)
-            .set('Authorization', `Bearer ${hrToken}`);
+            .set('Authorization', `Bearer ${hrToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(hrToken));
         expect(deleted.status).toBe(200);
 
         const restored = await http
             .patch(`/api/courses/${courseId}/restore`)
-            .set('Authorization', `Bearer ${hrToken}`);
+            .set('Authorization', `Bearer ${hrToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(hrToken));
         expect(restored.status).toBe(200);
     });
 
@@ -126,6 +137,7 @@ describe('Integration: master data authentication and authorization', () => {
         const uniCreate = await http
             .post('/api/universities')
             .set('Authorization', `Bearer ${adminToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(adminToken))
             .send({ name: 'Admin Managed University', code: 'AMU', isActive: true });
 
         expect(uniCreate.status).toBe(201);
@@ -134,6 +146,7 @@ describe('Integration: master data authentication and authorization', () => {
         const courseCreate = await http
             .post('/api/courses')
             .set('Authorization', `Bearer ${adminToken}`)
+            .set('X-CSRF-Token', csrfTokens.get(adminToken))
             .send({
                 name: 'Admin Managed Course',
                 universityId,

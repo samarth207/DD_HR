@@ -1,6 +1,7 @@
 const express = require('express');
 const { ObjectId } = require('mongodb');
 const { getDB, isDBConnected } = require('../db');
+const { normalizeReRegistrationConfig } = require('../utils/admission-reregistration');
 
 const router = express.Router();
 
@@ -56,7 +57,7 @@ async function getActiveUniversity(db, universityId) {
     });
 }
 
-async function validateCoursePayload(db, payload = {}, { partial = false } = {}) {
+async function validateCoursePayload(db, payload = {}, { partial = false, existingCourse = null } = {}) {
     const updates = {};
 
     if (!partial || Object.prototype.hasOwnProperty.call(payload, 'name')) {
@@ -83,6 +84,19 @@ async function validateCoursePayload(db, payload = {}, { partial = false } = {})
 
     if (!partial || Object.prototype.hasOwnProperty.call(payload, 'totalFees')) {
         updates.totalFees = validateTotalFees(payload.totalFees);
+    }
+
+    const hasReRegistration = Object.prototype.hasOwnProperty.call(payload, 'reRegistration');
+    const durationChanged = Object.prototype.hasOwnProperty.call(payload, 'duration');
+    const nextReRegistration = hasReRegistration ? payload.reRegistration : existingCourse?.reRegistration;
+    if (nextReRegistration && (hasReRegistration || durationChanged || !partial)) {
+        updates.reRegistration = normalizeReRegistrationConfig(
+            nextReRegistration,
+            updates.duration ?? existingCourse?.duration
+        );
+        delete updates.reRegistration.periodCount;
+    } else if (hasReRegistration) {
+        throw new Error('reRegistration configuration must be an object');
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'code')) {
@@ -207,7 +221,7 @@ router.get('/dropdown', async (req, res) => {
 
         const items = await db.collection('courses')
             .find(query)
-            .project({ _id: 1, name: 1, universityId: 1, universityName: 1, duration: 1, totalFees: 1, code: 1 })
+            .project({ _id: 1, name: 1, universityId: 1, universityName: 1, duration: 1, totalFees: 1, code: 1, reRegistration: 1 })
             .sort({ name: 1 })
             .limit(limit)
             .toArray();
@@ -267,7 +281,7 @@ router.post('/', requireManagement, async (req, res) => {
         const result = await db.collection('courses').insertOne(course);
         res.status(201).json({ success: true, id: result.insertedId, course });
     } catch (error) {
-        const status = /required|must be|already exists|not found/i.test(error.message) ? 400 : 500;
+        const status = /required|requires|must be|already exists|duplicate|not found|positive|integer|between|configuration|applicable|semester/i.test(error.message) ? 400 : 500;
         res.status(status).json({ error: error.message });
     }
 });
@@ -333,6 +347,11 @@ router.post('/bulk', requireManagement, async (req, res) => {
                     throw new Error('Course with same name already exists for this university');
                 }
 
+                const reRegistration = courseData.reRegistration
+                    ? normalizeReRegistrationConfig(courseData.reRegistration, duration)
+                    : undefined;
+                if (reRegistration) delete reRegistration.periodCount;
+
                 coursesToInsert.push({
                     name,
                     normalizedName,
@@ -340,6 +359,7 @@ router.post('/bulk', requireManagement, async (req, res) => {
                     universityName: university.name,
                     duration,
                     totalFees,
+                    ...(reRegistration ? { reRegistration } : {}),
                     isActive: courseData.isActive !== false,
                     isDeleted: false,
                     createdAt: now,
@@ -388,13 +408,13 @@ router.put('/:id', requireManagement, async (req, res) => {
         const { id } = req.params;
         if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid course ID' });
 
-        const updates = await validateCoursePayload(db, req.body || {}, { partial: true });
+        const existing = await db.collection('courses').findOne({ _id: new ObjectId(id) });
+        if (!existing) return res.status(404).json({ error: 'Course not found' });
+
+        const updates = await validateCoursePayload(db, req.body || {}, { partial: true, existingCourse: existing });
         if (!Object.keys(updates).length) {
             return res.status(400).json({ error: 'No valid fields provided for update' });
         }
-
-        const existing = await db.collection('courses').findOne({ _id: new ObjectId(id) });
-        if (!existing) return res.status(404).json({ error: 'Course not found' });
 
         await ensureUniqueCourse(db, {
             normalizedName: updates.normalizedName || existing.normalizedName,
@@ -410,7 +430,7 @@ router.put('/:id', requireManagement, async (req, res) => {
         const course = await db.collection('courses').findOne({ _id: new ObjectId(id) });
         res.json({ success: true, course });
     } catch (error) {
-        const status = /required|must be|already exists|No valid fields|Invalid|not found/i.test(error.message) ? 400 : 500;
+        const status = /required|requires|must be|already exists|duplicate|No valid fields|Invalid|not found|positive|integer|between|configuration|applicable|semester/i.test(error.message) ? 400 : 500;
         res.status(status).json({ error: error.message });
     }
 });

@@ -12,6 +12,26 @@ const {
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 const EDITABLE_FIELDS = ['customerName', 'customerPhone', 'customerEmail', 'alternateCustomerPhone', 'alternateCustomerEmail', 'course', 'universityName', 'admissionDate', 'admissionType', 'revenue'];
+const ADMISSION_DRIVES = new Set(['Drive 1', 'Drive 2']);
+
+function normalizeAdmissionYear(value, defaultToCurrentYear = false) {
+    if ((value === undefined || value === null || value === '') && defaultToCurrentYear) {
+        return new Date().getFullYear();
+    }
+    if (!/^\d{4}$/.test(String(value))) throw new Error('admissionYear must be a four-digit calendar year');
+    const year = Number(value);
+    if (!Number.isInteger(year) || year < 1900 || year > 9999) {
+        throw new Error('admissionYear must be between 1900 and 9999');
+    }
+    return year;
+}
+
+function normalizeAdmissionDrive(value) {
+    const raw = String(value || '').trim().toLowerCase().replace(/-/g, ' ');
+    const drive = raw === 'drive 1' ? 'Drive 1' : raw === 'drive 2' ? 'Drive 2' : '';
+    if (ADMISSION_DRIVES.has(drive)) return drive;
+    throw new Error('admissionDrive must be Drive 1 or Drive 2');
+}
 
 async function getEmployeeById(db, employeeId) {
     if (!employeeId) return null;
@@ -107,6 +127,8 @@ async function resolveCourseSnapshot(db, payload = {}) {
         snapshot.universityName = courseDoc.universityName;
         snapshot.courseDuration = courseDoc.duration;
         snapshot.courseTotalFees = courseDoc.totalFees;
+        snapshot.courseReRegistrationDuration = courseDoc.duration;
+        if (courseDoc.reRegistration) snapshot.courseReRegistration = courseDoc.reRegistration;
         courseUniversityId = courseDoc.universityId;
     }
 
@@ -351,7 +373,25 @@ router.get('/', async (req, res) => {
             }
             query.employeeId = authEmployeeId;
         } else if (req.query.employeeId) {
-            query.employeeId = parseInt(req.query.employeeId);
+            const requestedEmployeeId = Number(req.query.employeeId);
+            if (!Number.isInteger(requestedEmployeeId)) return res.status(400).json({ error: 'Invalid employeeId' });
+            query.employeeId = requestedEmployeeId;
+        }
+        const requestedYear = req.query.admissionYear ?? req.query.admission_year;
+        const requestedDrive = req.query.admissionDrive ?? req.query.admission_drive;
+        if (requestedYear !== undefined) {
+            try {
+            query.admissionYear = normalizeAdmissionYear(requestedYear);
+            } catch (error) {
+                return res.status(400).json({ error: error.message });
+            }
+        }
+        if (requestedDrive !== undefined) {
+            try {
+            query.admissionDrive = normalizeAdmissionDrive(requestedDrive);
+            } catch (error) {
+                return res.status(400).json({ error: error.message });
+            }
         }
         if (req.query.month)      query.month = req.query.month;
         if (req.query.status)     query.status = req.query.status;
@@ -360,6 +400,26 @@ router.get('/', async (req, res) => {
     } catch (error) {
         const status = /invalid|required|not found|must be|does not belong/i.test(error.message) ? 400 : 500;
         res.status(status).json({ error: error.message });
+    }
+});
+
+// GET /api/admissions/:id - return an admission only to its owner or management
+router.get('/:id', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    try {
+        if (!ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid admission ID' });
+        const admission = await getDB().collection('admissions').findOne({ _id: new ObjectId(req.params.id) });
+        if (!admission) return res.status(404).json({ error: 'Admission not found' });
+
+        if (req?.auth?.role === 'employee' && Number(admission.employeeId) !== getAuthEmployeeId(req)) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        if (req?.auth && !['admin', 'hr', 'employee'].includes(req.auth.role)) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        res.json({ ...admission, status: getAdmissionStatus(admission) });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -406,7 +466,11 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        const normalizedStatus = (status === 'approved' || status === 'rejected') ? status : 'pending';
+        const normalizedAdmissionYear = normalizeAdmissionYear(req.body.admissionYear ?? req.body.admission_year, true);
+        const normalizedAdmissionDrive = normalizeAdmissionDrive(req.body.admissionDrive ?? req.body.admission_drive);
+        const normalizedStatus = isEmployeeRequest
+            ? 'pending'
+            : ((status === 'approved' || status === 'rejected') ? status : 'pending');
         const courseSnapshot = await resolveCourseSnapshot(db, req.body || {});
 
         // Insert the individual admission record
@@ -422,9 +486,11 @@ router.post('/', async (req, res) => {
             universityName: universityName ? String(universityName).trim() : '',
             admissionDate,
             admissionType,
+            admissionYear: normalizedAdmissionYear,
+            admissionDrive: normalizedAdmissionDrive,
             revenue: parseFloat(revenue) || 0,
             status: normalizedStatus,
-            submittedBy: submittedBy || 'admin',
+            submittedBy: isEmployeeRequest ? 'employee' : (submittedBy || 'admin'),
             createdAt: new Date(),
             approvedAt: normalizedStatus === 'approved' ? new Date() : null
         };
@@ -435,6 +501,12 @@ router.post('/', async (req, res) => {
         if (courseSnapshot?.universityName) admission.universityName = courseSnapshot.universityName;
         if (courseSnapshot?.courseDuration !== undefined) admission.courseDuration = courseSnapshot.courseDuration;
         if (courseSnapshot?.courseTotalFees !== undefined) admission.courseTotalFees = courseSnapshot.courseTotalFees;
+        if (courseSnapshot?.courseReRegistration) {
+            admission.courseReRegistrationSnapshot = {
+                duration: courseSnapshot.courseReRegistrationDuration,
+                reRegistration: courseSnapshot.courseReRegistration
+            };
+        }
 
         admission.feeManagement = resolveFeeManagementForCreate(req.body || {}, admission);
         admission.duration = admission.feeManagement.duration;
@@ -613,6 +685,103 @@ router.put('/:id/status', async (req, res) => {
     }
 });
 
+// PATCH /api/admissions/:id/fee-installments/:installmentNumber/mark-paid
+router.patch('/:id/fee-installments/:installmentNumber/mark-paid', async (req, res) => {
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    if (!isManagementRole(req)) return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const db = getDB();
+        const { id } = req.params;
+        const installmentNumber = Number(req.params.installmentNumber);
+        if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid admission ID' });
+        if (!Number.isInteger(installmentNumber) || installmentNumber < 1) {
+            return res.status(400).json({ error: 'installmentNumber must be a positive integer' });
+        }
+
+        const admissionId = new ObjectId(id);
+        const admission = await db.collection('admissions').findOne({ _id: admissionId });
+        if (!admission) return res.status(404).json({ error: 'Admission not found' });
+
+        const feeManagement = admission.feeManagement;
+        const installments = Array.isArray(feeManagement?.installments) ? feeManagement.installments : [];
+        if (!installments.length) return res.status(409).json({ error: 'Admission has no saved Live Fee Calculation installments' });
+
+        const target = installments.find((item) => Number(item.installmentNumber) === installmentNumber);
+        if (!target) return res.status(404).json({ error: 'Fee installment not found' });
+        const applicablePeriods = admission.courseReRegistrationSnapshot?.reRegistration?.applicablePeriods;
+        if (Array.isArray(applicablePeriods) && !applicablePeriods.map(Number).includes(installmentNumber)) {
+            return res.status(400).json({ error: 'This fee period is marked NA in the saved course configuration' });
+        }
+
+        const calculatedFees = roundToCurrency(target.calculatedFees);
+        if (calculatedFees < 0) return res.status(409).json({ error: 'Fee installment has an invalid calculated amount' });
+        const existingPaid = Number(target.feesPaid);
+        const existingRemaining = Number(target.remainingFees);
+        if (String(target.status || '').toLowerCase() === 'paid'
+            && Number.isFinite(existingPaid) && roundToCurrency(existingPaid) >= calculatedFees
+            && Number.isFinite(existingRemaining) && roundToCurrency(existingRemaining) === 0) {
+            return res.json({ success: true, duplicate: true, installment: target, summary: feeManagement.summary });
+        }
+
+        const updatedInstallments = installments.map((installment) => (
+            Number(installment.installmentNumber) === installmentNumber
+                ? { ...installment, status: 'paid', feesPaid: calculatedFees, remainingFees: 0 }
+                : installment
+        ));
+        const normalizedFeeManagement = normalizeAdmissionFeeManagement({
+            ...feeManagement,
+            installments: updatedInstallments,
+            respectExplicitDiscount: true
+        }, {
+            admissionType: feeManagement.admissionType || admission.admissionType,
+            duration: feeManagement.duration || admission.duration || admission.courseDuration,
+            totalFees: feeManagement.summary?.actualFees ?? admission.totalFees ?? admission.revenue,
+            installments
+        });
+
+        const filter = { _id: admissionId };
+        if (Object.prototype.hasOwnProperty.call(admission, 'updatedAt')) {
+            filter.updatedAt = admission.updatedAt;
+        } else {
+            filter.updatedAt = { $exists: false };
+        }
+        filter['feeManagement.installments'] = {
+            $elemMatch: {
+                installmentNumber,
+                calculatedFees: target.calculatedFees
+            }
+        };
+
+        const now = new Date();
+        const result = await db.collection('admissions').updateOne(filter, {
+            $set: {
+                feeManagement: normalizedFeeManagement,
+                updatedAt: now,
+                adminEditedAt: now,
+                reviewOutcome: 'fee-installment-marked-paid',
+                editSummary: [`${target.installmentName || `Installment ${installmentNumber}`} marked paid`]
+            }
+        });
+        if (result.matchedCount !== 1) {
+            const latest = await db.collection('admissions').findOne({ _id: admissionId });
+            const latestTarget = latest?.feeManagement?.installments?.find((item) => Number(item.installmentNumber) === installmentNumber);
+            if (latestTarget?.status === 'paid'
+                && roundToCurrency(latestTarget.feesPaid) >= roundToCurrency(latestTarget.calculatedFees)
+                && roundToCurrency(latestTarget.remainingFees) === 0) {
+                return res.json({ success: true, duplicate: true, installment: latestTarget, summary: latest.feeManagement.summary });
+            }
+            return res.status(409).json({ error: 'Admission fees changed while this installment was being updated. Refresh and retry.' });
+        }
+
+        const updated = await db.collection('admissions').findOne({ _id: admissionId });
+        const updatedInstallment = updated.feeManagement.installments.find((item) => Number(item.installmentNumber) === installmentNumber);
+        res.json({ success: true, installment: updatedInstallment, summary: updated.feeManagement.summary });
+    } catch (error) {
+        const statusCode = /requires|unsupported|exactly|invalid|positive|must be/i.test(error.message) ? 400 : 500;
+        res.status(statusCode).json({ error: error.message });
+    }
+});
+
 // PUT /api/admissions/:id - edit lead details and keep employee-visible review trail
 router.put('/:id', async (req, res) => {
     if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
@@ -624,6 +793,12 @@ router.put('/:id', async (req, res) => {
 
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'courseDuration') || Object.prototype.hasOwnProperty.call(req.body || {}, 'courseTotalFees')) {
             return res.status(400).json({ error: 'courseDuration and courseTotalFees are editable only during admission creation' });
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'admissionYear')
+            || Object.prototype.hasOwnProperty.call(req.body || {}, 'admissionDrive')
+            || Object.prototype.hasOwnProperty.call(req.body || {}, 'admission_year')
+            || Object.prototype.hasOwnProperty.call(req.body || {}, 'admission_drive')) {
+            return res.status(400).json({ error: 'admissionYear and admissionDrive are immutable after admission creation' });
         }
 
         const admission = await db.collection('admissions').findOne({ _id: new ObjectId(id) });
@@ -732,3 +907,5 @@ router.delete('/:id', async (req, res) => {
 module.exports = router;
 module.exports.shouldIncrementSalesForApprovalTransition = shouldIncrementSalesForApprovalTransition;
 module.exports.unwrapFindOneAndUpdateResult = unwrapFindOneAndUpdateResult;
+module.exports.normalizeAdmissionYear = normalizeAdmissionYear;
+module.exports.normalizeAdmissionDrive = normalizeAdmissionDrive;

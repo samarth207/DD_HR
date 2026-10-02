@@ -72,6 +72,44 @@ You should see:
 📊 API endpoint: http://localhost:3000/api
 ```
 
+### Admission Year/Drive and Re-registration Indexes (Non-destructive)
+
+Create the indexes required by admission allocation, reporting, re-registration schedules, and payment idempotency with:
+
+```powershell
+cd "c:\Users\samth\Desktop\DD\HR\server"
+npm run migrate:admission-year-drive
+```
+
+This migration only ensures indexes. It does not update or assign values to existing admissions. Historical records without `admissionYear` or `admissionDrive` remain unchanged. The application also ensures these indexes during startup; run the migration explicitly during a controlled deployment to confirm index creation succeeds.
+
+New admissions store `admissionYear` (defaults to the server's current calendar year) and `admissionDrive` (`Drive 1` or `Drive 2`). Both are immutable after creation. Admission creation accepts `admissionYear`/`admissionDrive` and the snake_case aliases `admission_year`/`admission_drive`.
+
+Course documents may include a `reRegistration` configuration:
+
+```json
+{
+	"type": "semester-wise",
+	"semestersPerAcademicYear": 2,
+	"periodFee": 5000,
+	"applicablePeriods": [1, 2, 3],
+	"periodFeeOverrides": [{ "periodNumber": 2, "fee": 5500 }]
+}
+```
+
+`type` may be `yearly` or `semester-wise`. `duration` remains the existing course duration in years; period fees are explicit because the existing course `totalFees` represents the full course fee, not a defined re-registration charge. New admissions snapshot this configuration. Existing admissions without a saved configuration cannot generate periods; an explicit, separately approved remediation/snapshot step is required. No historical allocation or course configuration is inferred.
+
+Authenticated API endpoints are available under both `/api` and `/api/v1`:
+
+- `GET /admissions/:id` and `GET /admissions?admissionYear=YYYY&admissionDrive=Drive%201` - retrieve/filter admissions; employees are restricted to their own records.
+- `GET /admissions/:id/re-registration-periods` and `GET /admissions/:id/re-registration-summary` - project periods and summaries from the admission's saved Live Fee Calculation.
+- `POST /admissions/:id/re-registration-periods/generate` - read-only projection; it does not create a second schedule or payment ledger.
+- `PATCH /admissions/:id/fee-installments/:installmentNumber/mark-paid` - management-only manual confirmation that the full existing installment fee was received.
+- The former re-registration payment initiation and verification endpoints return `410 Gone`. There is no payment-gateway initiation, transaction verification, or reconciliation integration for these fees.
+- `GET /admission-reports/aggregates?groupBy=year|drive|year-drive|course|employee`, `GET /admission-reports/dashboard`, and `GET /admission-reports/export.xlsx` - report/dashboard/workbook APIs. Employee scope is derived from the token; management roles may report across employees.
+
+No production migration was run as part of this implementation. Existing admissions are not backfilled: missing allocation fields remain missing and are excluded from year/drive-specific dashboards. The migration only creates indexes; there is no destructive rollback operation. Before deployment, back up the database, run the migration in a production-like copy, verify each named index in Atlas, and investigate any duplicate-key/index-build errors. Startup index creation is best-effort and is not a substitute for migration verification.
+
 ---
 
 ## Frontend Integration
@@ -174,11 +212,11 @@ To migrate existing data:
 
 ## Environment Variables
 
-File: `server/.env`
+File: `server/.env` (keep out of source control)
 
 ```
-MONGODB_URI=mongodb+srv://CRM_DB:NXDJ0hwfe0wZq7q5@crm.4dgei3o.mongodb.net/?appName=CRM
-DB_NAME=HR_PORTAL_DB
+MONGODB_URI=<MongoDB Atlas connection string>
+DB_NAME=<database name>
 PORT=3000
 ```
 

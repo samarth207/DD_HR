@@ -14,6 +14,7 @@ let currentEditFeeCalculation = null;
 let lastEditFeeCalculationInputKey = '';
 let currentEditInstallmentStatuses = {};
 let currentEditInstallmentDiscounts = {};
+let isRecordingAdmission = false;
 
 function normalizeAdmissionTypeValue(value) {
     const raw = String(value || '').trim().toLowerCase();
@@ -1072,6 +1073,8 @@ async function openSalesModal(employeeId, month) {
     document.getElementById('admAlternatePhone').value = '';
     document.getElementById('admAlternateEmail').value = '';
     document.getElementById('admDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('admAdmissionYear').value = String(new Date().getFullYear());
+    document.getElementById('admAdmissionDrive').value = '';
 
     document.getElementById('admType').value = 'one-time';
     document.getElementById('admDiscountType').value = 'whole-fees';
@@ -1111,6 +1114,7 @@ function closeSalesModal() {
 // ─── Sales Recording ─────────────────────────────────────────────────────────
 async function recordSales(event) {
     event.preventDefault();
+    if (isRecordingAdmission) return;
     
     const employeeId = parseInt(document.getElementById('salesEmployeeId').value);
     const month = document.getElementById('salesMonth').value;
@@ -1128,12 +1132,26 @@ async function recordSales(event) {
     const universityName = selectedUniversity?.dataset?.universityName || '';
     const course = selectedCourse?.dataset?.courseName || '';
     const admissionDate   = document.getElementById('admDate').value;
+    const admissionYear = Number(document.getElementById('admAdmissionYear').value);
+    const admissionDrive = document.getElementById('admAdmissionDrive').value.trim();
     const admissionType = normalizeAdmissionTypeValue(document.getElementById('admType').value);
     const discountType = document.getElementById('admDiscountType').value;
     const duration = parseNumericInput(document.getElementById('admDuration').value);
     const totalFees = parseNumericInput(document.getElementById('admTotalFees').value);
     const discountPercent = parseNumericInput(document.getElementById('admDiscountPercent').value);
     const installmentDiscounts = collectInstallmentDiscounts();
+
+    if (!Number.isInteger(admissionYear) || admissionYear < 1900 || admissionYear > 9999) {
+        showNotification('Enter a valid admission year.', 'error');
+        document.getElementById('admAdmissionYear').focus();
+        return;
+    }
+
+    if (!['Drive 1', 'Drive 2'].includes(admissionDrive)) {
+        showNotification('Select Drive 1 or Drive 2 for this admission.', 'error');
+        document.getElementById('admAdmissionDrive').focus();
+        return;
+    }
 
     currentLiveFeeCalculation = window.SalesFeeCalculator.buildLiveFeeCalculation({
         admissionType,
@@ -1169,62 +1187,95 @@ async function recordSales(event) {
         return;
     }
     
-    const response = await fetch(`${API_BASE_URL}/admissions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            employeeId,
-            month,
-            customerName,
-            customerPhone,
-            customerEmail,
-            alternateCustomerPhone,
-            alternateCustomerEmail,
-            universityId,
-            universityName,
-            courseId,
-            course,
-            courseDuration: duration,
-            courseTotalFees: totalFees,
-            duration,
-            totalFees,
-            fees: totalFees,
-            admissionDate,
-            admissionType,
-            discountType,
-            discountPercent,
-            feeManagement: {
-                admissionType,
-                discountType,
+    const submitButton = document.querySelector('#salesForm button[type="submit"]');
+    isRecordingAdmission = true;
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.dataset.originalText = submitButton.textContent.trim();
+        submitButton.textContent = 'Recording...';
+    }
+
+    let admissionCreated = false;
+    try {
+        const response = await fetch(`${API_BASE_URL}/admissions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                employeeId,
+                month,
+                customerName,
+                customerPhone,
+                customerEmail,
+                alternateCustomerPhone,
+                alternateCustomerEmail,
+                universityId,
+                universityName,
+                courseId,
+                course,
+                courseDuration: duration,
+                courseTotalFees: totalFees,
                 duration,
                 totalFees,
+                fees: totalFees,
+                admissionDate,
+                admissionYear,
+                admissionDrive,
+                admissionType,
+                discountType,
                 discountPercent,
-                installmentDiscounts: (discountType === 'yearly' || discountType === 'semester') ? installmentDiscounts : undefined,
-                installments: installmentRows
-            },
-            revenue,
-            status: 'approved',
-            submittedBy: 'admin'
-        })
-    });
-    
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        showNotification(err.error || 'Failed to record admission', 'error');
-        return;
+                feeManagement: {
+                    admissionType,
+                    discountType,
+                    duration,
+                    totalFees,
+                    discountPercent,
+                    installmentDiscounts: (discountType === 'yearly' || discountType === 'semester') ? installmentDiscounts : undefined,
+                    installments: installmentRows
+                },
+                revenue,
+                status: 'approved',
+                submittedBy: 'admin'
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            showNotification(err.error || 'Failed to record admission', 'error');
+            return;
+        }
+
+        admissionCreated = true;
+        cachedSalesData = null;
+        currentLiveInstallmentStatuses = {};
+        showNotification(`Admission recorded for ${admissionYear}, ${admissionDrive}.`, 'success');
+        closeSalesModal();
+
+        try {
+            const employees = await window.loadEmployees();
+            const employee = employees.find(e => e.id === employeeId);
+            if (employee) {
+                addLog('sales', `Recorded admission for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${customerName} (${getAdmissionTypeLabel(admissionType)} / ${getDiscountTypeLabel(discountType)}), ${formatRupees(revenue)}, ${admissionYear} / ${admissionDrive}`);
+            }
+        } catch (error) {
+            console.error('Admission recorded, but activity logging failed:', error);
+        }
+
+        await loadSalesData();
+    } catch (error) {
+        showNotification(
+            admissionCreated
+                ? 'Admission was recorded, but the list could not refresh. Reload the sales list to confirm it.'
+                : (error?.message || 'Failed to record admission. Check your connection and try again.'),
+            admissionCreated ? 'warning' : 'error'
+        );
+    } finally {
+        isRecordingAdmission = false;
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = submitButton.dataset.originalText || 'Record Admission';
+            delete submitButton.dataset.originalText;
+        }
     }
-    
-    const employees = await window.loadEmployees();
-    const employee = employees.find(e => e.id === employeeId);
-    addLog('sales', `Recorded admission for ${employee.firstName} ${employee.lastName} - ${formatMonth(month)}: ${customerName} (${getAdmissionTypeLabel(admissionType)} / ${getDiscountTypeLabel(discountType)}), ${formatRupees(revenue)}`);
-    
-    // Invalidate cached sales data so the table refreshes
-    cachedSalesData = null;
-    currentLiveInstallmentStatuses = {};
-    
-    showNotification('Admission recorded successfully!', 'success');
-    closeSalesModal();
-    await loadSalesData();
 }
 
 // View admissions for an employee
@@ -1243,7 +1294,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
     const tbody = document.getElementById('admListBody');
 
     title.textContent = `${employeeName} \u2014 ${formatMonth(month)}`;
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">Loading…</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#718096;">Loading…</td></tr>';
     modal.style.display = 'flex';
 
     try {
@@ -1256,7 +1307,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
             : [];
 
         if (!_admCurrentRecords.length) {
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#718096;">No admission records for this month</td></tr>';
             return;
         }
 
@@ -1310,6 +1361,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
                 return `<tr style="border-top:1px solid #f0f4f8;">
                     <td style="padding:10px 12px;font-size:13px;color:#6b7280;">${i + 1}</td>
                     <td style="padding:10px 12px;font-size:13px;">${dt}</td>
+                    <td style="padding:10px 12px;font-size:12px;white-space:nowrap;">${r.admissionYear ?? 'Unallocated'} / ${r.admissionDrive || 'Unallocated'}</td>
                     <td style="padding:10px 12px;font-size:13px;font-weight:600;">${r.customerName || '\u2014'}</td>
                     <td style="padding:10px 12px;font-size:12px;color:#718096;">
                         ${r.customerPhone || '\u2014'}${r.alternateCustomerPhone ? `<br><span style="color:#9ca3af;">Alt: ${r.alternateCustomerPhone}</span>` : ''}
@@ -1322,6 +1374,9 @@ async function viewAdmissions(employeeId, employeeName, month) {
                     <td style="padding:10px 12px;">${statusBadge}</td>
                     <td style="padding:10px 12px;">
                         <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button onclick="openAdmissionReregistrationById('${rid}')" style="background:#ecfdf5;color:#047857;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
+                                <i class="fas fa-receipt"></i> Period Fees
+                            </button>
                             <button onclick="openEditAdmissionModal('${rid}')" style="background:#e0f2fe;color:#075985;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
                                 <i class=\"fas fa-pen\"></i> Edit
                             </button>
@@ -1335,7 +1390,7 @@ async function viewAdmissions(employeeId, employeeName, month) {
                 </tr>`;
             }).join('');
     } catch (err) {
-        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#dc2626;">Failed to load records</td></tr>';
     }
 }
 
@@ -1352,6 +1407,8 @@ function openEditAdmissionModal(id) {
 
     document.getElementById('editAdmissionId').value = id;
     document.getElementById('editAdmissionSubtitle').textContent = `${record.customerName || 'Lead'} • ${_admCurrentEmployeeName || ''}`;
+    document.getElementById('editAdmAdmissionYear').value = record.admissionYear ?? 'Unallocated';
+    document.getElementById('editAdmAdmissionDrive').value = record.admissionDrive || 'Unallocated';
     document.getElementById('editAdmCustomerName').value = record.customerName || '';
     document.getElementById('editAdmCustomerPhone').value = record.customerPhone || '';
     document.getElementById('editAdmCustomerEmail').value = record.customerEmail || '';
