@@ -34,7 +34,7 @@ Category rows below count relevant Jest suites, not individual test cases. A sui
 - Partial installments do not project as Paid; fully paid installments do. Duplicate admin mark-paid requests are idempotent, NA installments are rejected, and employees cannot use the management-only mark-paid action.
 - Mark-paid ignores client-supplied amount/status/owner/allocation fields and writes the calculated full installment amount. Invalid admission IDs and invalid installment numbers are rejected.
 - Employee-submitted admissions cannot forge `submittedBy: admin`; the server records the authenticated employee role.
-- Re-registration cadence is not inferred from legacy admission type when the course snapshot is missing; a configuration error is returned instead.
+- When the course snapshot is missing, supported cadence/duration fall back to saved Live Fee Calculation data; the actual installment fees and paid status are projected from that saved record.
 - Representative dashboard totals are asserted independently in the fixture, including applicable, paid and pending amounts, period totals, drive/year/course filters, and employee scope. The repeated mark-paid assertion verifies totals update once.
 - Employee reads, re-registration views/summaries/generation, reports and exports are scoped or denied when another employee is requested. Management can use dashboard/report endpoints. Anonymous analytics and export requests are denied.
 - Analytics APIs are authenticated and admin-only, matching the existing page guard; direct HR and employee calls are denied. The departments endpoint uses aggregation instead of `distinct`, compatible with MongoDB Atlas Stable API v1 strict mode.
@@ -61,7 +61,7 @@ No test failed in the final configured QA or E2E runs. The first attempted full-
 - Admissions Analytics department options use a MongoDB aggregation compatible with Stable API strict mode.
 - Admission integration coverage now includes a future year, separate year/drive immutability attempts, cross-owner re-registration access, malformed mark-paid identifiers, mass-assignment attempts, anonymous export denial, and analytics role checks.
 - Employee `submittedBy` attribution is enforced server-side and covered against a forged admin value.
-- Legacy admissions no longer derive re-registration cadence from `admissionType` without a course snapshot.
+- Legacy admissions with a supported saved Live Fee Calculation now display those periods even without a course snapshot; course-specific applicability exceptions still require a snapshot.
 - XLSX export string values are formula-safe; exports over 10,000 records are rejected rather than silently truncated. Unused payment-attempt indexes are no longer created; no existing database index was dropped.
 
 **Assessment:** The executed automated suites pass, but duplicate-admission semantics, absent gateway/reconciliation, missing course configuration UI, dashboard/export parity, untested admissions UI, and lack of production-data verification mean this report does **not** certify the enhancement as production-ready across the full requested scope.

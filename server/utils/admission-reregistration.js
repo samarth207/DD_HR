@@ -110,7 +110,7 @@ function buildLiveFeePeriodSchedule(admission = {}) {
     const installments = Array.isArray(feeManagement.installments) ? feeManagement.installments : [];
     const courseSnapshot = admission.courseReRegistrationSnapshot || {};
     const config = courseSnapshot.reRegistration || {};
-    const rawType = String(config.type || '').trim().toLowerCase();
+    const rawType = String(config.type || feeManagement.admissionType || admission.admissionType || '').trim().toLowerCase();
     const type = rawType === 'annual' ? 'yearly' : rawType === 'semester' ? 'semester-wise' : rawType;
 
     const savedAdmissionType = String(feeManagement.admissionType || admission.admissionType || '').trim().toLowerCase();

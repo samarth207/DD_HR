@@ -15,7 +15,7 @@ The implementation follows the portal's static HTML/JavaScript plus Express/Mong
 - **Backend:** Express route modules served by the same Node process as static files. API routes retain both `/api` and `/api/v1` aliases. Authenticated API scope is enforced server-side; page guards are an additional UI boundary only.
 - **Database:** MongoDB Atlas, official driver, schemaless documents, Stable API v1 strict/deprecation errors. There are no database foreign keys or ODM schemas; ObjectId relationships and employee ownership are checked in application code.
 - **Admission allocation:** `admissionYear` and `admissionDrive` are top-level admission values. Server validates them at create and rejects update attempts. Existing records are not backfilled.
-- **Course/re-registration:** Course API accepts validated `reRegistration` config. New admissions snapshot it as `courseReRegistrationSnapshot`. Period cadence/applicability come from that snapshot; actual fee and paid status come from the saved `feeManagement.installments` as previously agreed.
+- **Course/re-registration:** Course API accepts validated `reRegistration` config. New admissions snapshot it as `courseReRegistrationSnapshot`. The snapshot is preferred for cadence/applicability; when absent, supported cadence/duration fall back to the saved Live Fee Calculation. Period amounts and paid status always come from saved `feeManagement.installments`.
 - **Payments:** No payment gateway or period transaction ledger exists. The active transition is management-only manual `PATCH .../mark-paid`, which records the full calculated installment amount in the existing fee management document.
 - **Reports/export:** `admission-reports` provides aggregates, an allocation dashboard response, and XLSX. Employee scope derives from token identity. Analytics APIs are now authenticated and admin-only, matching the existing page guard.
 
@@ -73,8 +73,8 @@ The implementation follows the portal's static HTML/JavaScript plus Express/Mong
 - Current-year default, editable year at creation, required Drive 1/2, valid representative past/current/future years, and invalid/missing allocation rejection.
 - Year and drive are immutable after creation, including separate-field direct API attempts.
 - Historical fixtures without allocation remain unchanged.
-- Course snapshots drive cadence/applicability. Semester counts and yearly/semester period counts scale with course duration; malformed/incomplete configuration is rejected.
-- Missing course snapshots no longer infer re-registration cadence from legacy admission type. Existing one-time admissions remain period-free.
+- Course snapshots drive cadence/applicability when present. Without a snapshot, supported legacy cadence/duration fall back to saved Live Fee Calculation data; period fees/status are projected from those saved installments. Semester/year period counts are checked against duration and installment count.
+- One-time admissions remain period-free. If the saved cadence/duration/installment count is missing or inconsistent, the modal reports a configuration error rather than inventing fees.
 - Repeated period projection creates no duplicate schedule or transaction records. NA is excluded from applicable/paid/pending totals. Partial fees are not projected as Paid; only a fully paid fee installment is Paid.
 - Duplicate manual mark-paid calls are idempotent; employee attempts and NA periods are rejected.
 - Course edits do not replace a saved admission snapshot in covered integration cases.
@@ -88,7 +88,7 @@ The implementation follows the portal's static HTML/JavaScript plus Express/Mong
 ### Not implemented or unresolved
 
 - Real payment initiation, provider confirmation, cancellation/failure notifications, payment retries, transaction-reference uniqueness, reconciliation, refunds, receipts and gateway amount matching.
-- Course configuration management UI and an approved remediation workflow for old admissions lacking course snapshots.
+- Course configuration management UI. Legacy admissions can project saved Live Fee installments, but without a snapshot their course-specific applicability exceptions and fee overrides cannot be reconstructed.
 - A defined idempotency/duplicate policy for replayed admission creation requests. Current valid POST replay can create another admission; same-student deduplication must not be guessed.
 - Configured course `periodFee`/overrides are validated and snapshotted, but live period amounts come from `feeManagement.installments`. Confirm that source-of-truth choice; otherwise schedule totals may not match course-configured fees.
 - XLSX export currently exports credited admission revenue/allocation fields, not the dashboard's applicable/paid/pending and period totals. It is not a dashboard-equivalent export.
@@ -124,7 +124,7 @@ The implementation follows the portal's static HTML/JavaScript plus Express/Mong
 
 1. Rotate the credential formerly exposed in documentation and check the repository's remote/history handling process.
 2. Decide whether course-configured period fees or the existing admission Live Fee installments are the authoritative amount. Current behavior uses Live Fee installments.
-3. Provide a management workflow to configure active courses and an approved process for admissions without snapshots before using period schedules operationally.
+3. Provide a management workflow to configure active courses and define how course-specific exceptions/overrides are applied to legacy admissions without snapshots.
 4. Decide admission POST idempotency semantics and add a request key/duplicate retry policy if duplicate retries must be prevented.
 5. Decide whether manual admin Mark Paid is acceptable evidence. If payment must be verified externally, integrate provider verification and transaction idempotency before enabling the workflow.
 6. Align XLSX export with dashboard metrics if operators expect the workbook to reconcile to applicable/paid/pending and period totals.
@@ -180,7 +180,7 @@ The implementation follows the portal's static HTML/JavaScript plus Express/Mong
 - Manual mark-paid is not payment verification; no append-only receipt/transaction/audit event exists.
 - Dashboard scan cost grows with matching admissions; production query plans/load were not evaluated.
 - Export and dashboard fee totals differ by design at present.
-- Existing active courses/legacy admissions may not have snapshots; no data remediation was run.
+- Existing active courses/legacy admissions may not have snapshots; fallback can only reflect saved Live Fee installments and cannot infer course-specific NA exceptions or overrides. No data remediation was run.
 - A credential appeared in documentation and may remain in repository history; rotation is mandatory.
 - Previous `npm run dev` context reports exit code 1; this review did not re-run a live server against the configured Atlas database, so production startup remains unverified.
 
@@ -188,9 +188,9 @@ The implementation follows the portal's static HTML/JavaScript plus Express/Mong
 
 | State | Items |
 |---|---|
-| **Completed and verified** | API year/drive validation and immutability; employee scoping; course snapshot cadence/applicability projection; full saved-installment payment transition; admin-only analytics; employee audit attribution; representative summaries; XLSX row scoping/formula sanitation/size cap; configured test suites. |
+| **Completed and verified** | API year/drive validation and immutability; employee scoping; snapshot-preferred cadence plus tested Live Fee fallback for legacy admissions; full saved-installment payment transition; admin-only analytics; employee audit attribution; representative summaries; XLSX row scoping/formula sanitation/size cap; configured test suites. |
 | **Implemented but not fully verified** | Browser forms/dashboard/modal; responsive behavior; Atlas indexes/query plans; production startup; migration rollout; all historical-data compatibility; complete dashboard/export reconciliation. |
 | **Not implemented** | Payment gateway initiation/verification/reconciliation; course configuration UI; dashboard-equivalent XLSX fee/period totals; defined admission-creation idempotency. |
-| **Blocked by unresolved requirements** | Course fee source of truth, duplicate admission semantics, permitted year range, acceptable evidence for manual Mark Paid, course/legacy snapshot remediation, export parity and release compatibility window. |
+| **Blocked by unresolved requirements** | Course fee source of truth, duplicate admission semantics, permitted year range, acceptable evidence for manual Mark Paid, course-specific legacy applicability/override policy, export parity and release compatibility window. |
 
 **Decision: Do not declare production-ready yet.** The tested code paths are substantially covered, but several release requirements are absent or unresolved and the production database/environment was not verified. Close the release gates in Section 11 and complete staging/Atlas verification before approval.

@@ -94,7 +94,7 @@ describe('Unit: admission re-registration periods', () => {
         expect(schedule.summary.pendingAmount).toBe(40000);
     });
 
-    test('does not infer re-registration cadence from admission type without a course snapshot', () => {
+    test('falls back to saved Live Fee Calculation when course snapshot is missing', () => {
         const schedule = buildLiveFeePeriodSchedule({
             admissionType: 'semester-wise',
             feeManagement: {
@@ -109,9 +109,13 @@ describe('Unit: admission re-registration periods', () => {
             }
         });
 
-        expect(schedule.reRegistrationType).toBeNull();
-        expect(schedule.periods).toHaveLength(0);
-        expect(schedule.configurationError).toMatch(/configuration is missing/);
+        expect(schedule.reRegistrationType).toBe('semester-wise');
+        expect(schedule.periods).toHaveLength(4);
+        expect(schedule.periods[0].status).toBe('paid');
+        expect(schedule.periods[0].paidAmount).toBe(10000);
+        expect(schedule.periods[1].status).toBe('unpaid');
+        expect(schedule.summary.applicableFees).toBe(40000);
+        expect(schedule.summary.paidAmount).toBe(10000);
     });
 
     test('rejects missing semester configuration and duplicate period values', () => {

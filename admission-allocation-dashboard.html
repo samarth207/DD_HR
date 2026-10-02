@@ -44,7 +44,6 @@
                 <p id="allocationSubtitle" class="subtitle">Drive-wise and year-wise admissions with scheduled semester/year fees</p>
             </div>
             <div class="allocation-header-actions">
-                <a id="employeePortalLink" class="btn btn-secondary" href="employee-portal.html" hidden><i class="fas fa-arrow-left"></i> Employee Portal</a>
                 <button class="btn btn-outline" id="refreshAllocation" type="button" title="Refresh data"><i class="fas fa-sync-alt"></i> Refresh</button>
             </div>
         </header>
@@ -158,13 +157,15 @@
 <script>
     const allocationRole = getAuthRole();
     if (allocationRole === 'employee') {
-        document.body.classList.add('employee-allocation-view');
-        requireEmployee();
-        document.getElementById('employeePortalLink').hidden = false;
-    } else {
+        window.location.replace('employee-portal.html');
+    } else if (allocationRole === 'admin' || allocationRole === 'hr') {
         requireManagement();
+        const allocationScript = document.createElement('script');
+        allocationScript.src = 'admission-allocation-dashboard.js';
+        document.body.appendChild(allocationScript);
+    } else {
+        window.location.replace('login.html');
     }
 </script>
-<script src="admission-allocation-dashboard.js"></script>
 </body>
 </html>
