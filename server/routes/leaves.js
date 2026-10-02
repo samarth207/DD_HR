@@ -402,12 +402,19 @@ router.post('/', async (req, res) => {
 
         await db.collection('leaves').insertOne(leave);
 
-        if (String(leave.status).toLowerCase() === 'approved') {
-            const employee = await getEmployeeById(db, leave.employeeId);
-            await sendLeaveApprovedNotification(db, leave, employee);
-        }
-
         res.status(201).json({ success: true, leave });
+
+        // Send email notification asynchronously after response
+        if (String(leave.status).toLowerCase() === 'approved') {
+            setImmediate(async () => {
+                try {
+                    const employee = await getEmployeeById(db, leave.employeeId);
+                    await sendLeaveApprovedNotification(db, leave, employee);
+                } catch (err) {
+                    console.error('Failed to send leave approval email:', err);
+                }
+            });
+        }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -495,17 +502,30 @@ router.put('/:id', async (req, res) => {
             { $set: nextLeave }
         );
 
+        res.json({ success: true, message: 'Leave updated' });
+
+        // Send email notifications asynchronously after response
         if (String(existingLeave.status).toLowerCase() !== 'approved' && String(nextLeave.status).toLowerCase() === 'approved') {
-            const employee = await getEmployeeById(db, nextLeave.employeeId);
-            await sendLeaveApprovedNotification(db, nextLeave, employee);
+            setImmediate(async () => {
+                try {
+                    const employee = await getEmployeeById(db, nextLeave.employeeId);
+                    await sendLeaveApprovedNotification(db, nextLeave, employee);
+                } catch (err) {
+                    console.error('Failed to send leave approval email:', err);
+                }
+            });
         }
 
         if (String(existingLeave.status).toLowerCase() !== 'rejected' && String(nextLeave.status).toLowerCase() === 'rejected') {
-            const employee = await getEmployeeById(db, nextLeave.employeeId);
-            await sendLeaveRejectedNotification(db, nextLeave, employee);
+            setImmediate(async () => {
+                try {
+                    const employee = await getEmployeeById(db, nextLeave.employeeId);
+                    await sendLeaveRejectedNotification(db, nextLeave, employee);
+                } catch (err) {
+                    console.error('Failed to send leave rejection email:', err);
+                }
+            });
         }
-
-        res.json({ success: true, message: 'Leave updated' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

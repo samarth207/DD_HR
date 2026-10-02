@@ -12,7 +12,7 @@ async function testEmailToggleAPI() {
     const baseUrl = 'http://localhost:3000';
     
     // Test 1: Get current email settings
-    console.log('� Test 1: GET /api/admin/email-settings');
+    console.log(' Test 1: GET /api/admin/email-settings');
     try {
         const response = await fetch(`${baseUrl}/api/admin/email-settings`);
         const data = await response.json();
@@ -44,7 +44,7 @@ async function testEmailToggleAPI() {
     }
     
     console.log('✅ API endpoint tests completed!');
-    console.log('\n� Manual Testing Instructions:');
+    console.log('\n Manual Testing Instructions:');
     console.log('1. Log in as admin at http://localhost:3000/login.html');
     console.log('2. Go to Account Settings page');
     console.log('3. Toggle the "Email Sending" switch');

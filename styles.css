@@ -2203,3 +2203,9 @@ input:checked + .toggle-slider:before {
     font-weight: 600;
     display: inline-block;
 }
+
+/* Loading Overlay Animation */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

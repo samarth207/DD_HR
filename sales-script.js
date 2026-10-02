@@ -1182,11 +1182,6 @@ async function recordSales(event) {
         return;
     }
 
-    if (!admissionType || !discountType) {
-        showNotification('Please select admission type and discount type', 'error');
-        return;
-    }
-    
     const submitButton = document.querySelector('#salesForm button[type="submit"]');
     isRecordingAdmission = true;
     if (submitButton) {
@@ -1194,6 +1189,7 @@ async function recordSales(event) {
         submitButton.dataset.originalText = submitButton.textContent.trim();
         submitButton.textContent = 'Recording...';
     }
+    showLoadingOverlay('Recording admission...');
 
     let admissionCreated = false;
     try {
@@ -1241,6 +1237,7 @@ async function recordSales(event) {
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             showNotification(err.error || 'Failed to record admission', 'error');
+            hideLoadingOverlay();
             return;
         }
 
@@ -1275,6 +1272,7 @@ async function recordSales(event) {
             submitButton.textContent = submitButton.dataset.originalText || 'Record Admission';
             delete submitButton.dataset.originalText;
         }
+        hideLoadingOverlay();
     }
 }
 
@@ -1441,6 +1439,11 @@ function closeEditAdmissionModal() {
 
 async function saveAdmissionEdits(event) {
     event.preventDefault();
+
+    const submitBtn = document.querySelector('#editAdmissionForm button[type="submit"]');
+    setButtonLoading(submitBtn, true, 'Save Changes');
+    showLoadingOverlay('Saving admission details...');
+
     const id = document.getElementById('editAdmissionId').value;
     const currentInputs = getEditLiveCalculationInputs();
     currentEditFeeCalculation = window.SalesFeeCalculator.buildLiveFeeCalculation(currentInputs);
@@ -1488,6 +1491,8 @@ async function saveAdmissionEdits(event) {
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             showNotification(err.error || 'Failed to update admission', 'error');
+            setButtonLoading(submitBtn, false, 'Save Changes');
+            hideLoadingOverlay();
             return;
         }
 
@@ -1498,16 +1503,21 @@ async function saveAdmissionEdits(event) {
         await loadSalesData();
     } catch (e) {
         showNotification('Failed to update admission', 'error');
+    } finally {
+        setButtonLoading(submitBtn, false, 'Save Changes');
+        hideLoadingOverlay();
     }
 }
 
 async function deleteAdmission(id) {
     if (!confirm('Delete this admission? This will also reduce the employee\'s sales count and revenue.')) return;
+    showLoadingOverlay('Deleting admission...');
     try {
         const res = await fetch(`${API_BASE_URL}/admissions/${id}`, { method: 'DELETE' });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             showNotification(err.error || 'Failed to delete admission', 'error');
+            hideLoadingOverlay();
             return;
         }
         cachedSalesData = null;
@@ -1516,10 +1526,13 @@ async function deleteAdmission(id) {
         await loadSalesData();
     } catch (e) {
         showNotification('Failed to delete admission', 'error');
+    } finally {
+        hideLoadingOverlay();
     }
 }
 
 async function approveAdmission(id) {
+    showLoadingOverlay('Approving admission...');
     try {
         const res = await fetch(`${API_BASE_URL}/admissions/${id}/status`, {
             method: 'PUT',
@@ -1529,6 +1542,7 @@ async function approveAdmission(id) {
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             showNotification(err.error || 'Failed to approve admission', 'error');
+            hideLoadingOverlay();
             return;
         }
         cachedSalesData = null;
@@ -1537,12 +1551,15 @@ async function approveAdmission(id) {
         await loadSalesData();
     } catch (e) {
         showNotification('Failed to approve admission', 'error');
+    } finally {
+        hideLoadingOverlay();
     }
 }
 
 async function rejectAdmission(id) {
     const reviewNote = window.prompt('Enter rejection reason (visible to employee):', '');
     if (reviewNote === null) return;
+    showLoadingOverlay('Rejecting admission...');
     try {
         const res = await fetch(`${API_BASE_URL}/admissions/${id}/status`, {
             method: 'PUT',
@@ -1552,6 +1569,7 @@ async function rejectAdmission(id) {
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             showNotification(err.error || 'Failed to reject admission', 'error');
+            hideLoadingOverlay();
             return;
         }
         cachedSalesData = null;
@@ -1560,6 +1578,8 @@ async function rejectAdmission(id) {
         await loadSalesData();
     } catch (e) {
         showNotification('Failed to reject admission', 'error');
+    } finally {
+        hideLoadingOverlay();
     }
 }
 

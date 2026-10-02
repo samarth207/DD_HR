@@ -601,7 +601,11 @@
 
         async function saveEmployee(event) {
             event.preventDefault();
-            
+
+            const submitBtn = document.querySelector('#employeeForm button[type="submit"]');
+            setButtonLoading(submitBtn, true, 'Save Employee');
+            showLoadingOverlay('Saving employee data...');
+
             const id = document.getElementById('employeeId').value;
             const nextShortId = id ? parseInt(id, 10) : getNextShortEmployeeId();
             if (!nextShortId) {
@@ -659,6 +663,9 @@
             } catch (error) {
                 console.error('Error saving employee:', error);
                 showNotification('Failed to save employee: ' + error.message, 'error');
+            } finally {
+                setButtonLoading(submitBtn, false, 'Save Employee');
+                hideLoadingOverlay();
             }
         }
 

@@ -298,6 +298,47 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
+// Loading Indicator Utilities
+function setButtonLoading(button, isLoading, originalText = 'Save') {
+    if (!button) return;
+
+    if (isLoading) {
+        button.dataset.originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    } else {
+        button.disabled = false;
+        button.innerHTML = button.dataset.originalText || originalText;
+    }
+}
+
+function showLoadingOverlay(message = 'Please wait...') {
+    const existing = document.getElementById('loadingOverlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.style.cssText = `
+        position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 10000; backdrop-filter: blur(2px);
+        animation: fadeIn 0.2s ease;
+    `;
+    overlay.innerHTML = `
+        <div style="background: white; padding: 40px; border-radius: 12px;
+                    text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+            <i class="fas fa-spinner fa-spin" style="font-size: 32px; color: #667eea;"></i>
+            <p style="margin-top: 16px; font-weight: 600; color: #1a202c;">${message}</p>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function hideLoadingOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.remove();
+}
+
 // Export functions for use in HTML files
 window.getEmployees = getEmployees;
 window.saveEmployees = saveEmployees;
@@ -312,6 +353,9 @@ window.loadLogs = loadLogs;
 window.addLog = addLog;
 window.formatDate = formatDate;
 window.showNotification = showNotification;
+window.setButtonLoading = setButtonLoading;
+window.showLoadingOverlay = showLoadingOverlay;
+window.hideLoadingOverlay = hideLoadingOverlay;
 window.processMonthlyLeaveAccrual = processMonthlyLeaveAccrual;
 window.checkServerConnection = checkServerConnection;
 

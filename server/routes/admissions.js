@@ -549,17 +549,24 @@ router.post('/', async (req, res) => {
             );
         }
 
-        if (normalizedStatus === 'approved') {
-            const employee = await getEmployeeById(db, admission.employeeId);
-            await sendSalesApprovedNotification(admission, employee);
-        }
-
         res.json({
             success: true,
             message: normalizedStatus === 'approved'
                 ? 'Admission recorded'
                 : 'Admission submitted for approval'
         });
+
+        // Send email notification asynchronously after response
+        if (normalizedStatus === 'approved') {
+            setImmediate(async () => {
+                try {
+                    const employee = await getEmployeeById(db, admission.employeeId);
+                    await sendSalesApprovedNotification(admission, employee);
+                } catch (err) {
+                    console.error('Failed to send sales approval email:', err);
+                }
+            });
+        }
     } catch (error) {
         const statusCode = /invalid|required|not found|must be|does not belong|unsupported|exactly|not allowed/i.test(error.message)
             ? 400
@@ -626,12 +633,21 @@ router.put('/:id/status', async (req, res) => {
                     },
                     { upsert: true }
                 );
-
-                const employee = await getEmployeeById(db, previousAdmission.employeeId);
-                await sendSalesApprovedNotification(previousAdmission, employee);
             }
 
             return res.json({ success: true, message: 'Admission approved' });
+
+            // Send email notification asynchronously after response
+            if (shouldIncrementSalesForApprovalTransition(previousStatus, nextStatus)) {
+                setImmediate(async () => {
+                    try {
+                        const employee = await getEmployeeById(db, previousAdmission.employeeId);
+                        await sendSalesApprovedNotification(previousAdmission, employee);
+                    } catch (err) {
+                        console.error('Failed to send sales approval email:', err);
+                    }
+                });
+            }
         }
 
         const transitionResult = await db.collection('admissions').findOneAndUpdate(
@@ -672,11 +688,17 @@ router.put('/:id/status', async (req, res) => {
             );
         }
 
-        // Send rejection notification email
-        const employee = await getEmployeeById(db, previousAdmission.employeeId);
-        await sendSalesRejectedNotification(previousAdmission, employee, reviewNote);
-
         res.json({ success: true, message: 'Admission rejected' });
+
+        // Send rejection notification email asynchronously after response
+        setImmediate(async () => {
+            try {
+                const employee = await getEmployeeById(db, previousAdmission.employeeId);
+                await sendSalesRejectedNotification(previousAdmission, employee, reviewNote);
+            } catch (err) {
+                console.error('Failed to send sales rejection email:', err);
+            }
+        });
     } catch (error) {
         const statusCode = /invalid|required|not found|must be|does not belong|unsupported|exactly|not allowed/i.test(error.message)
             ? 400

@@ -408,7 +408,11 @@ function editLeave(id) {
 
 async function saveLeaveRequest(event) {
     event.preventDefault();
-    
+
+    const submitBtn = document.querySelector('#leaveForm button[type="submit"]');
+    setButtonLoading(submitBtn, true, 'Save Request');
+    showLoadingOverlay('Saving leave request...');
+
     const id = document.getElementById('leaveId').value;
     const employeeId = parseInt(document.getElementById('employeeSelect').value);
     const employees = getEmployees();
@@ -426,6 +430,8 @@ async function saveLeaveRequest(event) {
         if (typeof isHoliday === 'function' && await isHoliday(dateStr)) {
             const holiday = await getHolidayByDate(dateStr);
             showNotification(`Cannot apply for leave on ${holiday?.name || 'a holiday'} (${formatDateShort(dateStr)})`, 'error');
+            setButtonLoading(submitBtn, false, 'Save Request');
+            hideLoadingOverlay();
             return;
         }
         current.setDate(current.getDate() + 1);
@@ -447,6 +453,8 @@ async function saveLeaveRequest(event) {
             `Employee already has a leave from ${formatDateShort(overlapping.startDate)} to ${formatDateShort(overlapping.endDate)}.`,
             'error'
         );
+        setButtonLoading(submitBtn, false, 'Save Request');
+        hideLoadingOverlay();
         return;
     }
 
@@ -455,6 +463,8 @@ async function saveLeaveRequest(event) {
 
     if (isHalfDay && startDate !== endDate) {
         showNotification('Half day leave must be on a single day (start and end date must match).', 'error');
+        setButtonLoading(submitBtn, false, 'Save Request');
+        hideLoadingOverlay();
         return;
     }
 
@@ -490,6 +500,9 @@ async function saveLeaveRequest(event) {
             showNotification('Failed to save leave request. Please try again.', 'error');
         }
         return;
+    } finally {
+        setButtonLoading(submitBtn, false, 'Save Request');
+        hideLoadingOverlay();
     }
 
     // Refresh cache from DB then re-render
