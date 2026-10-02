@@ -14,6 +14,6 @@ module.exports = {
     // HMAC secret for signing auth tokens — never stored in the browser
     TOKEN_SECRET: '123286372348175a0174c3edda0b480b11a83df82834287fc6ff856a04355c5c4a8b12aa1248f096b9cf19bcf56bd78a',
 
-    // Token lifetime in milliseconds (8 hours)
-    TOKEN_TTL_MS: 8 * 60 * 60 * 1000
+    // Token lifetime in milliseconds (24 hours - 1 day)
+    TOKEN_TTL_MS: 24 * 60 * 60 * 1000
 };
