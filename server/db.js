@@ -135,7 +135,16 @@ async function createIndexes() {
         await db.collection('incentive_payments').createIndex({ employeeId: 1, incentiveMonth: 1, status: 1 });
         await db.collection('incentive_payments').createIndex({ status: 1, employeeId: 1, incentiveMonth: 1, createdAt: -1 });
         await db.collection('email_logs').createIndex({ type: 1, sentAt: -1 });
-        
+
+        // Expenses indexes
+        await db.collection('expenses').createIndex({ date: -1 });
+        await db.collection('expenses').createIndex({ month: 1 });
+        await db.collection('expenses').createIndex({ category: 1 });
+        await db.collection('expenses').createIndex({ status: 1 });
+        await db.collection('expenses').createIndex({ category: 1, month: 1 });
+        await db.collection('expenses').createIndex({ status: 1, month: 1 });
+        await db.collection('expenses').createIndex({ category: 1, status: 1 });
+
         console.log('✅ Database indexes created');
     } catch (error) {
         console.log('⚠️ Index creation warning:', error.message);

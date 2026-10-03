@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const helmet = require('helmet');
 const { isDBConnected } = require('./db');
-const { requireAuth, requireAdmin } = require('./middleware/authz');
+const { requireAuth, requireAdmin, requireManagement } = require('./middleware/authz');
 const {
     apiLimiter,
     authLimiter,
@@ -77,6 +77,7 @@ function createApp(options = {}) {
     const adminRoutes = require('./routes/admin');
     const analyticsRoutes = require('./routes/analytics');
     const admissionReportsRoutes = require('./routes/admission-reports');
+    const expensesRoutes = require('./routes/expenses');
     let authRoutes = null;
     let admissionsRoutes = null;
     let admissionReregistrationsRoutes = null;
@@ -109,6 +110,7 @@ function createApp(options = {}) {
     app.use('/api/v1/admin', adminRoutes);
     app.use('/api/v1/analytics', ...analyticsGuard, analyticsRoutes);
     app.use('/api/v1/admission-reports', authGuard, admissionReportsRoutes);
+    app.use('/api/v1/expenses', authGuard, expensesRoutes);
     if (authRoutes) app.use('/api/v1/auth', authRoutes);
     if (admissionsRoutes) app.use('/api/v1/admissions', ...admissionsGuard, admissionsRoutes);
     if (admissionReregistrationsRoutes) app.use('/api/v1/admissions', ...admissionsGuard, admissionReregistrationsRoutes);
@@ -128,6 +130,7 @@ function createApp(options = {}) {
     app.use('/api/admin', adminRoutes);
     app.use('/api/analytics', ...analyticsGuard, analyticsRoutes);
     app.use('/api/admission-reports', authGuard, admissionReportsRoutes);
+    app.use('/api/expenses', authGuard, expensesRoutes);
     if (authRoutes) app.use('/api/auth', authRoutes);
     if (admissionsRoutes) app.use('/api/admissions', ...admissionsGuard, admissionsRoutes);
     if (admissionReregistrationsRoutes) app.use('/api/admissions', ...admissionsGuard, admissionReregistrationsRoutes);
