@@ -10,13 +10,13 @@ const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 const UNPAID_LEAVE_TYPES = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternity Leave']);
 
 // Critical security guard:
-// - Admin has full payroll access.
+// - Admin and HR have full payroll access.
 // - Employee can only read own salary preview for employee dashboard breakup.
 router.use((req, res, next) => {
     // Backward compatibility for test harnesses where auth middleware is disabled at app level.
     if (!req.auth) return next();
 
-    if (req.auth.role === 'admin') return next();
+    if (req.auth.role === 'admin' || req.auth.role === 'hr') return next();
 
     if (req.auth.role === 'employee' && req.method === 'GET' && req.path === '/preview') {
         const requestedEmployeeId = parseInt(req.query.employeeId, 10);

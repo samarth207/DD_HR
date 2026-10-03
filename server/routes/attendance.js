@@ -4,11 +4,11 @@ const { getDB } = require('../db');
 const salaryCycleUtils = require('../../salary-cycle-utils');
 
 // Critical security guard for attendance APIs.
-// Admin has full access; employee can only read attendance data relevant to self.
+// Admin and HR have full access; employee can only read attendance data relevant to self.
 router.use((req, res, next) => {
     // Backward compatibility for test harnesses where auth middleware is disabled at app level.
     if (!req.auth) return next();
-    if (req.auth.role === 'admin') return next();
+    if (req.auth.role === 'admin' || req.auth.role === 'hr') return next();
     if (req.auth.role !== 'employee') return res.status(403).json({ error: 'Forbidden' });
 
     if (req.method !== 'GET') return res.status(403).json({ error: 'Forbidden' });
