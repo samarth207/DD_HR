@@ -61,11 +61,11 @@ const DOCUMENT_TYPES = [
     { key: 'bank_passbook', label: 'Bank Passbook Copy' }
 ];
 
-// Multer storage config — files saved to server/uploads/employee-{id}/
+// Multer storage config — files saved to uploads/employee-{id}/
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const employeeId = req.params.id;
-        const dir = path.join(__dirname, 'uploads', `employee-${employeeId}`);
+        const dir = path.join(__dirname, '..', 'uploads', `employee-${employeeId}`);
         fs.mkdirSync(dir, { recursive: true });
         cb(null, dir);
     },
@@ -110,8 +110,8 @@ const upload = multer({
 
 function getDocumentPaths(employeeId, filename) {
     return [
-        path.join(__dirname, 'uploads', `employee-${employeeId}`, filename),
-        path.join(__dirname, '..', 'uploads', `employee-${employeeId}`, filename)
+        path.join(__dirname, '..', 'uploads', `employee-${employeeId}`, filename),
+        path.join(__dirname, '..', '..', 'uploads', `employee-${employeeId}`, filename)
     ];
 }
 

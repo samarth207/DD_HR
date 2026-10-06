@@ -62,6 +62,7 @@ function createApp(options = {}) {
 
     app.use(express.static(path.join(__dirname, '..')));
     app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+    app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
     const employeesRoutes = require('./routes/employees');
     const leavesRoutes = require('./routes/leaves');
