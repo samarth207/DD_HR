@@ -549,12 +549,15 @@ function renderMyDocuments() {
             ? `Uploaded ${fmt(doc.uploadedAt)} • ${fmtFileSize(doc.size)}${doc.locked ? ' • Locked' : ''}`
             : 'Not uploaded yet';
 
+        // Construct full URL for document viewing
+        const fullUrl = doc ? `${window.location.protocol}//${window.location.host}${doc.url}` : '';
+
         return `
             <div class="doc-item">
                 <h4>${t.label}</h4>
                 <div class="doc-meta">${meta}</div>
                 <div class="doc-actions">
-                    ${doc ? `<button type="button" class="btn-doc" onclick="window.open('${doc.url}', '_blank')"><i class="fas fa-eye"></i> View</button>` : ''}
+                    ${doc ? `<button type="button" class="btn-doc" onclick="window.open('${fullUrl}', '_blank')"><i class="fas fa-eye"></i> View</button>` : ''}
                     ${doc && !doc.locked ? `<button type="button" class="btn-doc primary" onclick="openMyDocPicker('${t.key}')">
                         <i class="fas fa-upload"></i> ${doc ? 'Replace' : 'Upload'}
                     </button>` : (!doc ? `<button type="button" class="btn-doc primary" onclick="openMyDocPicker('${t.key}')"><i class="fas fa-upload"></i> Upload</button>` : '')}

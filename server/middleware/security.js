@@ -59,7 +59,7 @@ const helmetConfig = {
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      frameSrc: ["'self'"], // Allow frames from same origin for document viewing
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       manifestSrc: ["'self'"]
@@ -71,7 +71,7 @@ const helmetConfig = {
     preload: true
   },
   noSniff: true,
-  frameguard: { action: 'deny' },
+  frameguard: { action: 'sameorigin' }, // Allow same-origin frames for document viewing
   xssFilter: true,
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 };

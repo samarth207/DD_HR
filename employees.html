@@ -970,7 +970,9 @@
         function viewDoc(docType, url, label) {
             const overlay = document.getElementById('docViewerOverlay');
             document.getElementById('docViewerTitle').textContent = label;
-            document.getElementById('docViewerFrame').src = url;
+            // Construct full URL for iframe
+            const fullUrl = `${window.location.protocol}//${window.location.host}${url}`;
+            document.getElementById('docViewerFrame').src = fullUrl;
             overlay.style.display = 'flex';
         }
 
