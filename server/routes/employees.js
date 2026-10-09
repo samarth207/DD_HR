@@ -65,14 +65,12 @@ const DOCUMENT_TYPES = [
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const employeeId = req.params.id;
-        const dir = path.join(__dirname, '..', 'uploads', `employee-${employeeId}`);
-        fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
+        const dir = path.join(__dirname, '..', '..', 'uploads', `employee-${employeeId}`);
+        fs.mkdir(dir, { recursive: true }, error => cb(error, dir));
     },
     filename: (req, file, cb) => {
-        const docType = req.body.docType || 'document';
-        const ext = path.extname(file.originalname);
-        cb(null, `${docType}${ext}`);
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${crypto.randomUUID()}${ext}`);
     }
 });
 
@@ -330,10 +328,16 @@ router.post('/:id/documents', upload.single('file'), async (req, res) => {
         const docType = req.body.docType;
 
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        if (!docType) return res.status(400).json({ error: 'docType is required' });
+        if (!docType) {
+            removeDocumentFile(employeeId, req.file.filename);
+            return res.status(400).json({ error: 'docType is required' });
+        }
 
         const validTypes = DOCUMENT_TYPES.map(d => d.key);
-        if (!validTypes.includes(docType)) return res.status(400).json({ error: 'Invalid document type' });
+        if (!validTypes.includes(docType)) {
+            removeDocumentFile(employeeId, req.file.filename);
+            return res.status(400).json({ error: 'Invalid document type' });
+        }
 
         const employee = await db.collection('employees').findOne({ id: employeeId });
         if (!employee) {

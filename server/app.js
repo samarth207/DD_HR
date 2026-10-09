@@ -60,9 +60,21 @@ function createApp(options = {}) {
     // CSRF protection is paired with authenticated sessions in the normal app.
     if (includeAuthRoutes) app.use(csrfProtection);
 
+    const documentHeaders = helmet({
+        ...helmetConfig,
+        frameguard: { action: 'sameorigin' },
+        contentSecurityPolicy: {
+            ...helmetConfig.contentSecurityPolicy,
+            directives: {
+                ...helmetConfig.contentSecurityPolicy.directives,
+                frameAncestors: ["'self'"]
+            }
+        }
+    });
+    app.use('/uploads', documentHeaders,
+        express.static(path.join(__dirname, '..', 'uploads')),
+        express.static(path.join(__dirname, 'uploads')));
     app.use(express.static(path.join(__dirname, '..')));
-    app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-    app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
     const employeesRoutes = require('./routes/employees');
     const leavesRoutes = require('./routes/leaves');
