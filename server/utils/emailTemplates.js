@@ -170,7 +170,6 @@ function buildSalaryCreditedEmail({ name, month, breakup, employee }) {
       ${breakup.dailyBonusTotal > 0 ? `<div class="card-row"><span class="card-icon">🎯</span><div><div class="card-label">Daily Bonuses</div><div class="card-value">${formatRupees(breakup.dailyBonusTotal)}</div></div></div>` : ''}
       ${breakup.unpaidLeaveDeduction > 0 ? `<div class="card-row"><span class="card-icon">➖</span><div><div class="card-label">Leave Deduction</div><div class="card-value">-${formatRupees(breakup.unpaidLeaveDeduction)}</div></div></div>` : ''}
       ${breakup.lateAttendanceDeduction > 0 ? `<div class="card-row"><span class="card-icon">⏰</span><div><div class="card-label">Late Deduction</div><div class="card-value">-${formatRupees(breakup.lateAttendanceDeduction)}</div></div></div>` : ''}
-      ${breakup.advanceDeduction > 0 ? `<div class="card-row"><span class="card-icon">📉</span><div><div class="card-label">Advance Deduction</div><div class="card-value">-${formatRupees(breakup.advanceDeduction)}</div></div></div>` : ''}
       <div class="card-row" style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;"><span class="card-icon">💵</span><div><div class="card-label">Net Salary</div><div class="card-value" style="font-size:18px;font-weight:800;color:#059669;">${formatRupees(breakup.netSalary)}</div></div></div>
     </div>
     <p class="msg">If you have any questions about your salary breakup, please contact HR.</p>

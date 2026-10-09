@@ -114,7 +114,6 @@ async function getIncentiveData() {
         return {
             monthlyIncentives: {},
             dailyBonuses: [],
-            salaryAdvances: [],
             salaryPayments: {}
         };
     }
@@ -166,9 +165,6 @@ function switchTab(tabName, event) {
             break;
         case 'salary':
             loadSalaryCrediting();
-            break;
-        case 'advances':
-            loadSalaryAdvances();
             break;
     }
 }
@@ -411,8 +407,6 @@ function initializeMonthFilters() {
 async function loadEmployeeFilters() {
     const allEmployees = await loadEmployees();
     const salesEmployees = allEmployees.filter(e => e.department === 'Sales' && e.status === 'Active');
-    const activeEmployees = allEmployees.filter(e => e.status === 'Active');
-
     // Monthly incentives and daily bonuses are Sales-only
     const salesSelects = ['monthlyEmployeeFilter', 'bonusEmployee'];
     salesSelects.forEach(selectId => {
@@ -429,17 +423,6 @@ async function loadEmployeeFilters() {
         });
     });
 
-    // Salary advances are available for all active employees
-    const advSelect = document.getElementById('advanceEmployee');
-    if (advSelect) {
-        advSelect.innerHTML = '<option value="">Choose employee...</option>';
-        activeEmployees.forEach(emp => {
-            const option = document.createElement('option');
-            option.value = emp.id;
-            option.textContent = `${emp.firstName} ${emp.lastName} (${emp.department})`;
-            advSelect.appendChild(option);
-        });
-    }
 }
 
 async function loadMonthlyIncentives() {
@@ -959,245 +942,6 @@ async function loadDailyBonuses() {
     if (semesterCountEl) semesterCountEl.textContent = semesterTotal;
 }
 
-// Salary Advances
-function openAdvanceModal() {
-    document.getElementById('advanceDate').valueAsDate = new Date();
-    document.getElementById('advanceReason').value = '';
-    
-    // Setup currency formatting for advance amount
-    const amountInput = document.getElementById('advanceAmount');
-    amountInput.value = '';
-    amountInput.addEventListener('input', function() {
-        formatCurrencyInput(this);
-    });
-    
-    document.getElementById('advanceModal').style.display = 'flex';
-}
-
-function closeAdvanceModal() {
-    document.getElementById('advanceModal').style.display = 'none';
-    document.getElementById('advanceForm').reset();
-}
-
-async function saveAdvance(event) {
-    event.preventDefault();
-    
-    const employees = await loadEmployees();
-    const employeeId = parseInt(document.getElementById('advanceEmployee').value);
-    const employee = employees.find(e => e.id === employeeId);
-    const amount = getRawCurrencyValue(document.getElementById('advanceAmount'));
-    
-    const advance = {
-        id: Date.now(),
-        employeeId,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        date: document.getElementById('advanceDate').value,
-        amount: amount,
-        reason: document.getElementById('advanceReason').value,
-        status: 'Outstanding',
-        adjustedInSalary: false,
-        adjustedMonth: null,
-        addedDate: new Date().toISOString()
-    };
-    
-    try {
-        // Save to database
-        await fetch(`${API_BASE_URL}/incentives/advance`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(advance)
-        });
-        
-        // Clear cache to force reload
-        cachedIncentiveData = null;
-        
-        addLog('salary', `Salary advance given to ${advance.employeeName}: ${formatRupees(amount)} - ${advance.reason}`);
-        showNotification('Salary advance recorded successfully!', 'success');
-        closeAdvanceModal();
-        loadSalaryAdvances();
-    } catch (error) {
-        console.error('Error saving advance:', error);
-        showNotification('Failed to save advance', 'error');
-    }
-}
-
-async function markAdvanceRepaid(advanceId, employeeName, amount) {
-    try {
-        await fetch(`${API_BASE_URL}/incentives/advance/${advanceId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                status: 'Repaid',
-                repaid: true,
-                repaidDate: new Date().toISOString(),
-                adjustedInSalary: true
-            })
-        });
-
-        // Force fresh data after status update.
-        cachedIncentiveData = null;
-
-        addLog('salary', `Marked salary advance as repaid for ${employeeName}: ${formatRupees(amount)}`);
-        showNotification('Advance marked as repaid!', 'success');
-        await loadSalaryAdvances();
-    } catch (error) {
-        console.error('Error marking advance as repaid:', error);
-        showNotification('Failed to mark advance as repaid', 'error');
-    }
-}
-
-async function deleteAdvance(advanceId, employeeName, amount) {
-    if (!confirm(`Are you sure you want to delete this salary advance for ${employeeName} of ${formatRupees(amount)}? This action cannot be undone.`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/incentives/advance/${advanceId}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to delete advance');
-        }
-
-        // Force fresh data after deletion
-        cachedIncentiveData = null;
-
-        addLog('salary', `Deleted salary advance for ${employeeName}: ${formatRupees(amount)}`);
-        showNotification('Advance deleted successfully!', 'success');
-        await loadSalaryAdvances();
-    } catch (error) {
-        console.error('Error deleting advance:', error);
-        showNotification('Failed to delete advance: ' + error.message, 'error');
-    }
-}
-
-async function loadSalaryAdvances() {
-    const incentiveData = await getIncentiveData();
-    const container = document.getElementById('advancesContainer');
-    const advances = incentiveData.salaryAdvances.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    let totalAdvances = 0;
-    let outstandingAdvances = 0;
-    let thisMonthAdvances = 0;
-    
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    container.innerHTML = '';
-    
-    if (advances.length === 0) {
-        container.innerHTML = `
-            <div class="no-data-message">
-                <i class="fas fa-money-bill-wave"></i>
-                <h3>No Salary Advances</h3>
-                <p>No salary advances have been given yet.</p>
-            </div>
-        `;
-        document.getElementById('totalAdvances').textContent = formatRupees(totalAdvances);
-        document.getElementById('thisMonthAdvances').textContent = formatRupees(thisMonthAdvances);
-        document.getElementById('outstandingAdvances').textContent = formatRupees(outstandingAdvances);
-        return;
-    }
-    
-    // Create table
-    const table = document.createElement('table');
-    table.className = 'advances-table';
-    
-    // Create table header
-    const thead = document.createElement('thead');
-    thead.innerHTML = `
-        <tr>
-            <th>Employee</th>
-            <th>Reason</th>
-            <th>Status</th>
-            <th>Amount</th>
-            <th>Actions</th>
-        </tr>
-    `;
-    table.appendChild(thead);
-    
-    // Create table body
-    const tbody = document.createElement('tbody');
-    
-    advances.forEach(advance => {
-        totalAdvances += advance.amount;
-        if (!advance.adjustedInSalary) {
-            outstandingAdvances += advance.amount;
-        }
-        
-        const advanceDate = new Date(advance.date);
-        if (advanceDate.getMonth() === currentMonth && advanceDate.getFullYear() === currentYear) {
-            thisMonthAdvances += advance.amount;
-        }
-        
-        // Get initials for avatar
-        const initials = advance.employeeName
-            .split(' ')
-            .map(name => name.charAt(0))
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
-        
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>
-                <div class="advance-employee-info">
-                    <div class="advance-avatar">${initials}</div>
-                    <div class="advance-employee-details">
-                        <div class="advance-employee-name">${advance.employeeName}</div>
-                        <div class="advance-employee-date">${new Date(advance.date).toLocaleDateString('en-US', { 
-                            year: 'numeric', month: 'short', day: 'numeric' 
-                        })}</div>
-                    </div>
-                </div>
-            </td>
-            <td>
-                <div class="advance-reason-box">
-                    <div class="advance-reason-label">Reason</div>
-                    <div class="advance-reason-text">${advance.reason}</div>
-                </div>
-            </td>
-            <td>
-                <div class="advance-status-container">
-                    <span class="advance-status-badge ${advance.adjustedInSalary ? 'adjusted' : 'pending'}">
-                        ${advance.adjustedInSalary ? 'Adjusted' : 'Pending'}
-                    </span>
-                    <div class="advance-status-note">
-                        ${advance.adjustedInSalary 
-                            ? (advance.adjustedMonth ? `Adjusted in ${advance.adjustedMonth}` : 'Adjusted in salary') 
-                            : 'Will be deducted in salary'}
-                    </div>
-                </div>
-            </td>
-            <td>
-                <div class="advance-amount-container">
-                    <div class="advance-amount-label">Amount</div>
-                    <div class="advance-amount-value">${formatRupees(advance.amount)}</div>
-                </div>
-            </td>
-            <td>
-                <div class="advance-actions">
-                    ${!advance.adjustedInSalary ? `
-                        <button class="advance-action-btn delete" onclick="deleteAdvance(${advance.id}, '${advance.employeeName}', ${advance.amount})">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    ` : '<span style="color: #a0aec0; font-size: 12px;">Locked</span>'}
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-    
-    table.appendChild(tbody);
-    container.appendChild(table);
-    
-    document.getElementById('totalAdvances').textContent = formatRupees(totalAdvances);
-    document.getElementById('thisMonthAdvances').textContent = formatRupees(thisMonthAdvances);
-    document.getElementById('outstandingAdvances').textContent = formatRupees(outstandingAdvances);
-}
-
 // Salary Crediting
 function initializeSalaryMonthFilters() {
     const select = document.getElementById('salaryMonthFilter');
@@ -1308,31 +1052,6 @@ function getUnpaidLeaveDaysForMonth(employeeId, month, hireDate = null) {
     return totalDaysInMonth;
 }
 
-async function getOutstandingAdvanceForEmployee(employeeId, month) {
-    const incentiveData = await getIncentiveData();
-    const payments = incentiveData.salaryPayments || {};
-    const advances = (incentiveData.salaryAdvances || []).filter(a => {
-        if (a.employeeId !== employeeId) return false;
-        if (a.status === 'Repaid' || a.repaid) return false;
-        if (a.status !== 'Outstanding') return false;
-        // Exclude if this advance was already deducted in a salary paid before `month`
-        if (a.date && month) {
-            const advMonth = a.date.substring(0, 7); // YYYY-MM
-            const alreadyDeducted = Object.entries(payments).some(([key, val]) => {
-                if (!val.paid) return false;
-                const payMonth = key.substring(0, 7);
-                const payEmp   = key.substring(8);
-                if (parseInt(payEmp) !== employeeId) return false;
-                // Settled if a paid salary exists in [advMonth, month)
-                return payMonth >= advMonth && payMonth < month;
-            });
-            if (alreadyDeducted) return false;
-        }
-        return true;
-    });
-    return advances.reduce((total, advance) => total + advance.amount, 0);
-}
-
 async function getSalaryPaymentStatus(employeeId, month) {
     const incentiveData = await getIncentiveData();
     if (!incentiveData.salaryPayments) {
@@ -1363,23 +1082,6 @@ async function markSalaryPaid(employeeId, employeeName, month, grossSalary, dedu
             throw new Error(errPayload.error || 'Failed to mark salary paid');
         }
 
-        // Auto-mark all outstanding advances for this employee as repaid
-        // (they were included in the deductions for this salary payment)
-        try {
-            const allData = await fetch(`${API_BASE_URL}/incentives/data`).then(r => r.json());
-            const outstandingAdvances = (allData.salaryAdvances || []).filter(a =>
-                (a.employeeId === employeeId || a.employeeId === String(employeeId)) &&
-                a.status !== 'Repaid' && !a.repaid
-            );
-            for (const adv of outstandingAdvances) {
-                await fetch(`${API_BASE_URL}/incentives/advance/${adv.id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'Repaid', repaid: true, repaidDate: new Date().toISOString(), adjustedInSalary: true, adjustedMonth: month })
-                });
-            }
-        } catch (_) { /* non-critical — advance marking failed but salary is still paid */ }
-        
         // Clear cache to force reload
         cachedIncentiveData = null;
         
@@ -1489,8 +1191,6 @@ async function loadSalaryCrediting() {
             effectiveGross = Math.round(dailyRate * joiningDays * 100) / 100;
         }
 
-        const outstandingAdvance = await getOutstandingAdvanceForEmployee(emp.id, month);
-
         const [year, monthNumber] = month.split('-').map(Number);
         let payrollPreview = null;
         try {
@@ -1530,7 +1230,7 @@ async function loadSalaryCrediting() {
         const lopDeduction = Math.round((unpaidLeaveDeduction + halfDayAttDeduction) * 100) / 100;
 
         const totalEarnings = effectiveGross + monthlyIncentive;
-        const totalDeductionsAmt = outstandingAdvance + unpaidLeaveDeduction + halfDayAttDeduction;
+        const totalDeductionsAmt = unpaidLeaveDeduction + halfDayAttDeduction;
         const netSalary = totalEarnings - totalDeductionsAmt;
         
         const paymentStatus = await getSalaryPaymentStatus(emp.id, month);
@@ -1607,10 +1307,6 @@ async function loadSalaryCrediting() {
                         <div class="value" style="color:#f5576c;">- ${formatRupees(lopDeduction)}</div>
                     </div>` : ''}
                     <div class="incentive-box">
-                        <label>Outstanding Advances</label>
-                        <div class="value" style="color:${outstandingAdvance > 0 ? '#f5576c' : '#718096'};">- ${formatRupees(outstandingAdvance)}</div>
-                    </div>
-                    <div class="incentive-box">
                         <label>Net Payable</label>
                         <div class="value" style="color:#667eea;font-size:24px;font-weight:700;">${formatRupees(netSalary)}</div>
                     </div>
@@ -1634,10 +1330,6 @@ async function loadSalaryCrediting() {
                 ${lopDeduction > 0 ? `
                 <div style="margin-top:12px;padding:12px;background:#fff5f5;border-left:4px solid #ef4444;border-radius:6px;">
                     <small style="color:#b91c1c;font-weight:600;"><i class="fas fa-calculator"></i> LOP total: ${lopDays} day${lopDays !== 1 ? 's' : ''} = ${formatRupees(lopDeduction)}</small>
-                </div>` : ''}
-                ${outstandingAdvance > 0 ? `
-                <div style="margin-top:12px;padding:12px;background:#fff5f5;border-left:4px solid #f5576c;border-radius:6px;">
-                    <small style="color:#c53030;font-weight:600;"><i class="fas fa-exclamation-triangle"></i> Advance deduction: ${formatRupees(outstandingAdvance)}</small>
                 </div>` : ''}
             </div>
         `;
@@ -1688,7 +1380,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Add Escape key listener for closing modals
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape' || event.key === 'Esc') {
-            const modals = ['configModal', 'dailyBonusModal', 'advanceModal', 'emailPreviewModal'];
+            const modals = ['configModal', 'dailyBonusModal', 'emailPreviewModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal && modal.style.display === 'flex') {
@@ -1699,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     // Click outside to close modals
-    const modals = ['configModal', 'dailyBonusModal', 'advanceModal', 'emailPreviewModal'];
+    const modals = ['configModal', 'dailyBonusModal', 'emailPreviewModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (modal) {
@@ -1726,11 +1418,7 @@ window.closeDailyBonusModal = closeDailyBonusModal;
 window.calculateDailyReward = calculateDailyReward;
 window.updateRewardRates = updateRewardRates;
 window.saveDailyBonus = saveDailyBonus;
-window.openAdvanceModal = openAdvanceModal;
-window.closeAdvanceModal = closeAdvanceModal;
-window.saveAdvance = saveAdvance;
 window.markIncentivePaid = markIncentivePaid;
-window.markAdvanceRepaid = markAdvanceRepaid;
 window.markSalaryPaid = markSalaryPaid;
 window.loadMonthlyIncentives = loadMonthlyIncentives;
 window.loadSalaryCrediting = loadSalaryCrediting;

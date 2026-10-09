@@ -64,8 +64,7 @@ function calculateExpectedSalary({
     lateCount = 0,
     lateDaysHalfDay = 3,
     monthlyIncentive = 0,
-    dailyBonus = 0,
-    advanceDeduction = 0
+    dailyBonus = 0
 }) {
     const dailyRate = monthlySalary / 30;
     const lateHalfDays = Math.floor(lateCount / lateDaysHalfDay) * 0.5;
@@ -73,7 +72,7 @@ function calculateExpectedSalary({
     const lateDeduction = lateHalfDays * dailyRate;
 
     const totalEarnings = monthlySalary + monthlyIncentive + dailyBonus;
-    const totalDeductions = unpaidDeduction + lateDeduction + advanceDeduction;
+    const totalDeductions = unpaidDeduction + lateDeduction;
 
     return {
         dailyRate: round2(dailyRate),

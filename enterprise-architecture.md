@@ -1536,11 +1536,9 @@ All endpoints below are based on the current route modules. Authentication is no
 | POST | /api/incentives/config | Admin/HR | config object | { success, message } | config structure | 500 |
 | POST | /api/incentives/config/preview | Admin/HR | { name, includeSlabs, includeRewards } | { success, html } | config must exist | 404, 503, 500 |
 | POST | /api/incentives/config/notify | Admin/HR | { includeSlabs, includeRewards } | { success, message, sentCount, failedCount, results } | config must exist | 404, 503, 500 |
-| GET | /api/incentives/data | Admin/HR | none | monthly incentives, bonuses, advances, payments | none | 500 |
+| GET | /api/incentives/data | Admin/HR | none | monthly incentives, bonuses, payments | none | 500 |
 | POST | /api/incentives/monthly | Admin/HR | { key, data } | { success, message } | key required | 500 |
 | POST | /api/incentives/daily | Admin/HR | bonus object | { success, bonus } | amount/date/employeeId | 500 |
-| POST | /api/incentives/advance | Admin/HR | advance object | { success, advance } | employeeId/amount | 500 |
-| PUT | /api/incentives/advance/:id | Admin/HR | update object | { success, message } | advance id required | 404, 500 |
 | POST | /api/incentives/salary-payment | Admin/HR | { key, data } | { success, message } | key required | 500 |
 
 ## Salary Payments API

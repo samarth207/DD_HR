@@ -831,9 +831,6 @@
     <button class="nav-tab" onclick="showTab('calendar')" id="tab-calendar">
         <i class="fas fa-calendar-alt"></i> Holiday Calendar
     </button>
-    <button class="nav-tab" onclick="showTab('advances')" id="tab-advances">
-        <i class="fas fa-hand-holding-usd"></i> Salary Advances
-    </button>
     <button class="nav-tab" onclick="showTab('salary')" id="tab-salary">
         <i class="fas fa-wallet"></i> Salary Breakup
     </button>
@@ -855,11 +852,6 @@
                 <div class="kpi-label">Pending Leaves</div>
                 <div class="kpi-value" id="kpiPending">—</div>
                 <div class="kpi-sub">Awaiting approval</div>
-            </div>
-            <div class="kpi kpi-clickable" role="button" tabindex="0" aria-label="Open advances section" onclick="openOverviewSection('advances')" onkeydown="overviewCardKey(event, 'advances')">
-                <div class="kpi-label">Outstanding Advance</div>
-                <div class="kpi-value" id="kpiAdvance">—</div>
-                <div class="kpi-sub">To be deducted</div>
             </div>
             <div class="kpi kpi-clickable" role="button" tabindex="0" aria-label="Open sales section" onclick="openOverviewSection('sales')" onkeydown="overviewCardKey(event, 'sales')">
                 <div class="kpi-label">This Month Sales</div>
@@ -1117,22 +1109,6 @@
                     <thead><tr><th>Date</th><th>Allocation</th><th>Student Name</th><th>Phone</th><th>Email</th><th>Course</th><th>Type</th><th>University</th><th>Revenue</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody id="salesHistoryBody">
                         <tr><td colspan="11" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ── ADVANCES ─────────────────────────────────── -->
-    <div class="tab-section" id="section-advances">
-        <div class="card">
-            <div class="card-title"><i class="fas fa-hand-holding-usd"></i> My Salary Advances</div>
-            <div id="advancesSummary" style="margin-bottom:18px;"></div>
-            <div class="table-wrap">
-                <table>
-                    <thead><tr><th>Date</th><th>Amount</th><th>Reason</th><th>Status</th></tr></thead>
-                    <tbody id="advancesBody">
-                        <tr><td colspan="4" class="no-data"><i class="fas fa-spinner fa-spin"></i></td></tr>
                     </tbody>
                 </table>
             </div>

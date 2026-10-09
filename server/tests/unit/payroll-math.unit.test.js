@@ -8,25 +8,23 @@ describe('Unit: payroll salary formula helper', () => {
             lateCount: 3,
             lateDaysHalfDay: 3,
             monthlyIncentive: 2000,
-            dailyBonus: 1000,
-            advanceDeduction: 500
+            dailyBonus: 1000
         });
 
         expect(result.dailyRate).toBe(1000);
         expect(result.unpaidDeduction).toBe(1000);
         expect(result.lateDeduction).toBe(500);
-        expect(result.netSalary).toBe(31000);
+        expect(result.netSalary).toBe(31500);
     });
 
     test('net salary is floored at zero', () => {
         const result = calculateExpectedSalary({
             monthlySalary: 2000,
-            unpaidLeaveDays: 3,
+            unpaidLeaveDays: 30,
             lateCount: 9,
             lateDaysHalfDay: 3,
             monthlyIncentive: 0,
-            dailyBonus: 0,
-            advanceDeduction: 10000
+            dailyBonus: 0
         });
 
         expect(result.netSalary).toBe(0);

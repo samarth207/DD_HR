@@ -159,10 +159,9 @@ For example in `employees.html`:
 - `POST /api/incentives/config` - Save configuration
 - `POST /api/incentives/config/preview` - Generate email preview for incentive configuration
 - `POST /api/incentives/config/notify` - Send incentive configuration notification to sales employees
-- `GET /api/incentives/data` - Get all incentive data
+- `GET /api/incentives/data` - Get monthly incentives, daily bonuses, and salary payments
 - `POST /api/incentives/monthly` - Save monthly incentive
 - `POST /api/incentives/daily` - Add daily bonus
-- `POST /api/incentives/advance` - Add salary advance
 - `POST /api/incentives/salary-payment` - Save salary payment
 
 ### Account

@@ -119,17 +119,6 @@ function buildRealisticSeedData() {
         }
     ];
 
-    const salaryAdvances = [
-        {
-            id: 71001,
-            employeeId: salesEmployee.id,
-            date: '2026-05-18',
-            amount: 1500,
-            status: 'Outstanding',
-            repaid: false
-        }
-    ];
-
     const appSettings = {
         _id: 'attendanceSettings',
         officeStartTime: '09:00',
@@ -143,7 +132,6 @@ function buildRealisticSeedData() {
         attendance,
         dailyBonuses,
         monthlyIncentives,
-        salaryAdvances,
         appSettings,
         month: 6,
         year: 2026,
@@ -162,7 +150,6 @@ async function seedRealisticData(db, seed) {
     await db.collection('attendance').insertMany(seed.attendance);
     await db.collection('daily_bonuses').insertMany(seed.dailyBonuses);
     await db.collection('monthly_incentives').insertMany(seed.monthlyIncentives);
-    await db.collection('salary_advances').insertMany(seed.salaryAdvances);
     await db.collection('appSettings').updateOne({ _id: 'attendanceSettings' }, { $set: seed.appSettings }, { upsert: true });
 }
 

@@ -206,10 +206,6 @@
             border-left: 4px solid #667eea;
         }
 
-        .payment-item.advance {
-            border-left-color: #f5576c;
-        }
-
         .payment-item.daily-bonus {
             border-left-color: #38ef7d;
         }
@@ -228,10 +224,6 @@
             font-weight: 700;
             text-transform: uppercase;
             margin-bottom: 4px;
-        }
-
-        .payment-item.advance .payment-type {
-            color: #f5576c;
         }
 
         .payment-item.daily-bonus .payment-type {
@@ -332,179 +324,6 @@
             margin-bottom: 20px;
         }
 
-        /* Salary Advances Table Styling */
-        .advances-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        .advances-table thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .advances-table th {
-            padding: 16px 14px;
-            text-align: left;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: none;
-        }
-
-        .advances-table td {
-            padding: 16px 14px;
-            color: #374151;
-            border-bottom: 1px solid #f3f4f6;
-            vertical-align: middle;
-        }
-
-        .advances-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .advances-table tr:hover td {
-            background: #f9fafb;
-        }
-
-        .advance-employee-info {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .advance-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        .advance-employee-details {
-            flex: 1;
-        }
-
-        .advance-employee-name {
-            font-weight: 600;
-            color: #1a202c;
-            font-size: 14px;
-            margin-bottom: 2px;
-        }
-
-        .advance-employee-date {
-            font-size: 12px;
-            color: #718096;
-        }
-
-        .advance-reason-box {
-            background: #f7fafc;
-            padding: 10px 14px;
-            border-radius: 8px;
-            border-left: 3px solid #667eea;
-        }
-
-        .advance-reason-label {
-            font-size: 10px;
-            color: #718096;
-            text-transform: uppercase;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .advance-reason-text {
-            font-size: 13px;
-            color: #2d3748;
-            line-height: 1.4;
-        }
-
-        .advance-status-container {
-            text-align: center;
-        }
-
-        .advance-status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .advance-status-badge.pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .advance-status-badge.adjusted {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .advance-status-note {
-            font-size: 10px;
-            color: #a0aec0;
-            margin-top: 6px;
-        }
-
-        .advance-amount-container {
-            text-align: right;
-        }
-
-        .advance-amount-label {
-            font-size: 10px;
-            color: #718096;
-            text-transform: uppercase;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .advance-amount-value {
-            font-size: 18px;
-            font-weight: 800;
-            color: #1a202c;
-        }
-
-        .advance-actions {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-        }
-
-        .advance-action-btn {
-            padding: 8px 14px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s ease;
-        }
-
-        .advance-action-btn.delete {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-        }
-
-        .advance-action-btn.delete:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(245, 87, 108, 0.3);
-        }
     </style>
 </head>
 <body>
@@ -548,7 +367,7 @@
             <header class="header">
                 <div class="header-left">
                     <h1>Incentives &amp; Payments</h1>
-                    <p class="subtitle">Manage employee incentives, rewards, and salary advances</p>
+                    <p class="subtitle">Manage employee incentives, rewards, and salary payments</p>
                 </div>
                 <div class="header-right">
                     <button class="btn btn-primary" onclick="openConfigModal()">
@@ -567,9 +386,6 @@
                 </button>
                 <button class="tab-button" onclick="switchTab('salary')">
                     <i class="fas fa-wallet"></i> Salary Crediting
-                </button>
-                <button class="tab-button" onclick="switchTab('advances')">
-                    <i class="fas fa-money-bill-wave"></i> Salary Advances
                 </button>
                 <button class="tab-button" onclick="switchTab('incentive-payments')">
                     <i class="fas fa-hand-holding-usd"></i> Incentive Payments
@@ -683,34 +499,6 @@
                 </div>
 
                 <div id="salaryCreditingContainer">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-
-            <!-- Salary Advances Tab -->
-            <div id="advances-tab" class="tab-content">
-                <div class="summary-cards">
-                    <div class="summary-card">
-                        <h4>Total Advances Given</h4>
-                        <div class="amount" id="totalAdvances">?0</div>
-                    </div>
-                    <div class="summary-card">
-                        <h4>This Month Advances</h4>
-                        <div class="amount" id="thisMonthAdvances">?0</div>
-                    </div>
-                    <div class="summary-card">
-                        <h4>Outstanding Advances</h4>
-                        <div class="amount" id="outstandingAdvances">?0</div>
-                    </div>
-                </div>
-
-                <div class="filter-bar">
-                    <button class="btn btn-danger" onclick="openAdvanceModal()">
-                        <i class="fas fa-plus"></i> Give Salary Advance
-                    </button>
-                </div>
-
-                <div id="advancesContainer">
                     <!-- Populated by JS -->
                 </div>
             </div>
@@ -1059,44 +847,6 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeDailyBonusModal()">Cancel</button>
                     <button type="submit" class="btn btn-success">Record Sales</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Salary Advance Modal -->
-    <div id="advanceModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Give Salary Advance</h2>
-                <button class="close-btn" onclick="closeAdvanceModal()">&times;</button>
-            </div>
-            <form id="advanceForm" onsubmit="saveAdvance(event)">
-                <div style="padding: 30px;">
-                    <div class="form-group">
-                        <label for="advanceEmployee">Select Employee *</label>
-                        <select id="advanceEmployee" required>
-                            <option value="">Choose employee...</option>
-                        </select>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="advanceDate">Date *</label>
-                            <input type="date" id="advanceDate" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="advanceAmount">Advance Amount (?) *</label>
-                            <input type="text" id="advanceAmount" inputmode="numeric" required placeholder="e.g., ?5,000">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="advanceReason">Reason *</label>
-                        <textarea id="advanceReason" rows="3" required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeAdvanceModal()">Cancel</button>
-                    <button type="submit" class="btn btn-danger">Give Advance</button>
                 </div>
             </form>
         </div>

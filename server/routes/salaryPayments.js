@@ -58,57 +58,6 @@ async function getAttendanceSettings(db) {
     return doc || { officeStartTime: '09:00', lateThresholdMins: 10, lateDaysHalfDay: 3 };
 }
 
-function getMonthKeyFromDate(dateObj) {
-    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthRangeInclusive(startMonthKey, endMonthKey) {
-    const [startYear, startMonth] = String(startMonthKey).split('-').map(Number);
-    const [endYear, endMonth] = String(endMonthKey).split('-').map(Number);
-    if (!startYear || !startMonth || !endYear || !endMonth) return [];
-
-    const start = new Date(startYear, startMonth - 1, 1);
-    const end = new Date(endYear, endMonth - 1, 1);
-    const keys = [];
-
-    for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
-        keys.push(getMonthKeyFromDate(d));
-    }
-
-    return keys;
-}
-
-async function getLegacyPaidMonthsForEmployee(db, employeeId, currentMonthKey, advances) {
-    const datedAdvances = advances.filter(advance => typeof advance.date === 'string' && advance.date.length >= 7);
-    if (!datedAdvances.length) return new Set();
-
-    const earliestAdvanceMonth = datedAdvances
-        .map(advance => advance.date.substring(0, 7))
-        .sort()[0];
-
-    if (!earliestAdvanceMonth || earliestAdvanceMonth >= currentMonthKey) return new Set();
-
-    const monthKeys = getMonthRangeInclusive(earliestAdvanceMonth, currentMonthKey)
-        .filter(monthKey => monthKey < currentMonthKey)
-        .map(monthKey => `${monthKey}_${employeeId}`);
-
-    if (!monthKeys.length) return new Set();
-
-    const legacyRows = await db.collection('salary_payments')
-        .find({ key: { $in: monthKeys }, paid: true }, { projection: { key: 1 } })
-        .toArray();
-
-    const paidMonths = new Set();
-    for (const row of legacyRows) {
-        const key = row?.key;
-        if (!key || typeof key !== 'string') continue;
-        const month = key.substring(0, 7);
-        if (month) paidMonths.add(month);
-    }
-
-    return paidMonths;
-}
-
 async function getSalaryBreakup(db, employee, record) {
     const month = parseInt(record.month, 10);
     const year = parseInt(record.year, 10);
@@ -165,7 +114,7 @@ async function getSalaryBreakup(db, employee, record) {
     const monthStartDateStr = `${monthKey}-01`;
     const monthEndDateStr = cycleEndStr;
 
-    const [monthlyIncentiveRecord, dailyBonuses, salaryAdvances, attendanceSettings, attendanceDocs, leaves, paidModernRows] = await Promise.all([
+    const [monthlyIncentiveRecord, dailyBonuses, attendanceSettings, attendanceDocs, leaves] = await Promise.all([
         db.collection('monthly_incentives').findOne(
             { key: payKey, paid: true },
             { projection: { amount: 1, paid: 1 } }
@@ -176,14 +125,6 @@ async function getSalaryBreakup(db, employee, record) {
                 date: { $gte: monthStartDateStr, $lte: monthEndDateStr }
             },
             { projection: { amount: 1, date: 1, employeeId: 1 } }
-        ).toArray(),
-        db.collection('salary_advances').find(
-            {
-                employeeId: employeeIdFilter,
-                status: { $ne: 'Repaid' },
-                repaid: { $ne: true }
-            },
-            { projection: { amount: 1, date: 1, status: 1, repaid: 1 } }
         ).toArray(),
         getAttendanceSettings(db),
         db.collection('attendance').find(
@@ -206,16 +147,6 @@ async function getSalaryBreakup(db, employee, record) {
             },
             { projection: { startDate: 1, endDate: 1, halfDay: 1, leaveType: 1, sandwichDays: 1, status: 1, employeeId: 1 } }
         ).toArray(),
-        db.collection('salaryPayments').find(
-            {
-                employeeId: employee.id,
-                $or: [
-                    { year: { $lt: year } },
-                    { year, month: { $lt: month } }
-                ]
-            },
-            { projection: { year: 1, month: 1 } }
-        ).toArray()
     ]);
 
     let unpaidLeaveDays = 0;
@@ -274,33 +205,10 @@ async function getSalaryBreakup(db, employee, record) {
         });
     const dailyBonusTotal = visibleDailyBonuses.reduce((sum, bonus) => sum + (parseFloat(bonus.amount) || 0), 0);
 
-    const paidModernMonths = new Set(
-        paidModernRows
-            .map(row => {
-                const rowYear = parseInt(row?.year, 10);
-                const rowMonth = parseInt(row?.month, 10);
-                if (!rowYear || !rowMonth) return null;
-                return getMonthKey(rowMonth, rowYear);
-            })
-            .filter(Boolean)
-            .filter(m => m < monthKey)
-    );
-
-    const paidLegacyMonths = await getLegacyPaidMonthsForEmployee(db, employee.id, monthKey, salaryAdvances);
-
-    const outstandingAdvances = salaryAdvances.filter(advance => {
-        if (!advance.date) return true;
-        const advanceMonth = advance.date.substring(0, 7);
-        const alreadyDeducted = [
-            ...paidModernMonths,
-            ...paidLegacyMonths
-        ].some(payMonth => payMonth >= advanceMonth && payMonth < monthKey);
-        return !alreadyDeducted;
-    });
-    const advanceDeduction = outstandingAdvances.reduce((sum, advance) => sum + (parseFloat(advance.amount) || 0), 0);
+    const advanceDeduction = 0;
 
     const totalEarnings = effectiveGross + monthlyIncentive + dailyBonusTotal;
-    const totalDeductions = advanceDeduction + unpaidLeaveDeduction + lateAttendanceDeduction;
+    const totalDeductions = unpaidLeaveDeduction + lateAttendanceDeduction;
     const netSalary = Math.max(0, totalEarnings - totalDeductions);
 
     // Unified salary period model for reports/salary slip rendering.
@@ -371,7 +279,6 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
         `Late Attendance Deduction: -${formatRupees(breakup.lateAttendanceDeduction)}`,
         `LOP Days: ${breakup.lopDays}`,
         `LOP Deduction (included in leave + late): -${formatRupees(breakup.lopDeduction)}`,
-        `Outstanding Advance Deduction: -${formatRupees(breakup.advanceDeduction)}`,
         `Total Deductions: -${formatRupees(breakup.totalDeductions)}`,
         `Net Salary: ${formatRupees(breakup.netSalary)}`,
         '',

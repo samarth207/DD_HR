@@ -377,7 +377,6 @@ router.get('/data', async (req, res) => {
         
         const monthlyIncentives = await db.collection('monthly_incentives').find({}).toArray();
         const dailyBonuses = await db.collection('daily_bonuses').find({}).sort({ date: -1 }).toArray();
-        const salaryAdvances = await db.collection('salary_advances').find({}).sort({ date: -1 }).toArray();
         const salaryPayments = await db.collection('salary_payments').find({}).toArray();
         
         // Format monthly incentives
@@ -405,7 +404,6 @@ router.get('/data', async (req, res) => {
         res.json({
             monthlyIncentives: formattedMonthly,
             dailyBonuses,
-            salaryAdvances,
             salaryPayments: formattedPayments
         });
     } catch (error) {
@@ -439,88 +437,6 @@ router.post('/daily', async (req, res) => {
         
         await db.collection('daily_bonuses').insertOne(bonus);
         res.status(201).json({ success: true, bonus });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Add salary advance
-router.post('/advance', async (req, res) => {
-    try {
-        const db = getDB();
-        const input = req.body || {};
-        const advance = {
-            ...input,
-            status: 'Outstanding',
-            // Advances are always settled by salary adjustment in this system.
-            repaid: false,
-            repaidDate: null,
-            adjustedInSalary: false,
-            adjustedMonth: null,
-            updatedAt: new Date()
-        };
-        
-        await db.collection('salary_advances').insertOne(advance);
-        res.status(201).json({ success: true, advance });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Update salary advance status
-router.put('/advance/:id', async (req, res) => {
-    try {
-        const db = getDB();
-        const advanceId = parseInt(req.params.id);
-        const updates = { ...(req.body || {}) };
-
-        // Enforce salary-adjustment-only lifecycle for advances.
-        if (updates.adjustedInSalary === true) {
-            updates.status = 'Adjusted in Salary';
-            updates.repaid = true;
-            if (!updates.repaidDate) updates.repaidDate = new Date().toISOString();
-        }
-        if (updates.status && String(updates.status).toLowerCase() === 'repaid') {
-            delete updates.status;
-        }
-        updates.updatedAt = new Date();
-        
-        const result = await db.collection('salary_advances').updateOne(
-            { id: advanceId },
-            { $set: updates }
-        );
-        
-        if (result.matchedCount === 0) {
-            return res.status(404).json({ error: 'Advance not found' });
-        }
-        
-        res.json({ success: true, message: 'Advance updated' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Delete salary advance
-router.delete('/advance/:id', async (req, res) => {
-    try {
-        const db = getDB();
-        const advanceId = parseInt(req.params.id);
-        
-        // First check if the advance exists and if it's already adjusted in salary
-        const advance = await db.collection('salary_advances').findOne({ id: advanceId });
-        
-        if (!advance) {
-            return res.status(404).json({ error: 'Advance not found' });
-        }
-        
-        // Prevent deletion if already adjusted in salary
-        if (advance.adjustedInSalary === true || advance.repaid === true) {
-            return res.status(409).json({ error: 'Cannot delete advance that has already been adjusted in salary' });
-        }
-        
-        await db.collection('salary_advances').deleteOne({ id: advanceId });
-        
-        res.json({ success: true, message: 'Advance deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

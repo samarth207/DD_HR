@@ -420,6 +420,18 @@ describe('HR Portal Automation Framework (isolated)', () => {
                     await db.collection('monthly_incentives').deleteOne({ key: `2026-06_${employeeId}` });
                 });
 
+                await db.collection('salary_advances').insertOne({
+                    id: 96002,
+                    employeeId,
+                    date: '2026-06-01',
+                    amount: 5000,
+                    status: 'Outstanding',
+                    repaid: false
+                });
+                cleanup.add('delete legacy salary advance', async () => {
+                    await db.collection('salary_advances').deleteOne({ id: 96002 });
+                });
+
                 const previewResp = await http.send('get', `/api/salary-payments/preview?employeeId=${employeeId}&month=6&year=2026`);
                 assertStatus(previewResp.status, 200, 'salary preview response');
 
@@ -429,12 +441,12 @@ describe('HR Portal Automation Framework (isolated)', () => {
                     lateDaysHalfDay: 3,
                     monthlyIncentive: 2000,
                     dailyBonus: 1000,
-                    unpaidLeaveDays: 0,
-                    advanceDeduction: 0
+                    unpaidLeaveDays: 0
                 });
 
                 const actualNet = previewResp.body.breakup.netSalary;
                 assertRupeeMatch(expected.netSalary, actualNet, 'salary net payable');
+                assertRupeeMatch(0, previewResp.body.breakup.advanceDeduction, 'legacy advances excluded from salary deduction');
 
                 databaseChanges.push({ action: 'salary-preview-validation', employeeId, expectedNet: expected.netSalary, actualNet });
 
@@ -464,7 +476,8 @@ describe('HR Portal Automation Framework (isolated)', () => {
                 await http.send('post', '/api/leaves', buildLeave({ id: 97001, employeeId, leaveType: 'Unpaid Leave', startDate: '2026-06-22', endDate: '2026-06-22' }));
                 await http.send('post', '/api/sales', buildSales({ employeeId }));
                 await http.send('post', '/api/incentives/daily', { id: 97002, employeeId, date: '2026-06-10', amount: 500 });
-                await http.send('post', '/api/incentives/advance', { id: 97003, employeeId, date: '2026-06-11', amount: 1500 });
+                const advanceResp = await http.send('post', '/api/incentives/advance', { id: 97003, employeeId, date: '2026-06-11', amount: 1500 });
+                assertStatus(advanceResp.status, 404, 'salary advance endpoint removed');
 
                 const delResp = await http.send('delete', `/api/employees/${employeeId}`);
                 assertStatus(delResp.status, 200, 'employee deleted');

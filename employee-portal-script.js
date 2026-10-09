@@ -248,7 +248,6 @@ function showTab(name) {
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'calendar')   renderCalendar();
     if (name === 'sales')      loadMySales();
-    if (name === 'advances')   loadMyAdvances();
     if (name === 'salary')     { loadSalaryBreakup(); loadSalaryTillDate(); loadSalaryHistory(); }
     if (name === 'attendance') loadMyAttendance();
     if (name === 'leaves')     loadProbationStatus();
@@ -320,12 +319,6 @@ async function loadOverview() {
         const pending  = myLeaves.filter(l => l.status === 'pending').length;
 
         document.getElementById('kpiPending').textContent = pending;
-
-        // Outstanding advance
-        const advData = await apiFetch('/incentives/data').catch(() => ({ salaryAdvances: [] }));
-        const advances = (advData.salaryAdvances || []).filter(a => a.employeeId === EMP_ID);
-        const outstanding = advances.filter(a => !a.repaid).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-        document.getElementById('kpiAdvance').textContent = fmtRupees(outstanding);
 
         // This month sales record: achieved/target
         const empSales = (allSalesData[currentMonth] || {})[EMP_ID]
@@ -1442,62 +1435,6 @@ window.recalculateMySalesLiveFees = recalculateMySalesLiveFees;
 window.markMySalesInstallmentPaid = markMySalesInstallmentPaid;
 window.markMySalesInstallmentPending = markMySalesInstallmentPending;
 window.markAllMySalesInstallmentsPaid = markAllMySalesInstallmentsPaid;
-// â”€â”€ Advances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-async function loadMyAdvances() {
-    const tbody = document.getElementById('advancesBody');
-    const summary = document.getElementById('advancesSummary');
-    tbody.innerHTML = '<tr><td colspan="4" class="no-data"><div class="spinner"></div></td></tr>';
-
-    try {
-        const data = await apiFetch('/incentives/data');
-        const advances = (data.salaryAdvances || [])
-            .filter(a => a.employeeId === EMP_ID)
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-        const total      = advances.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-        const outstanding = advances.filter(a => !a.adjustedInSalary).reduce((s, a) => s + (parseFloat(a.amount) || 0), 0);
-
-        summary.innerHTML = `
-            <div style="display:flex;gap:14px;flex-wrap:wrap;">
-                <div class="kpi" style="min-width:160px;">
-                    <div class="kpi-label">Total Taken</div>
-                    <div class="kpi-value">${fmtRupees(total)}</div>
-                </div>
-                <div class="kpi" style="min-width:160px;">
-                    <div class="kpi-label">Outstanding</div>
-                    <div class="kpi-value" style="color:var(--red);">${fmtRupees(outstanding)}</div>
-                    <div class="kpi-sub">Will be deducted from salary</div>
-                </div>
-            </div>`;
-
-        if (!advances.length) {
-            tbody.innerHTML = '<tr><td colspan="4" class="no-data"><i class="fas fa-hand-holding-usd"></i><br>No advances taken</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = advances.map(a => {
-            let statusBadge;
-            if (a.adjustedInSalary) {
-                const [yr, mo] = (a.adjustedMonth || '').split('-');
-                const monthLabel = yr && mo ? new Date(parseInt(yr), parseInt(mo) - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : '';
-                statusBadge = `<span class="badge badge-green">Adjusted in Salary${monthLabel ? ' — ' + monthLabel : ''}</span>`;
-            } else {
-                statusBadge = '<span class="badge badge-amber">Pending Adjustment</span>';
-            }
-            return `
-            <tr>
-                <td>${fmt(a.date)}</td>
-                <td style="font-weight:700;">${fmtRupees(a.amount)}</td>
-                <td>${a.reason || 'â€"'}</td>
-                <td>${statusBadge}</td>
-            </tr>`;
-        }).join('');
-    } catch {
-        tbody.innerHTML = '<tr><td colspan="4" class="no-data">Failed to load advance data</td></tr>';
-    }
-}
-
 // â”€â”€ Salary Breakup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let isSalaryBreakupVisible = false;
@@ -1574,7 +1511,6 @@ async function loadSalaryBreakup() {
         const lateCount = parseFloat(breakup.lateCount) || 0;
         const halfDayAttDays = parseFloat(breakup.lateDays) || 0;
         const halfDayAttDeduction = parseFloat(breakup.lateAttendanceDeduction) || 0;
-        const advanceDeduction = parseFloat(breakup.advanceDeduction) || 0;
         const incentive = parseFloat(breakup.monthlyIncentive) || 0;
         const bonusTotal = parseFloat(breakup.dailyBonusTotal) || 0;
         const lopDays = parseFloat(breakup.lopDays) || 0;
@@ -1620,11 +1556,6 @@ async function loadSalaryBreakup() {
             <div class="salary-row deduction">
                 <span class="label"><i class="fas fa-calculator" style="color:var(--red);margin-right:6px;"></i>LOP Total (${lopDays}d)</span>
                 <span class="amount">- ${salaryDisplay(lopDeduction)}</span>
-            </div>` : ''}
-            ${advanceDeduction > 0 ? `
-            <div class="salary-row deduction">
-                <span class="label"><i class="fas fa-minus-circle" style="color:var(--red);margin-right:6px;"></i>Outstanding Advance</span>
-                <span class="amount">- ${salaryDisplay(advanceDeduction)}</span>
             </div>` : ''}
             <div style="border-top:2px solid var(--border);margin:8px 0;"></div>
             <div class="salary-row net">

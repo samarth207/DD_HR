@@ -125,14 +125,6 @@ async function saveDailyBonusToDB(bonus) {
     await apiCall('/incentives/daily', 'POST', bonus);
 }
 
-async function saveSalaryAdvanceToDB(advance) {
-    await apiCall('/incentives/advance', 'POST', advance);
-}
-
-async function updateSalaryAdvanceInDB(advanceId, data) {
-    await apiCall(`/incentives/advance/${advanceId}`, 'PUT', data);
-}
-
 async function saveSalaryPaymentToDB(key, data) {
     await apiCall('/incentives/salary-payment', 'POST', { key, data });
 }
