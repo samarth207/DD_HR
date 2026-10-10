@@ -248,7 +248,7 @@ function showTab(name) {
     document.getElementById('tab-' + name).classList.add('active');
     if (name === 'calendar')   renderCalendar();
     if (name === 'sales')      loadMySales();
-    if (name === 'salary')     { loadSalaryBreakup(); loadSalaryTillDate(); loadSalaryHistory(); }
+    if (name === 'salary')     { loadSalaryBreakup(); loadSalaryTillDate(); loadSalaryHistory(); loadSalaryChanges(); }
     if (name === 'attendance') loadMyAttendance();
     if (name === 'leaves')     loadProbationStatus();
     if (name === 'documents')  loadMyDocuments();
@@ -1571,6 +1571,87 @@ async function loadSalaryBreakup() {
             </div>` : ''}`;
     } catch (e) {
         content.innerHTML = `<div class="no-data">Failed to load salary breakup</div>`;
+    }
+}
+
+function toggleSalaryChangesVisibility() {
+    const container = document.getElementById('salaryChangesContent');
+    const button = document.getElementById('salaryChangesVisibilityBtn');
+    container.hidden = !container.hidden;
+    const label = container.hidden ? 'Show salary changes' : 'Hide salary changes';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-expanded', String(!container.hidden));
+    button.innerHTML = `<i class="fas ${container.hidden ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+}
+
+async function loadSalaryChanges() {
+    const container = document.getElementById('salaryChangesContent');
+    if (!container) return;
+    container.className = 'salary-change-state';
+    container.textContent = 'Loading...';
+    try {
+        const profile = await apiFetch(`/employees/${EMP_ID}`);
+        const changes = (profile.salaryHistory || []).filter(entry => !entry.initial)
+            .sort((first, second) => second.effectiveDate.localeCompare(first.effectiveDate));
+        container.replaceChildren();
+        if (!changes.length) {
+            container.textContent = 'No salary changes recorded yet';
+            return;
+        }
+        container.className = '';
+        for (const change of changes) {
+            const entry = document.createElement('article');
+            entry.className = 'salary-change-entry';
+            entry.innerHTML = `<div class="salary-change-header">
+                <div class="salary-change-date">Effective from<strong></strong></div>
+                <span class="salary-change-delta"></span>
+            </div>
+            <div class="salary-change-amounts">
+                <div><span class="amount-label">Previous salary</span><strong></strong></div>
+                <i class="fas fa-arrow-right salary-change-arrow" aria-hidden="true"></i>
+                <div class="revised"><span class="amount-label">Revised salary</span><strong></strong></div>
+            </div>`;
+            const scheduled = change.effectiveDate.slice(0, 7) > monthKey();
+            entry.querySelector('.salary-change-date strong').textContent = `${fmt(change.effectiveDate)}${scheduled ? ' (Scheduled)' : ''}`;
+            const amounts = entry.querySelectorAll('.salary-change-amounts strong');
+            amounts[0].textContent = fmtRupees(change.previousSalary);
+            amounts[1].textContent = fmtRupees(change.salary);
+            const difference = Number(change.salary) - Number(change.previousSalary);
+            const percentage = Number(change.previousSalary) > 0 ? ` (${(difference / Number(change.previousSalary) * 100).toFixed(1)}%)` : '';
+            const delta = entry.querySelector('.salary-change-delta');
+            delta.textContent = `${difference >= 0 ? '+' : '-'}${fmtRupees(Math.abs(difference))}${percentage}`;
+            delta.classList.toggle('decrease', difference < 0);
+            const details = document.createElement('dl');
+            details.className = 'salary-change-details';
+            for (const [label, value] of [
+                ['Department', change.department || 'Not recorded'],
+                ['Designation', change.position || 'Not recorded'],
+                ['Recorded by', change.recordedBy || 'Management'],
+                ['Recorded on', change.recordedAt ? fmt(change.recordedAt) : 'Not recorded'],
+                ['Reason', change.reason]
+            ]) {
+                if (!value) continue;
+                const group = document.createElement('div');
+                if (label === 'Reason') group.className = 'reason';
+                const term = document.createElement('dt');
+                term.textContent = label;
+                const description = document.createElement('dd');
+                description.textContent = value;
+                if (label === 'Designation' && change.previousPosition != null && change.position !== change.previousPosition) {
+                    const designation = document.createElement('strong');
+                    designation.textContent = value;
+                    description.replaceChildren(designation);
+                }
+                group.append(term, description);
+                details.appendChild(group);
+            }
+            entry.appendChild(details);
+            container.appendChild(entry);
+        }
+    } catch {
+        container.className = 'salary-change-state';
+        container.textContent = 'Failed to load salary changes';
     }
 }
 

@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { getDB, isDBConnected } = require('../db');
 const salaryCycleUtils = require('../../salary-cycle-utils');
+const { salaryForMonth, buildSalaryChange, withCurrentSalary } = require('../utils/salary-history');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 const MAX_SHORT_EMPLOYEE_ID = 999999;
@@ -179,7 +180,7 @@ router.get('/', async (req, res) => {
     try {
         const db = getDB();
         const employees = await db.collection('employees').find({}).toArray();
-        res.json(employees);
+        res.json(employees.map(withCurrentSalary));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -198,7 +199,7 @@ router.get('/:id', async (req, res) => {
         if (!employee) {
             return res.status(404).json({ error: 'Employee not found' });
         }
-        res.json(employee);
+        res.json(withCurrentSalary(employee));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -227,7 +228,7 @@ router.get('/:id/salary-till-date', async (req, res) => {
         const monthEnd = monthCycle ? new Date(monthCycle.monthEnd) : new Date(year, month + 1, 0);
         monthEnd.setHours(23, 59, 59, 999);
 
-        const gross = parseFloat(employee.salary) || 0;
+        const gross = salaryForMonth(employee, monthStr);
         const dailyRate = gross / daysInMonth;
 
         // New policy: salary month is centralized via helper.
@@ -506,6 +507,32 @@ router.put('/:id', async (req, res) => {
         
         // Remove _id from updates as it's immutable in MongoDB
         delete updates._id;
+        delete updates.salaryHistory;
+        delete updates.id;
+        if (Object.prototype.hasOwnProperty.call(updates, 'salary')) {
+            let history;
+            try {
+                history = buildSalaryChange(existingEmployee, updates, req.auth);
+            } catch (error) {
+                return res.status(400).json({ error: error.message });
+            }
+            if (history) {
+                const effectiveMonth = updates.salaryEffectiveDate.slice(0, 7);
+                const [modernPayments, legacyPayments] = await Promise.all([
+                    db.collection('salaryPayments').find({ employeeId }).toArray(),
+                    db.collection('salary_payments').find({ key: { $regex: `_${employeeId}$` }, paid: true }).toArray()
+                ]);
+                if (modernPayments.some(payment => `${payment.year}-${String(payment.month).padStart(2, '0')}` >= effectiveMonth) ||
+                    legacyPayments.some(payment => payment.key.slice(0, 7) >= effectiveMonth)) {
+                    return res.status(409).json({ error: 'Salary change overlaps paid payroll. Choose a later effective month.' });
+                }
+                updates.salaryHistory = history;
+            }
+            if (history) updates.salary = Number(updates.salary);
+            else delete updates.salary;
+        }
+        delete updates.salaryEffectiveDate;
+        delete updates.salaryChangeReason;
 
         if (typeof updates.email === 'string') updates.email = updates.email.trim().toLowerCase();
         if (typeof updates.companyEmail === 'string') updates.companyEmail = updates.companyEmail.trim().toLowerCase();
@@ -531,9 +558,10 @@ router.put('/:id', async (req, res) => {
         }
         
         const result = await db.collection('employees').updateOne(
-            { id: employeeId },
+            { id: employeeId, salary: existingEmployee.salary, salaryHistory: existingEmployee.salaryHistory ?? { $exists: false } },
             { $set: updates }
         );
+        if (!result.matchedCount) return res.status(409).json({ error: 'Employee changed during editing. Reload and try again.' });
 
         res.json({ success: true, message: 'Employee updated' });
     } catch (error) {

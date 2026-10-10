@@ -388,6 +388,30 @@
         .salary-row.deduction .amount { color: var(--red); }
         .salary-row.earning  .amount { color: var(--green); }
         .salary-row.net      .amount { color: var(--primary); font-size: 22px; }
+        .salary-changes { max-width:520px; margin:24px auto 0; }
+        .salary-changes .card-title { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:0; }
+        .salary-changes .card-title span { min-width:0; overflow-wrap:anywhere; }
+        .salary-change-entry { padding:20px 0; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+        .salary-change-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+        .salary-change-date { font-size:12px; color:var(--muted); }
+        .salary-change-date strong { display:block; margin-top:4px; font-size:14px; color:var(--text); }
+        .salary-change-delta { font-size:13px; font-weight:600; color:var(--green); }
+        .salary-change-delta.decrease { color:var(--red); }
+        .salary-change-amounts { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr); align-items:center; gap:12px; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+        .salary-change-amounts .amount-label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+        .salary-change-amounts strong { font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; }
+        .salary-change-amounts .revised { text-align:right; }
+        .salary-change-arrow { color:var(--muted); text-align:center; font-size:14px; }
+        .salary-change-details { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px 20px; margin:16px 0 0; }
+        .salary-change-details dt { font-size:12px; color:var(--muted); margin-bottom:4px; }
+        .salary-change-details dd { margin:0; font-size:13px; color:var(--text); }
+        .salary-change-details .reason { grid-column:1 / -1; }
+        .salary-change-state { padding:20px 0; color:var(--muted); font-size:13px; }
+        @media(max-width:400px) {
+            .salary-change-amounts { gap:6px; }
+            .salary-change-amounts strong { font-size:17px; }
+            .salary-change-details { gap:12px; }
+        }
 
         /* ── Calendar ── */
         .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -1170,6 +1194,13 @@
                 <div class="no-data"><div class="spinner"></div></div>
             </div>
         </div>
+        <section class="salary-changes">
+            <div class="card-title">
+                <span><i class="fas fa-chart-line"></i> Salary Changes</span>
+                <button type="button" id="salaryChangesVisibilityBtn" class="btn-doc primary" onclick="toggleSalaryChangesVisibility()" title="Show salary changes" aria-label="Show salary changes" aria-expanded="false" aria-controls="salaryChangesContent" style="flex-shrink:0;width:36px;height:36px;padding:0;"><i class="fas fa-eye"></i></button>
+            </div>
+            <div id="salaryChangesContent" hidden aria-live="polite"></div>
+        </section>
     </div>
 
 </div><!-- /main -->

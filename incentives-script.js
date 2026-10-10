@@ -1178,8 +1178,8 @@ async function loadSalaryCrediting() {
         if (employeeFilter && emp.id !== parseInt(employeeFilter)) continue;
         if (departmentFilter && emp.department !== departmentFilter) continue;
         
-        const grossSalary = parseFloat(emp.salary) || 0;
-        const dailyRate = grossSalary / 30;
+        let grossSalary = parseFloat(emp.salary) || 0;
+        let dailyRate = grossSalary / 30;
         const cycle = getSalaryCycleRange(month, emp.hireDate);
 
         // New policy: recurring salary cycle is always month start -> month end.
@@ -1200,8 +1200,19 @@ async function loadSalaryCrediting() {
                 payrollPreview = payload.breakup || null;
             }
         } catch (error) {
-            console.warn('Could not load canonical salary preview; using browser-side calculation.', error);
+            console.warn('Could not load canonical salary preview.', error);
         }
+        if (!payrollPreview) {
+            const message = document.createElement('div');
+            message.className = 'no-data';
+            message.textContent = `Salary preview unavailable for ${emp.firstName} ${emp.lastName}. Retry before processing payroll.`;
+            container.appendChild(message);
+            continue;
+        }
+        grossSalary = Number(payrollPreview.grossSalary) || 0;
+        dailyRate = Number(payrollPreview.dailyRate) || 0;
+        effectiveGross = Number(payrollPreview.effectiveGross) || 0;
+        joiningDays = Number(payrollPreview.joiningDays) || 0;
 
         // Prefer server-calculated values so salary crediting matches the employee portal and paid payroll.
         const unpaidLeaveDays = payrollPreview
@@ -1225,13 +1236,14 @@ async function loadSalaryCrediting() {
                 monthlyIncentive = incentiveCalc.amount;
             }
         }
+        monthlyIncentive = Number(payrollPreview.monthlyIncentive) || 0;
         
         const lopDays = Math.round((unpaidLeaveDays + halfDayAttDays) * 100) / 100;
         const lopDeduction = Math.round((unpaidLeaveDeduction + halfDayAttDeduction) * 100) / 100;
 
-        const totalEarnings = effectiveGross + monthlyIncentive;
-        const totalDeductionsAmt = unpaidLeaveDeduction + halfDayAttDeduction;
-        const netSalary = totalEarnings - totalDeductionsAmt;
+        const totalEarnings = Number(payrollPreview.totalEarnings) || 0;
+        const totalDeductionsAmt = Number(payrollPreview.totalDeductions) || 0;
+        const netSalary = Number(payrollPreview.netSalary) || 0;
         
         const paymentStatus = await getSalaryPaymentStatus(emp.id, month);
         const salaryPeriodStartLabel = cycle.start.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });

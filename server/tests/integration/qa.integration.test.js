@@ -106,6 +106,73 @@ describe('Integration/API QA Suite (realistic seeded data)', () => {
         expect(!!legacy).toBe(true);
     });
 
+    test('Salary hike preserves earlier months and paid payroll snapshots', async () => {
+        const employeeId = 990501;
+        await db.collection('employees').insertOne({ id: employeeId, salary: 30000, hireDate: '2026-01-01' });
+        const preview = month => http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=${month}&year=2026`);
+        const before = await preview(5);
+        const change = await http.put(`/api/employees/${employeeId}`).send({ salary: 36000, salaryEffectiveDate: '2026-06-01', salaryChangeReason: 'Annual review', department: 'Sales' });
+        expect(change.status).toBe(200);
+        expect((await preview(5)).body.breakup).toEqual(before.body.breakup);
+        expect((await preview(6)).body.breakup.grossSalary).toBe(36000);
+        const paid = await http.post('/api/salary-payments').send({ employeeId, month: 6, year: 2026 });
+        expect(paid.status).toBe(201);
+        const overlap = await http.put(`/api/employees/${employeeId}`).send({ salary: 40000, salaryEffectiveDate: '2026-06-01' });
+        expect([400, 409]).toContain(overlap.status);
+        const later = await http.put(`/api/employees/${employeeId}`).send({ salary: 40000, salaryEffectiveDate: '2026-07-01' });
+        expect(later.status).toBe(200);
+        await db.collection('daily_bonuses').insertOne({ employeeId, date: '2026-06-10', amount: 500 });
+        const paidPreview = await preview(6);
+        expect(paidPreview.body.breakup.netSalary).toBe(paid.body.breakup.netSalary);
+        expect(paidPreview.body.breakup.grossSalary).toBe(36000);
+        const profile = await http.get(`/api/employees/${employeeId}`);
+        expect(profile.body.salaryHistory[1]).toMatchObject({ previousSalary: 30000, salary: 36000, effectiveDate: '2026-06-01', department: 'Sales', reason: 'Annual review' });
+        const invalid = await http.put(`/api/employees/${employeeId}`).send({ salary: 45000 });
+        expect(invalid.status).toBe(400);
+        expect((await http.post('/api/salary-payments').send({ employeeId, month: 8, year: 2026 })).status).toBe(201);
+        const paidOverlap = await http.put(`/api/employees/${employeeId}`).send({ salary: 45000, salaryEffectiveDate: '2026-08-01' });
+        expect(paidOverlap.status).toBe(409);
+        const unchanged = await http.put(`/api/employees/${employeeId}`).send({ salary: 40000, salaryHistory: [] });
+        expect(unchanged.status).toBe(200);
+        expect((await http.get(`/api/employees/${employeeId}`)).body.salaryHistory).toHaveLength(3);
+    });
+
+    test('Future salary change preserves current salary and records the new designation', async () => {
+        const employeeId = 990502;
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth() + 1;
+        const currentYear = currentDate.getFullYear();
+        const futureDate = new Date(currentYear, currentMonth + 1, 1);
+        const futureMonth = futureDate.getMonth() + 1;
+        const futureYear = futureDate.getFullYear();
+        const effectiveDate = `${futureYear}-${String(futureMonth).padStart(2, '0')}-01`;
+        await db.collection('employees').insertOne({ id: employeeId, salary: 30000, position: 'Counsellor', hireDate: '2026-01-01' });
+        const scheduled = await http.put(`/api/employees/${employeeId}`).send({ salary: 36000, salaryEffectiveDate: effectiveDate, position: 'Senior Counsellor' });
+        expect(scheduled.status).toBe(200);
+        const profile = await http.get(`/api/employees/${employeeId}`);
+        expect(profile.body.salary).toBe(30000);
+        expect(profile.body.salaryHistory[1]).toMatchObject({ salary: 36000, previousSalary: 30000, previousPosition: 'Counsellor', position: 'Senior Counsellor', effectiveDate });
+        const current = await http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=${currentMonth}&year=${currentYear}`);
+        expect(current.body.breakup.grossSalary).toBe(30000);
+        const future = await http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=${futureMonth}&year=${futureYear}`);
+        expect(future.body.breakup.grossSalary).toBe(36000);
+        const ordinaryEdit = await http.put(`/api/employees/${employeeId}`).send({ salary: 30000, firstName: 'Updated' });
+        expect(ordinaryEdit.status).toBe(200);
+        expect((await http.get(`/api/employees/${employeeId}`)).body.salaryHistory).toHaveLength(2);
+        expect((await http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=${futureMonth}&year=${futureYear}`)).body.breakup.grossSalary).toBe(36000);
+        const nextDate = new Date(futureYear, futureMonth, 1);
+        const nextEffectiveDate = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-01`;
+        const beforeDuplicate = await db.collection('employees').findOne({ id: employeeId });
+        const duplicate = await http.put(`/api/employees/${employeeId}`).send({ salary: 36000, salaryEffectiveDate: nextEffectiveDate, position: 'Duplicate position' });
+        expect(duplicate.status).toBe(400);
+        expect(duplicate.body.error).toContain('must differ');
+        expect(await db.collection('employees').findOne({ id: employeeId })).toEqual(beforeDuplicate);
+        const genuineChange = await http.put(`/api/employees/${employeeId}`).send({ salary: 38000, salaryEffectiveDate: nextEffectiveDate });
+        expect(genuineChange.status).toBe(200);
+        const revisedProfile = await http.get(`/api/employees/${employeeId}`);
+        expect(revisedProfile.body.salaryHistory[2]).toMatchObject({ previousSalary: 36000, salary: 38000, effectiveDate: nextEffectiveDate });
+    });
+
     test('Attendance validation: monthly summary includes salaryPeriod + late half day projection', async () => {
         const employeeId = seed.references.salesEmployeeId;
         const resp = await http.get(`/api/attendance/report/monthly?employeeId=${employeeId}&month=2026-06`);

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
 const { getDB, isDBConnected } = require('../db');
+const { salaryForMonth } = require('../utils/salary-history');
 const { validatePassword } = require('../middleware/security');
 const {
     deletePasswordHash,
@@ -368,7 +369,7 @@ router.get('/me', async (req, res) => {
             name: `${emp.firstName} ${emp.lastName}`,
             department: emp.department,
             position: emp.position,
-            salary: emp.salary,
+            salary: salaryForMonth(emp, new Date().toISOString().slice(0, 7)),
             leaveBalance: emp.leaveBalance,
             hireDate: emp.hireDate || null
         });

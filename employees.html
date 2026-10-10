@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        #salaryEffectiveGroup[hidden], #salaryReasonGroup[hidden] { display: none; }
         .input-copy-wrapper {
             display: flex;
             align-items: center;
@@ -196,6 +197,14 @@
                         <label for="salary">Salary (?)</label>
                         <input type="text" id="salary" inputmode="numeric" placeholder="?0">
                     </div>
+                    <div class="form-group" id="salaryEffectiveGroup" hidden>
+                        <label for="salaryEffectiveMonth">Salary Effective Month *</label>
+                        <input type="month" id="salaryEffectiveMonth">
+                    </div>
+                    <div class="form-group full-width" id="salaryReasonGroup" hidden>
+                        <label for="salaryChangeReason">Salary Change Reason</label>
+                        <input type="text" id="salaryChangeReason" maxlength="500">
+                    </div>
                     <div class="form-group">
                         <label for="status">Status *</label>
                         <select id="status" required>
@@ -373,6 +382,36 @@
         </div>
     </div>
 
+    <div id="salaryHistoryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="salaryHistoryTitle">
+        <div class="modal-content small" style="max-width:640px;">
+            <div class="modal-header">
+                <h2 id="salaryHistoryTitle"><i class="fas fa-history" style="margin-right:8px;"></i>Salary History</h2>
+                <button type="button" class="close-btn" onclick="closeEmployeeSalaryHistory()" aria-label="Close salary history">&times;</button>
+            </div>
+            <div class="modal-body" id="employeeSalaryHistoryContent" aria-live="polite" style="overflow-wrap:anywhere;"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEmployeeSalaryHistory()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="salaryConfirmationModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="salaryConfirmationTitle" style="z-index:10001;">
+        <div class="modal-content small" style="max-width:480px;">
+            <div class="modal-header">
+                <h2 id="salaryConfirmationTitle"><i class="fas fa-wallet" style="margin-right:8px;"></i>Confirm Salary</h2>
+                <button type="button" class="close-btn" onclick="finishSalaryConfirmation(false)" aria-label="Cancel salary confirmation">&times;</button>
+            </div>
+            <div class="modal-body" style="overflow-wrap:anywhere;">
+                <p id="salaryConfirmationEmployee" style="font-weight:600;margin:0 0 16px;"></p>
+                <dl id="salaryConfirmationDetails" style="margin:0;"></dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="salaryConfirmationCancel" onclick="finishSalaryConfirmation(false)">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="finishSalaryConfirmation(true)"><i class="fas fa-check"></i> Confirm &amp; Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function copyFieldValue(fieldId) {
             const el = document.getElementById(fieldId);
@@ -496,6 +535,9 @@
                         <button class="icon-btn" style="color:#059669;background:#d1fae5;" onclick="showSalaryTillDate(${emp.id})" title="Salary Till Today">
                             <i class="fas fa-calculator"></i>
                         </button>
+                        <button type="button" class="icon-btn" onclick="showEmployeeSalaryHistory(${emp.id}, this)" title="Salary History" aria-label="Salary history for employee ${emp.id}">
+                            <i class="fas fa-history"></i>
+                        </button>
                         <button class="icon-btn delete" onclick="deleteEmployee(${emp.id})" title="Delete">
                             <i class="fas fa-trash"></i>
                         </button>
@@ -537,6 +579,8 @@
             const salaryInput = document.getElementById('salary');
             salaryInput.value = '';
             salaryInput.dataset.rawValue = '';
+            salaryInput.dataset.originalSalary = '';
+            updateSalaryChangeFields();
             // Set up currency formatting listener
             salaryInput.removeEventListener('input', handleSalaryInput);
             salaryInput.addEventListener('input', handleSalaryInput);
@@ -547,6 +591,22 @@
         
         function handleSalaryInput() {
             formatCurrencyInput(document.getElementById('salary'));
+            updateSalaryChangeFields();
+        }
+
+        function updateSalaryChangeFields() {
+            const salaryInput = document.getElementById('salary');
+            const changed = !!document.getElementById('employeeId').value &&
+                Number(getRawCurrencyValue(salaryInput)) !== Number(salaryInput.dataset.originalSalary || 0);
+            document.getElementById('salaryEffectiveGroup').hidden = !changed;
+            document.getElementById('salaryReasonGroup').hidden = !changed;
+            const effectiveMonth = document.getElementById('salaryEffectiveMonth');
+            effectiveMonth.required = changed;
+            effectiveMonth.removeAttribute('max');
+            if (!changed) {
+                effectiveMonth.value = '';
+                document.getElementById('salaryChangeReason').value = '';
+            }
         }
 
         function editEmployee(id) {
@@ -596,16 +656,84 @@
 
             // Probation
             document.getElementById('isOnProbation').checked = employee.isOnProbation === true;
+            salaryInput.dataset.originalSalary = employee.salary || 0;
+            updateSalaryChangeFields();
+            document.getElementById('salaryEffectiveMonth').min = employee.hireDate ? employee.hireDate.slice(0, 7) : '';
             
             document.getElementById('employeeModal').classList.add('show');
+        }
+
+        let salaryConfirmationResolve = null;
+        let salaryConfirmationFocus = null;
+
+        function confirmEmployeeSalary(employee, isEditing) {
+            const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
+            const modal = document.getElementById('salaryConfirmationModal');
+            const details = document.getElementById('salaryConfirmationDetails');
+            details.replaceChildren();
+            document.getElementById('salaryConfirmationEmployee').textContent = `${employee.firstName} ${employee.lastName}`;
+            const rows = [
+                ...(isEditing ? [['Previous monthly salary', currency.format(Number(document.getElementById('salary').dataset.originalSalary || 0))]] : []),
+                [isEditing ? 'New monthly salary' : 'Monthly salary', currency.format(employee.salary)],
+                ['Effective from', new Date(`${employee.salaryEffectiveDate || employee.hireDate}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })],
+                ['Designation', employee.position]
+            ];
+            for (const [label, value] of rows) {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:12px 0;border-top:1px solid var(--border-color, #e2e8f0);font-size:14px;';
+                const term = document.createElement('dt');
+                term.textContent = label;
+                const description = document.createElement('dd');
+                description.style.cssText = 'margin:0;text-align:right;font-weight:600;';
+                description.textContent = value;
+                row.append(term, description);
+                details.appendChild(row);
+            }
+            salaryConfirmationFocus = document.activeElement;
+            document.getElementById('employeeModal').inert = true;
+            modal.classList.add('show');
+            document.addEventListener('keydown', handleSalaryConfirmationKey, true);
+            return new Promise(resolve => {
+                salaryConfirmationResolve = resolve;
+                document.getElementById('salaryConfirmationCancel').focus();
+            });
+        }
+
+        function handleSalaryConfirmationKey(event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                finishSalaryConfirmation(false);
+            } else if (event.key === 'Tab') {
+                const buttons = [...document.getElementById('salaryConfirmationModal').querySelectorAll('button')];
+                const first = buttons[0];
+                const last = buttons[buttons.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        }
+
+        function finishSalaryConfirmation(confirmed) {
+            if (!salaryConfirmationResolve) return;
+            const resolve = salaryConfirmationResolve;
+            salaryConfirmationResolve = null;
+            document.getElementById('salaryConfirmationModal').classList.remove('show');
+            document.getElementById('employeeModal').inert = false;
+            document.removeEventListener('keydown', handleSalaryConfirmationKey, true);
+            salaryConfirmationFocus?.focus();
+            resolve(confirmed);
         }
 
         async function saveEmployee(event) {
             event.preventDefault();
 
             const submitBtn = document.querySelector('#employeeForm button[type="submit"]');
-            setButtonLoading(submitBtn, true, 'Save Employee');
-            showLoadingOverlay('Saving employee data...');
+            if (submitBtn.disabled || salaryConfirmationResolve) return;
 
             const id = document.getElementById('employeeId').value;
             const nextShortId = id ? parseInt(id, 10) : getNextShortEmployeeId();
@@ -645,8 +773,18 @@
                 if (existingEmployee && existingEmployee._id) {
                     employee._id = existingEmployee._id;
                 }
+                if (Number(employee.salary) !== Number(existingEmployee?.salary || 0)) {
+                    employee.salaryEffectiveDate = document.getElementById('salaryEffectiveMonth').value + '-01';
+                    employee.salaryChangeReason = document.getElementById('salaryChangeReason').value;
+                }
             }
             
+            if (!id || employee.salaryEffectiveDate) {
+                if (!await confirmEmployeeSalary(employee, !!id)) return;
+            }
+
+            setButtonLoading(submitBtn, true, 'Save Employee');
+            showLoadingOverlay('Saving employee data...');
             try {
                 // Save to database using API
                 await saveEmployeeToDB(employee);
@@ -750,6 +888,70 @@
         function closeModal() {
             document.getElementById('employeeModal').classList.remove('show');
         }
+
+        let salaryHistoryEmployeeId = null;
+        let salaryHistoryTrigger = null;
+
+        async function showEmployeeSalaryHistory(employeeId, trigger) {
+            salaryHistoryEmployeeId = employeeId;
+            salaryHistoryTrigger = trigger;
+            const modal = document.getElementById('salaryHistoryModal');
+            const content = document.getElementById('employeeSalaryHistoryContent');
+            document.getElementById('salaryHistoryTitle').textContent = 'Salary History';
+            content.textContent = 'Loading salary history...';
+            modal.classList.add('show');
+            modal.querySelector('.close-btn').focus();
+            try {
+                const employee = await apiCall(`/employees/${employeeId}`);
+                if (salaryHistoryEmployeeId !== employeeId) return;
+                document.getElementById('salaryHistoryTitle').textContent = `Salary History: ${employee.firstName || ''} ${employee.lastName || ''} (${employeeId})`;
+                const changes = (employee.salaryHistory || []).filter(change => !change.initial)
+                    .sort((first, second) => second.effectiveDate.localeCompare(first.effectiveDate));
+                content.replaceChildren();
+                const currency = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
+                const summary = document.createElement('p');
+                summary.textContent = `Current monthly salary: ${currency.format(Number(employee.salary) || 0)}`;
+                content.appendChild(summary);
+                if (!changes.length) {
+                    const empty = document.createElement('p');
+                    empty.textContent = 'No salary changes recorded yet.';
+                    content.appendChild(empty);
+                }
+                for (const change of changes) {
+                    const entry = document.createElement('div');
+                    entry.style.cssText = 'padding:16px 0;border-top:1px solid var(--border-color, #e2e8f0);';
+                    const heading = document.createElement('strong');
+                    const scheduled = change.effectiveDate.slice(0, 7) > new Date().toISOString().slice(0, 7);
+                    heading.textContent = `${scheduled ? 'Scheduled for' : 'Effective'} ${formatDate(change.effectiveDate)}: ${currency.format(change.previousSalary)} to ${currency.format(change.salary)}`;
+                    const details = document.createElement('div');
+                    details.style.cssText = 'margin-top:8px;line-height:1.7;white-space:pre-line;font-size:13px;';
+                    const difference = Number(change.salary) - Number(change.previousSalary);
+                    const percentage = Number(change.previousSalary) > 0 ? ` (${(difference / Number(change.previousSalary) * 100).toFixed(1)}%)` : '';
+                    details.textContent = [
+                        `Change: ${difference >= 0 ? '+' : '-'}${currency.format(Math.abs(difference))}${percentage}`,
+                        `Department: ${change.department || 'Not recorded'}`,
+                        `Designation: ${change.position || 'Not recorded'}`,
+                        change.reason ? `Reason: ${change.reason}` : '',
+                        `Recorded by: ${change.recordedBy || 'Management'}`,
+                        change.recordedAt ? `Recorded on: ${formatDate(change.recordedAt.slice(0, 10))}` : ''
+                    ].filter(Boolean).join('\n');
+                    entry.append(heading, details);
+                    content.appendChild(entry);
+                }
+            } catch (error) {
+                if (salaryHistoryEmployeeId === employeeId) content.textContent = 'Failed to load salary history. Please try again.';
+            }
+        }
+
+        function closeEmployeeSalaryHistory() {
+            salaryHistoryEmployeeId = null;
+            document.getElementById('salaryHistoryModal').classList.remove('show');
+            salaryHistoryTrigger?.focus();
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && salaryHistoryEmployeeId !== null) closeEmployeeSalaryHistory();
+        });
 
         // -- Salary Till Date ---------------------------------------------
         async function showSalaryTillDate(empId) {

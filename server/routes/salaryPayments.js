@@ -4,6 +4,7 @@ const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
 const { buildSalaryCreditedEmail } = require('../utils/emailTemplates');
 const salaryCycleUtils = require('../../salary-cycle-utils');
+const { salaryForMonth } = require('../utils/salary-history');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
@@ -67,15 +68,18 @@ async function getSalaryBreakup(db, employee, record) {
     const [legacyPayRecord, modernPayRecord] = await Promise.all([
         db.collection('salary_payments').findOne(
             { key: payKey },
-            { projection: { paid: 1, paidDate: 1, grossSalary: 1, deductions: 1, netSalary: 1 } }
+            { projection: { paid: 1, paidDate: 1, grossSalary: 1, deductions: 1, netSalary: 1, breakup: 1 } }
         ),
         db.collection('salaryPayments').findOne(
             { employeeId: employee.id, month, year },
-            { projection: { grossSalary: 1, deductions: 1, netSalary: 1, paidAt: 1 } }
+            { projection: { grossSalary: 1, deductions: 1, netSalary: 1, paidAt: 1, breakup: 1 } }
         )
     ]);
 
-    const payRecord = legacyPayRecord
+    const snapshot = modernPayRecord?.breakup || (legacyPayRecord?.paid && legacyPayRecord.breakup);
+    if (snapshot) return { ...snapshot, paidAt: modernPayRecord?.paidAt || legacyPayRecord?.paidDate };
+
+    const payRecord = legacyPayRecord?.paid
         ? {
             paid: legacyPayRecord.paid,
             paidDate: legacyPayRecord.paidDate,
@@ -91,7 +95,7 @@ async function getSalaryBreakup(db, employee, record) {
             netSalary: modernPayRecord.netSalary
         } : null);
 
-    const grossSalary = payRecord?.grossSalary ? parseFloat(payRecord.grossSalary) : (parseFloat(employee.salary) || 0);
+    const grossSalary = payRecord?.grossSalary != null ? Number(payRecord.grossSalary) : salaryForMonth(employee, monthKey);
     const dailyRate = grossSalary / 30;
 
     const cycle = salaryCycleUtils.getSalaryCycleForMonth(monthKey, employee.hireDate);
@@ -383,6 +387,7 @@ router.post('/', async (req, res) => {
                         grossSalary: breakup.grossSalary,
                         deductions: breakup.totalDeductions,
                         netSalary: breakup.netSalary,
+                        breakup: { ...breakup, paidAt: record.paidAt, payRecord: { paid: true, paidDate: record.paidAt, grossSalary: breakup.grossSalary, deductions: breakup.totalDeductions, netSalary: breakup.netSalary } },
                         updatedAt: new Date().toISOString()
                     }
                 },
@@ -399,6 +404,7 @@ router.post('/', async (req, res) => {
                         grossSalary: breakup.grossSalary,
                         deductions: breakup.totalDeductions,
                         netSalary: breakup.netSalary,
+                        breakup: { ...breakup, paidAt: record.paidAt, payRecord: { paid: true, paidDate: record.paidAt, grossSalary: breakup.grossSalary, deductions: breakup.totalDeductions, netSalary: breakup.netSalary } },
                         monthKey: breakup.monthKey,
                         cycleStart: breakup.cycleStart,
                         cycleEnd: breakup.cycleEnd,

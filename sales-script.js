@@ -1372,9 +1372,6 @@ async function viewAdmissions(employeeId, employeeName, month) {
                     <td style="padding:10px 12px;">${statusBadge}</td>
                     <td style="padding:10px 12px;">
                         <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                            <button onclick="openAdmissionReregistrationById('${rid}')" style="background:#ecfdf5;color:#047857;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
-                                <i class="fas fa-receipt"></i> Period Fees
-                            </button>
                             <button onclick="openEditAdmissionModal('${rid}')" style="background:#e0f2fe;color:#075985;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px;">
                                 <i class=\"fas fa-pen\"></i> Edit
                             </button>
