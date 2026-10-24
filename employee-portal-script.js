@@ -44,9 +44,9 @@ function fmt(date) {
     const d = new Date(date + (date.includes('T') ? '' : 'T00:00:00'));
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
-function fmtRupees(n) {
+function fmtRupees(n, maximumFractionDigits = 0) {
     n = parseFloat(n) || 0;
-    return '\u20B9' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    return '\u20B9' + n.toLocaleString('en-IN', { maximumFractionDigits });
 }
 function dayName(dateStr) {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long' });
@@ -1441,8 +1441,8 @@ let isSalaryBreakupVisible = false;
 let isSalaryHistoryVisible = false;
 let isSalaryTillDateVisible = false;
 
-function salaryDisplay(amount) {
-    return isSalaryBreakupVisible ? fmtRupees(amount) : '••••';
+function salaryDisplay(amount, maximumFractionDigits = 0) {
+    return isSalaryBreakupVisible ? fmtRupees(amount, maximumFractionDigits) : '••••';
 }
 
 function toggleSalaryBreakupVisibility() {
@@ -1485,6 +1485,11 @@ function initSalaryMonths() {
 async function loadSalaryBreakup() {
     const month   = document.getElementById('salaryMonthFilter').value;
     const content = document.getElementById('salaryBreakupContent');
+    const downloadButton = document.getElementById('downloadPayslipBtn');
+    const downloadStatus = document.getElementById('payslipDownloadStatus');
+    downloadButton.disabled = true;
+    downloadButton.dataset.month = '';
+    downloadStatus.textContent = 'Checking payslip availability...';
     content.innerHTML = '<div class="no-data"><div class="spinner"></div></div>';
 
     try {
@@ -1501,6 +1506,7 @@ async function loadSalaryBreakup() {
         if (!breakup) {
             throw new Error('Salary breakup unavailable');
         }
+        if (document.getElementById('salaryMonthFilter').value !== month) return;
 
         const gross = parseFloat(breakup.grossSalary) || 0;
         const dailyRate = parseFloat(breakup.dailyRate) || 0;
@@ -1517,6 +1523,11 @@ async function loadSalaryBreakup() {
         const lopDeduction = parseFloat(breakup.lopDeduction) || 0;
         const net = parseFloat(breakup.netSalary) || 0;
         const isPaid = Boolean(breakup.payRecord?.paid);
+        downloadButton.disabled = !isPaid;
+        downloadButton.dataset.month = isPaid ? month : '';
+        downloadStatus.textContent = isPaid
+            ? 'Download the paid payslip for the selected month as a PDF.'
+            : 'Payslip is available after this month\'s salary is marked paid.';
 
         const paidBadge = isPaid
             ? `<div style="text-align:center;margin-bottom:16px;"><span class="badge badge-green"><i class="fas fa-check-circle"></i> Salary Credited</span></div>`
@@ -1524,6 +1535,7 @@ async function loadSalaryBreakup() {
 
         content.innerHTML = `
             ${paidBadge}
+            ${SalaryBreakupUtils.renderTable(breakup.salaryComponents, amount => salaryDisplay(amount, 2))}
             ${joiningDays > 0 ? `
             <div style="margin-bottom:12px;padding:10px 14px;background:#1e3a5f;border-left:4px solid #3b82f6;border-radius:10px;font-size:12px;color:#93c5fd;">
                 <i class="fas fa-user-plus"></i> <strong>First salary month proration:</strong> ${joiningDays} day${joiningDays !== 1 ? 's' : ''} worked x INR ${Math.round(dailyRate)}/day = ${salaryDisplay(effectiveGross)}
@@ -1570,7 +1582,51 @@ async function loadSalaryBreakup() {
                 ${lopDeduction > 0 ? `<strong>LOP total:</strong> ${lopDays} day${lopDays !== 1 ? 's' : ''} = ${salaryDisplay(lopDeduction)}` : ''}
             </div>` : ''}`;
     } catch (e) {
+        if (document.getElementById('salaryMonthFilter').value !== month) return;
+        downloadStatus.textContent = 'Unable to check payslip availability. Please reload this month.';
         content.innerHTML = `<div class="no-data">Failed to load salary breakup</div>`;
+    }
+}
+
+async function downloadPayslip() {
+    const button = document.getElementById('downloadPayslipBtn');
+    const month = document.getElementById('salaryMonthFilter').value;
+    if (button.disabled || button.dataset.month !== month) return;
+    const [year, monthNumber] = month.split('-').map(Number);
+    button.disabled = true;
+    document.getElementById('payslipDownloadStatus').textContent = 'Preparing payslip PDF...';
+    try {
+        const response = await fetch(`${API}/salary-payments/payslip?employeeId=${EMP_ID}&month=${monthNumber}&year=${year}`);
+        if (!response.ok) {
+            const body = await response.json();
+            throw new Error(body.error || 'Failed to download payslip');
+        }
+        if (!response.headers.get('Content-Type')?.includes('application/pdf')) {
+            throw new Error('The server did not return a payslip PDF. Please contact HR.');
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const filename = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1];
+        link.href = url;
+        link.download = filename || `Payslip_${EMP_ID}_${month}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        if (document.getElementById('salaryMonthFilter').value === month) {
+            document.getElementById('payslipDownloadStatus').textContent = 'Payslip PDF downloaded.';
+        }
+    } catch (error) {
+        console.error('Payslip download failed:', error);
+        showPortalToast(error.message, 'error');
+        if (document.getElementById('salaryMonthFilter').value === month) {
+            document.getElementById('payslipDownloadStatus').textContent = error.message;
+        }
+    } finally {
+        if (document.getElementById('salaryMonthFilter').value === month && button.dataset.month === month) {
+            button.disabled = false;
+        }
     }
 }
 
@@ -1600,31 +1656,37 @@ async function loadSalaryChanges() {
             return;
         }
         container.className = '';
+        const columns = document.createElement('div');
+        columns.className = 'salary-change-columns';
+        columns.setAttribute('aria-hidden', 'true');
+        columns.innerHTML = '<span>Effective date</span><span>Monthly salary</span>';
+        container.appendChild(columns);
         for (const change of changes) {
-            const entry = document.createElement('article');
+            const entry = document.createElement('details');
             entry.className = 'salary-change-entry';
-            entry.innerHTML = `<div class="salary-change-header">
-                <div class="salary-change-date">Effective from<strong></strong></div>
-                <span class="salary-change-delta"></span>
-            </div>
-            <div class="salary-change-amounts">
-                <div><span class="amount-label">Previous salary</span><strong></strong></div>
-                <i class="fas fa-arrow-right salary-change-arrow" aria-hidden="true"></i>
-                <div class="revised"><span class="amount-label">Revised salary</span><strong></strong></div>
-            </div>`;
+            entry.innerHTML = `<summary class="salary-change-summary" title="Salary change details">
+                <span class="salary-change-date"><strong></strong><span class="salary-change-status"></span></span>
+                <span class="salary-change-value"><strong></strong><span class="salary-change-delta"></span></span>
+                <i class="fas fa-chevron-down salary-change-chevron" aria-hidden="true"></i>
+            </summary>`;
             const scheduled = change.effectiveDate.slice(0, 7) > monthKey();
-            entry.querySelector('.salary-change-date strong').textContent = `${fmt(change.effectiveDate)}${scheduled ? ' (Scheduled)' : ''}`;
-            const amounts = entry.querySelectorAll('.salary-change-amounts strong');
-            amounts[0].textContent = fmtRupees(change.previousSalary);
-            amounts[1].textContent = fmtRupees(change.salary);
+            entry.querySelector('.salary-change-date strong').textContent = fmt(change.effectiveDate);
+            const status = entry.querySelector('.salary-change-status');
+            status.classList.toggle('scheduled', scheduled);
+            status.innerHTML = `<i class="fas ${scheduled ? 'fa-clock' : 'fa-check-circle'}" aria-hidden="true"></i>`;
+            status.appendChild(document.createTextNode(scheduled ? 'Scheduled' : 'Applied'));
+            entry.querySelector('.salary-change-value > strong').textContent = fmtRupees(change.salary);
             const difference = Number(change.salary) - Number(change.previousSalary);
             const percentage = Number(change.previousSalary) > 0 ? ` (${(difference / Number(change.previousSalary) * 100).toFixed(1)}%)` : '';
             const delta = entry.querySelector('.salary-change-delta');
-            delta.textContent = `${difference >= 0 ? '+' : '-'}${fmtRupees(Math.abs(difference))}${percentage}`;
+            delta.textContent = difference === 0 ? 'No salary change' : `${difference > 0 ? '+' : '-'}${fmtRupees(Math.abs(difference))}${percentage}`;
             delta.classList.toggle('decrease', difference < 0);
+            delta.classList.toggle('unchanged', difference === 0);
             const details = document.createElement('dl');
             details.className = 'salary-change-details';
             for (const [label, value] of [
+                ['Previous salary', fmtRupees(change.previousSalary)],
+                ['Revised salary', fmtRupees(change.salary)],
                 ['Department', change.department || 'Not recorded'],
                 ['Designation', change.position || 'Not recorded'],
                 ['Recorded by', change.recordedBy || 'Management'],

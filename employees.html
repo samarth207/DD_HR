@@ -174,6 +174,32 @@
                         <input type="tel" id="phone">
                     </div>
                     <div class="form-group">
+                        <label for="gender">Gender (optional)</label>
+                        <select id="gender">
+                            <option value="">Not recorded</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                            <option value="Prefer not to say">Prefer not to say</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="dateOfBirth">Date of Birth (optional)</label>
+                        <input type="date" id="dateOfBirth">
+                    </div>
+                    <div class="form-group">
+                        <label for="pan">PAN (optional)</label>
+                        <input type="text" id="pan" maxlength="10" pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]" placeholder="ABCDE1234F" style="text-transform:uppercase;">
+                    </div>
+                    <div class="form-group">
+                        <label for="location">Location (optional)</label>
+                        <input type="text" id="location" maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="unit">Unit (optional)</label>
+                        <input type="text" id="unit" maxlength="100">
+                    </div>
+                    <div class="form-group">
                         <label for="department">Department *</label>
                         <select id="department" required>
                             <option value="">Select Department</option>
@@ -194,8 +220,11 @@
                         <input type="date" id="hireDate" required>
                     </div>
                     <div class="form-group">
-                        <label for="salary">Salary (?)</label>
-                        <input type="text" id="salary" inputmode="numeric" placeholder="?0">
+                        <label for="salary">Monthly CTC (INR) *</label>
+                        <input type="number" id="salary" min="0" step="0.01" required placeholder="50000" aria-describedby="salaryBreakupHelp">
+                        <small id="salaryBreakupHelp">Basic 50%, HRA 20%, Special Allowance 30%. Yearly amounts are calculated automatically.</small>
+                    </div>
+                    <div class="form-group full-width" id="salaryComponentsPreview" aria-live="polite">
                     </div>
                     <div class="form-group" id="salaryEffectiveGroup" hidden>
                         <label for="salaryEffectiveMonth">Salary Effective Month *</label>
@@ -433,6 +462,7 @@
     <script src="auth-guard.js"></script>
     <script>requireManagement();</script>
     <script src="script.js"></script>
+    <script src="salary-breakup-utils.js"></script>
     <script>
         let deleteEmployeeId = null;
         const MAX_SHORT_EMPLOYEE_ID = 2000;
@@ -575,13 +605,14 @@
             document.getElementById('employeeForm').reset();
             document.getElementById('employeeId').value = '';
             document.getElementById('hireDate').valueAsDate = new Date();
-            // Reset salary formatting
             const salaryInput = document.getElementById('salary');
             salaryInput.value = '';
-            salaryInput.dataset.rawValue = '';
             salaryInput.dataset.originalSalary = '';
+            salaryInput.dataset.breakupEnabled = 'true';
+            salaryInput.dataset.originalBreakupEnabled = 'false';
+            document.getElementById('salaryEffectiveMonth').removeAttribute('min');
+            updateSalaryComponentsPreview();
             updateSalaryChangeFields();
-            // Set up currency formatting listener
             salaryInput.removeEventListener('input', handleSalaryInput);
             salaryInput.addEventListener('input', handleSalaryInput);
             // Reset probation
@@ -590,14 +621,40 @@
         }
         
         function handleSalaryInput() {
-            formatCurrencyInput(document.getElementById('salary'));
+            document.getElementById('salary').dataset.breakupEnabled = 'true';
+            updateSalaryComponentsPreview();
             updateSalaryChangeFields();
         }
 
+        function updateSalaryComponentsPreview() {
+            const input = document.getElementById('salary');
+            const preview = document.getElementById('salaryComponentsPreview');
+            input.setCustomValidity('');
+            if (input.dataset.breakupEnabled !== 'true') {
+                preview.textContent = 'No salary components recorded. Re-enter the monthly CTC to record the automatic breakup from an effective month.';
+                return;
+            }
+            if (!input.value) {
+                preview.textContent = 'Enter monthly CTC to preview the monthly and yearly breakup.';
+                return;
+            }
+            try {
+                preview.innerHTML = SalaryBreakupUtils.renderTable(SalaryBreakupUtils.calculate(input.value), formatRupees);
+            } catch (error) {
+                input.setCustomValidity(error.message);
+                preview.textContent = error.message;
+            }
+        }
+
+        function isSalaryStructureChanged() {
+            const input = document.getElementById('salary');
+            return Number(input.value) !== Number(input.dataset.originalSalary || 0) ||
+                (input.dataset.breakupEnabled === 'true' && input.dataset.originalBreakupEnabled !== 'true');
+        }
+
         function updateSalaryChangeFields() {
-            const salaryInput = document.getElementById('salary');
             const changed = !!document.getElementById('employeeId').value &&
-                Number(getRawCurrencyValue(salaryInput)) !== Number(salaryInput.dataset.originalSalary || 0);
+                isSalaryStructureChanged();
             document.getElementById('salaryEffectiveGroup').hidden = !changed;
             document.getElementById('salaryReasonGroup').hidden = !changed;
             const effectiveMonth = document.getElementById('salaryEffectiveMonth');
@@ -621,21 +678,19 @@
             document.getElementById('lastName').value = employee.lastName;
             document.getElementById('email').value = employee.email;
             document.getElementById('phone').value = employee.phone || '';
+            for (const field of ['gender', 'dateOfBirth', 'pan', 'location', 'unit']) {
+                document.getElementById(field).value = employee[field] || '';
+            }
             document.getElementById('department').value = employee.department;
             document.getElementById('position').value = employee.position;
             document.getElementById('hireDate').value = employee.hireDate;
-            // Format salary with Indian rupees
             const salaryInput = document.getElementById('salary');
             salaryInput.removeEventListener('input', handleSalaryInput);
             salaryInput.addEventListener('input', handleSalaryInput);
-            if (employee.salary) {
-                salaryInput.value = employee.salary;
-                salaryInput.dataset.rawValue = employee.salary;
-                formatCurrencyInput(salaryInput);
-            } else {
-                salaryInput.value = '';
-                salaryInput.dataset.rawValue = '';
-            }
+            salaryInput.value = employee.salary ?? 0;
+            salaryInput.dataset.breakupEnabled = String(employee.salaryBreakupEnabled === true);
+            salaryInput.dataset.originalBreakupEnabled = salaryInput.dataset.breakupEnabled;
+            updateSalaryComponentsPreview();
             document.getElementById('status').value = employee.status;
             document.getElementById('address').value = employee.address || '';
             
@@ -675,6 +730,11 @@
             const rows = [
                 ...(isEditing ? [['Previous monthly salary', currency.format(Number(document.getElementById('salary').dataset.originalSalary || 0))]] : []),
                 [isEditing ? 'New monthly salary' : 'Monthly salary', currency.format(employee.salary)],
+                ...(employee.salaryBreakupEnabled ? [
+                    ['Yearly CTC', currency.format(SalaryBreakupUtils.calculate(employee.salary).ctc.yearly)],
+                    ...SalaryBreakupUtils.rows(SalaryBreakupUtils.calculate(employee.salary)).slice(0, 3)
+                        .map(([label, amount]) => [label, `${currency.format(amount.monthly)} / month`])
+                ] : []),
                 ['Effective from', new Date(`${employee.salaryEffectiveDate || employee.hireDate}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })],
                 ['Designation', employee.position]
             ];
@@ -747,10 +807,16 @@
                 lastName: document.getElementById('lastName').value,
                 email: document.getElementById('email').value,
                 phone: document.getElementById('phone').value,
+                gender: document.getElementById('gender').value,
+                dateOfBirth: document.getElementById('dateOfBirth').value,
+                pan: document.getElementById('pan').value,
+                location: document.getElementById('location').value,
+                unit: document.getElementById('unit').value,
                 department: document.getElementById('department').value,
                 position: document.getElementById('position').value,
                 hireDate: document.getElementById('hireDate').value,
-                salary: getRawCurrencyValue(document.getElementById('salary')),
+                salary: Number(document.getElementById('salary').value),
+                salaryBreakupEnabled: document.getElementById('salary').dataset.breakupEnabled === 'true',
                 status: document.getElementById('status').value,
                 address: document.getElementById('address').value,
                 bankName: document.getElementById('bankName').value,
@@ -773,7 +839,7 @@
                 if (existingEmployee && existingEmployee._id) {
                     employee._id = existingEmployee._id;
                 }
-                if (Number(employee.salary) !== Number(existingEmployee?.salary || 0)) {
+                if (isSalaryStructureChanged()) {
                     employee.salaryEffectiveDate = document.getElementById('salaryEffectiveMonth').value + '-01';
                     employee.salaryChangeReason = document.getElementById('salaryChangeReason').value;
                 }
@@ -1202,5 +1268,3 @@
     </script>
 </body>
 </html>
-
-

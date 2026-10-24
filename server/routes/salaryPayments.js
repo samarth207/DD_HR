@@ -4,7 +4,9 @@ const { getDB, isDBConnected } = require('../db');
 const { sendMail } = require('../utils/mailer');
 const { buildSalaryCreditedEmail } = require('../utils/emailTemplates');
 const salaryCycleUtils = require('../../salary-cycle-utils');
-const { salaryForMonth } = require('../utils/salary-history');
+const { salaryForMonth, hasSalaryBreakupForMonth } = require('../utils/salary-history');
+const salaryBreakupUtils = require('../../salary-breakup-utils');
+const { buildPayslipModel, createPayslipPdf, employeeDetails, payslipFilename } = require('../utils/payslip');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 
@@ -12,15 +14,15 @@ const UNPAID_LEAVE_TYPES = new Set(['Unpaid Leave', 'Maternity Leave', 'Paternit
 
 // Critical security guard:
 // - Admin and HR have full payroll access.
-// - Employee can only read own salary preview for employee dashboard breakup.
+// - Employee can only read their own salary preview and paid payslip.
 router.use((req, res, next) => {
     // Backward compatibility for test harnesses where auth middleware is disabled at app level.
     if (!req.auth) return next();
 
     if (req.auth.role === 'admin' || req.auth.role === 'hr') return next();
 
-    if (req.auth.role === 'employee' && req.method === 'GET' && req.path === '/preview') {
-        const requestedEmployeeId = parseInt(req.query.employeeId, 10);
+    if (req.auth.role === 'employee' && req.method === 'GET' && ['/preview', '/payslip'].includes(req.path)) {
+        const requestedEmployeeId = Number(req.query.employeeId);
         const authEmployeeId = parseInt(req.auth.employeeId, 10);
         if (!requestedEmployeeId || !authEmployeeId) {
             return res.status(403).json({ error: 'Forbidden' });
@@ -31,6 +33,47 @@ router.use((req, res, next) => {
     }
 
     return res.status(403).json({ error: 'Forbidden' });
+});
+
+// Download only saved, paid payroll. Never recalculate historical attendance or earnings.
+router.get('/payslip', async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    if (!isDBConnected()) return res.status(503).json(DB_UNAVAILABLE);
+    const { employeeId: id, month: monthValue, year: yearValue } = req.query;
+    if (![id, monthValue, yearValue].every(value => typeof value === 'string' && /^\d+$/.test(value))) {
+        return res.status(400).json({ error: 'A valid employee ID, month and year are required' });
+    }
+    const employeeId = Number(id), month = Number(monthValue), year = Number(yearValue);
+    if (!Number.isSafeInteger(employeeId) || employeeId < 1 || month < 1 || month > 12 || year < 1900 || year > 9999) {
+        return res.status(400).json({ error: 'Invalid employee ID, month or year' });
+    }
+    try {
+        const db = getDB();
+        const employee = await getEmployeeById(db, employeeId);
+        if (!employee) return res.status(404).json({ error: 'Employee not found' });
+        const [modern, legacy] = await Promise.all([
+            db.collection('salaryPayments').findOne({ employeeId, month, year }),
+            db.collection('salary_payments').findOne({ key: `${getMonthKey(month, year)}_${employeeId}`, paid: true })
+        ]);
+        const payment = modern || legacy;
+        if (!payment) return res.status(409).json({ error: 'Payslip is available only after this month\'s salary is marked paid.' });
+        const breakup = modern?.breakup || legacy?.breakup || {
+            grossSalary: payment.grossSalary, netSalary: payment.netSalary, totalDeductions: payment.deductions
+        };
+        let model;
+        try {
+            model = buildPayslipModel(employee, breakup, month, year);
+        } catch (error) {
+            return res.status(409).json({ error: error.message });
+        }
+        const pdf = await createPayslipPdf(model);
+        res.type('application/pdf');
+        res.attachment(payslipFilename(model));
+        return res.send(pdf);
+    } catch (error) {
+        console.error('Failed to generate paid payslip:', error);
+        return res.status(500).json({ error: 'Failed to generate payslip. Please try again or contact HR.' });
+    }
 });
 
 function formatRupees(value) {
@@ -226,6 +269,8 @@ async function getSalaryBreakup(db, employee, record) {
         payKey,
         monthKey,
         grossSalary,
+        salaryComponents: hasSalaryBreakupForMonth(employee, monthKey) && !payRecord
+            ? salaryBreakupUtils.calculate(grossSalary) : null,
         dailyRate,
         joiningDays,
         isFirstSalaryMonth: Boolean(cycle?.isFirstSalaryMonth),
@@ -275,6 +320,13 @@ async function sendSalaryPaidNotification(record, employee, breakup) {
         `Designation: ${employee.position || employee.designation || '—'}`,
         '',
         `Gross Salary: ${formatRupees(breakup.grossSalary)}`,
+        ...(breakup.salaryComponents ? [
+            'Salary Component | Monthly (INR) | Yearly (INR)',
+            ...salaryBreakupUtils.rows(breakup.salaryComponents).map(([label, amount]) =>
+                `${label} | ${formatRupees(amount.monthly)} | ${formatRupees(amount.yearly)}`),
+            'Full-month structure before proration and deductions. Yearly amounts = monthly x 12.',
+            'Basic and Special Allowance are fully taxable. HRA exemption is subject to legal limits under the Old Regime; tax is not calculated here.'
+        ] : []),
         `Daily Rate: ${formatRupees(breakup.dailyRate)} / day`,
         `Pro-rated Gross: ${formatRupees(breakup.effectiveGross)}`,
         `Monthly Incentive: ${formatRupees(breakup.monthlyIncentive)}`,
@@ -363,6 +415,7 @@ router.post('/', async (req, res) => {
         }
 
         const breakup = await getSalaryBreakup(db, employee, record);
+        if (!breakup.payslipEmployee) breakup.payslipEmployee = employeeDetails(employee);
         const monthKey = breakup.monthKey;
         const legacyKey = `${monthKey}_${record.employeeId}`;
 

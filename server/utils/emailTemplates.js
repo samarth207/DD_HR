@@ -155,8 +155,10 @@ function buildSalaryCreditedEmail({ name, month, breakup, employee }) {
         badgeColor: 'green'
     });
     
+    const componentTable = require('../../salary-breakup-utils').renderTable(breakup.salaryComponents, formatRupees);
     const body = `    <div class="greeting">Hi ${name},</div>
     <p class="msg">Your salary for <strong>${month}</strong> has been credited to your account. Below is the detailed breakup for your reference.</p>
+    ${componentTable}
     <div class="card">
       <div class="card-row"><span class="card-icon">🆔</span><div><div class="card-label">Employee ID</div><div class="card-value">${employee.id}</div></div></div>
       <div class="card-row"><span class="card-icon">🏢</span><div><div class="card-label">Department</div><div class="card-value">${employee.department || '—'}</div></div></div>

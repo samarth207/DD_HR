@@ -37,6 +37,7 @@
     "mongodb": "^7.2.0",
     "multer": "^2.4.0",
     "nodemailer": "^10.0.10",
+    "pdfkit": "^0.17.2",
     "sanitize-html": "^2.17.7",
     "validator": "^13.15.35",
     "xlsx": "^0.18.5"
@@ -46,6 +47,7 @@
     "jest": "^30.2.0",
     "mongodb-memory-server": "^10.3.0",
     "nodemon": "^3.0.2",
+    "pdf-parse": "^2.4.5",
     "supertest": "^7.1.4"
   }
 }

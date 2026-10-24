@@ -389,28 +389,34 @@
         .salary-row.earning  .amount { color: var(--green); }
         .salary-row.net      .amount { color: var(--primary); font-size: 22px; }
         .salary-changes { max-width:520px; margin:24px auto 0; }
-        .salary-changes .card-title { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:0; }
+        .salary-changes .card-title { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
         .salary-changes .card-title span { min-width:0; overflow-wrap:anywhere; }
-        .salary-change-entry { padding:20px 0; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
-        .salary-change-header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-        .salary-change-date { font-size:12px; color:var(--muted); }
-        .salary-change-date strong { display:block; margin-top:4px; font-size:14px; color:var(--text); }
-        .salary-change-delta { font-size:13px; font-weight:600; color:var(--green); }
+        .salary-change-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 16px; gap:12px; padding:10px 14px; border-block:1px solid var(--border); color:var(--muted); font-size:11px; font-weight:600; }
+        .salary-change-columns span:last-child { text-align:right; }
+        .salary-change-entry { border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+        .salary-change-summary { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 16px; align-items:center; gap:12px; padding:16px 14px; cursor:pointer; list-style:none; min-height:84px; }
+        .salary-change-summary::-webkit-details-marker { display:none; }
+        .salary-change-summary:hover, .salary-change-entry[open] .salary-change-summary { background:var(--surface); }
+        .salary-change-summary:focus-visible { outline:2px solid var(--primary); outline-offset:-2px; }
+        .salary-change-date strong { display:block; color:var(--text); font-size:13px; font-weight:600; }
+        .salary-change-status { display:inline-flex; align-items:center; gap:5px; margin-top:7px; color:var(--muted); font-size:11px; }
+        .salary-change-status.scheduled { color:var(--primary); }
+        .salary-change-value { text-align:right; font-variant-numeric:tabular-nums; }
+        .salary-change-value > strong { display:block; font-size:16px; font-weight:600; color:var(--text); }
+        .salary-change-delta { display:block; margin-top:5px; font-size:11px; font-weight:500; color:var(--green); }
         .salary-change-delta.decrease { color:var(--red); }
-        .salary-change-amounts { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1fr); align-items:center; gap:12px; padding:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
-        .salary-change-amounts .amount-label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
-        .salary-change-amounts strong { font-size:20px; font-weight:600; font-variant-numeric:tabular-nums; }
-        .salary-change-amounts .revised { text-align:right; }
-        .salary-change-arrow { color:var(--muted); text-align:center; font-size:14px; }
-        .salary-change-details { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px 20px; margin:16px 0 0; }
-        .salary-change-details dt { font-size:12px; color:var(--muted); margin-bottom:4px; }
+        .salary-change-delta.unchanged { color:var(--muted); }
+        .salary-change-chevron { color:var(--muted); font-size:12px; text-align:center; transition:transform .15s ease; }
+        .salary-change-entry[open] .salary-change-chevron { transform:rotate(180deg); }
+        .salary-change-details { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px 20px; margin:0; padding:4px 14px 18px; background:var(--surface); }
+        .salary-change-details dt { font-size:11px; color:var(--muted); margin-bottom:4px; }
         .salary-change-details dd { margin:0; font-size:13px; color:var(--text); }
         .salary-change-details .reason { grid-column:1 / -1; }
         .salary-change-state { padding:20px 0; color:var(--muted); font-size:13px; }
         @media(max-width:400px) {
-            .salary-change-amounts { gap:6px; }
-            .salary-change-amounts strong { font-size:17px; }
-            .salary-change-details { gap:12px; }
+            .salary-change-summary, .salary-change-columns { padding-inline:8px; gap:8px; }
+            .salary-change-value > strong { font-size:14px; }
+            .salary-change-details { padding-inline:8px; gap:12px; }
         }
 
         /* ── Calendar ── */
@@ -1181,6 +1187,12 @@
                 <select id="salaryMonthFilter" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;" onchange="loadSalaryBreakup()"></select>
                 <button type="button" id="salaryVisibilityBtn" class="btn-doc primary" onclick="toggleSalaryBreakupVisibility()" style="margin-left:auto;">Show Salary</button>
             </div>
+            <div style="margin-bottom:16px;">
+                <button type="button" id="downloadPayslipBtn" class="btn-doc primary" onclick="downloadPayslip()" disabled>
+                    <i class="fas fa-file-pdf" aria-hidden="true"></i> Download Payslip
+                </button>
+                <p id="payslipDownloadStatus" role="status" style="font-size:12px;color:var(--muted);margin:8px 0;">Select a paid salary month to download its payslip.</p>
+            </div>
             <div id="salaryBreakupContent">
                 <div class="no-data"><div class="spinner"></div></div>
             </div>
@@ -1247,6 +1259,7 @@
 <script src="config.js"></script>
 <script src="auth-guard.js"></script>
 <script src="salary-cycle-utils.js"></script>
+<script src="salary-breakup-utils.js"></script>
 <script src="sales-fee-calculator.js"></script>
 <script src="admission-reregistration-ui.js"></script>
 <script src="employee-portal-script.js"></script>

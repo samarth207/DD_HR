@@ -2,7 +2,10 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 const { MongoClient } = require('mongodb');
 const request = require('supertest');
 
+jest.mock('../../utils/mailer', () => ({ sendMail: jest.fn(async () => true) }));
+
 const { setDBForTesting } = require('../../db');
+const { sendMail } = require('../../utils/mailer');
 const { createApp } = require('../../app');
 const { buildRealisticSeedData, seedRealisticData, buildEmployee } = require('../helpers/qa-seed');
 
@@ -171,6 +174,119 @@ describe('Integration/API QA Suite (realistic seeded data)', () => {
         expect(genuineChange.status).toBe(200);
         const revisedProfile = await http.get(`/api/employees/${employeeId}`);
         expect(revisedProfile.body.salaryHistory[2]).toMatchObject({ previousSalary: 36000, salary: 38000, effectiveDate: nextEffectiveDate });
+    });
+
+    test('Salary components: new employee CTC, revisions, and paid snapshots use automatic structure', async () => {
+        const employeeId = 990503;
+        const created = await http.post('/api/employees').send({
+            id: employeeId, firstName: 'CTC', lastName: 'Employee', email: 'ctc-employee@example.test',
+            salary: 50000, hireDate: '2026-01-01', salaryBreakupEnabled: false,
+            salaryHistory: [{ effectiveDate: '2026-01-01', salary: 1 }]
+        });
+        expect(created.status).toBe(201);
+        expect(created.body.employee.salaryBreakupEnabled).toBe(true);
+        expect(created.body.employee.salaryHistory).toBeUndefined();
+        const preview = month => http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=${month}&year=2026`);
+        const original = await preview(5);
+        expect(original.status).toBe(200);
+        expect(original.body.breakup.salaryComponents).toMatchObject({
+            basicSalary: { monthly: 25000, yearly: 300000 },
+            houseRentAllowance: { monthly: 10000, yearly: 120000 },
+            specialAllowance: { monthly: 15000, yearly: 180000 },
+            ctc: { monthly: 50000, yearly: 600000 }
+        });
+        expect(original.body.breakup.netSalary).toBe(50000);
+        const paid = await http.post('/api/salary-payments').send({ employeeId, month: 5, year: 2026 });
+        expect(paid.status).toBe(201);
+        const email = sendMail.mock.calls.find(([message]) => message.to === 'ctc-employee@example.test')?.[0];
+        expect(email.text).toContain('Basic Salary (50%) | ₹25,000.00 | ₹3,00,000.00');
+        expect(email.html).toContain('Special Allowance (30%)');
+        const revised = await http.put(`/api/employees/${employeeId}`).send({ salary: 60000, salaryEffectiveDate: '2026-06-01' });
+        expect(revised.status).toBe(200);
+        expect((await preview(6)).body.breakup.salaryComponents.basicSalary.monthly).toBe(30000);
+        expect((await preview(5)).body.breakup.salaryComponents).toEqual(original.body.breakup.salaryComponents);
+        for (const collection of ['salaryPayments', 'salary_payments']) {
+            const stored = await db.collection(collection).findOne(collection === 'salaryPayments'
+                ? { employeeId, month: 5, year: 2026 } : { key: `2026-05_${employeeId}` });
+            expect(stored.breakup.salaryComponents).toEqual(original.body.breakup.salaryComponents);
+        }
+        const before = await db.collection('employees').findOne({ id: employeeId });
+        for (const salary of [-1, 'abc', '', null, 50000.001]) {
+            expect((await http.put(`/api/employees/${employeeId}`).send({ salary, salaryEffectiveDate: '2026-07-01' })).status).toBe(400);
+        }
+        expect(await db.collection('employees').findOne({ id: employeeId })).toEqual(before);
+        expect((await http.post('/api/employees').send({ salary: -1 })).status).toBe(400);
+    });
+
+    test('Salary components: legacy activation preserves earlier periods and old paid slips', async () => {
+        const employeeId = 990504;
+        await db.collection('employees').insertOne({ id: employeeId, salary: 50000, hireDate: '2026-01-01' });
+        const preview = month => http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=${month}&year=2026`);
+        expect((await preview(4)).body.breakup.salaryComponents).toBeNull();
+        await db.collection('salary_payments').insertOne({
+            key: `2026-04_${employeeId}`, paid: true, grossSalary: 50000, netSalary: 50000
+        });
+        const ordinary = await http.put(`/api/employees/${employeeId}`).send({ salary: 50000, firstName: 'Legacy' });
+        expect(ordinary.status).toBe(200);
+        expect((await preview(5)).body.breakup.salaryComponents).toBeNull();
+        const paidOverlap = await http.put(`/api/employees/${employeeId}`).send({
+            salary: 50000, salaryBreakupEnabled: true, salaryEffectiveDate: '2026-04-01'
+        });
+        expect(paidOverlap.status).toBe(409);
+        const activation = await http.put(`/api/employees/${employeeId}`).send({
+            salary: 50000, salaryBreakupEnabled: true, salaryEffectiveDate: '2026-06-01'
+        });
+        expect(activation.status).toBe(200);
+        expect((await preview(5)).body.breakup.salaryComponents).toBeNull();
+        expect((await preview(6)).body.breakup.salaryComponents.basicSalary.monthly).toBe(25000);
+        expect((await preview(4)).body.breakup.salaryComponents).toBeNull();
+        const record = await db.collection('employees').findOne({ id: employeeId });
+        expect(record.salaryHistory[1]).toMatchObject({ previousSalary: 50000, salary: 50000, salaryBreakupEnabled: true });
+    });
+
+    test('Salary components: full-month structure does not change joining proration or leave deductions', async () => {
+        const employeeId = 990505;
+        await db.collection('employees').insertOne({
+            id: employeeId, salary: 50000, salaryBreakupEnabled: true, hireDate: '2026-06-16'
+        });
+        await db.collection('leaves').insertOne({
+            employeeId, status: 'approved', leaveType: 'Unpaid Leave', startDate: '2026-06-17', endDate: '2026-06-17'
+        });
+        const response = await http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=6&year=2026`);
+        expect(response.status).toBe(200);
+        expect(response.body.breakup.salaryComponents.ctc).toEqual({ monthly: 50000, yearly: 600000 });
+        expect(response.body.breakup.joiningDays).toBe(15);
+        expect(response.body.breakup.effectiveGross).toBe(25000);
+        expect(response.body.breakup.unpaidLeaveDeduction).toBe(1666.67);
+        expect(response.body.breakup.netSalary).toBeCloseTo(23333.33, 2);
+    });
+
+    test('Payslip details: optional profile fields validate and are retained in paid snapshots', async () => {
+        const employeeId = 990506;
+        const created = await http.post('/api/employees').send({
+            id: employeeId, firstName: 'Payslip', lastName: 'Profile', email: 'payslip-profile@example.test',
+            salary: 50000, hireDate: '2026-01-01', gender: 'Female',
+            dateOfBirth: '1999-05-23', pan: ' abcde1234f ', location: ' Noida ', unit: ' Noida '
+        });
+        expect(created.status).toBe(201);
+        expect(created.body.employee).toMatchObject({ pan: 'ABCDE1234F', location: 'Noida', unit: 'Noida' });
+        for (const update of [{ pan: 'invalid' }, { dateOfBirth: '2026-02-30' }, { dateOfBirth: '9999-01-01' },
+            { unit: 'x'.repeat(101) }, { location: {} }]) {
+            expect((await http.put(`/api/employees/${employeeId}`).send(update)).status).toBe(400);
+        }
+        const paid = await http.post('/api/salary-payments').send({ employeeId, month: 6, year: 2026 });
+        expect(paid.status).toBe(201);
+        expect(paid.body.breakup.payslipEmployee).toMatchObject({
+            id: employeeId, name: 'Payslip Profile', gender: 'Female', dateOfBirth: '1999-05-23',
+            pan: 'ABCDE1234F', location: 'Noida', unit: 'Noida'
+        });
+        expect((await http.put(`/api/employees/${employeeId}`).send({ firstName: 'Changed', pan: '' })).status).toBe(200);
+        const preview = await http.get(`/api/salary-payments/preview?employeeId=${employeeId}&month=6&year=2026`);
+        expect(preview.body.breakup.payslipEmployee.name).toBe('Payslip Profile');
+        expect(preview.body.breakup.payslipEmployee.pan).toBe('ABCDE1234F');
+        const download = await http.get(`/api/salary-payments/payslip?employeeId=${employeeId}&month=6&year=2026`);
+        expect(download.status).toBe(200);
+        expect(download.headers['content-type']).toContain('application/pdf');
     });
 
     test('Attendance validation: monthly summary includes salaryPeriod + late half day projection', async () => {

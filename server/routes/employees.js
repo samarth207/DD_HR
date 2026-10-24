@@ -7,9 +7,31 @@ const crypto = require('crypto');
 const { getDB, isDBConnected } = require('../db');
 const salaryCycleUtils = require('../../salary-cycle-utils');
 const { salaryForMonth, buildSalaryChange, withCurrentSalary } = require('../utils/salary-history');
+const salaryBreakupUtils = require('../../salary-breakup-utils');
 
 const DB_UNAVAILABLE = { error: 'Database not connected', dbUnavailable: true };
 const MAX_SHORT_EMPLOYEE_ID = 999999;
+
+function normalizePayslipDetails(employee) {
+    const limits = { gender: 30, pan: 10, location: 100, unit: 100, dateOfBirth: 10 };
+    for (const [key, maxLength] of Object.entries(limits)) {
+        if (!Object.prototype.hasOwnProperty.call(employee, key)) continue;
+        if (typeof employee[key] !== 'string') throw new Error(`${key} must be text`);
+        employee[key] = employee[key].trim();
+        if (employee[key].length > maxLength) throw new Error(`${key} must be at most ${maxLength} characters`);
+    }
+    if (employee.pan) {
+        employee.pan = employee.pan.toUpperCase();
+        if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(employee.pan)) throw new Error('Enter a valid PAN (for example ABCDE1234F)');
+    }
+    if (employee.dateOfBirth) {
+        const date = new Date(`${employee.dateOfBirth}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(employee.dateOfBirth) || Number.isNaN(date.getTime()) ||
+            date.toISOString().slice(0, 10) !== employee.dateOfBirth || employee.dateOfBirth > new Date().toISOString().slice(0, 10)) {
+            throw new Error('Date of birth must be a valid date that is not in the future');
+        }
+    }
+}
 
 function extractEmployeeIdFromPath(pathname) {
     const match = String(pathname || '').match(/^\/(\d+)(?:\/|$)/);
@@ -456,6 +478,14 @@ router.post('/', async (req, res) => {
     try {
         const db = getDB();
         const employee = req.body;
+        try {
+            normalizePayslipDetails(employee);
+            employee.salary = salaryBreakupUtils.calculate(employee.salary).ctc.monthly;
+        } catch (error) {
+            return res.status(400).json({ error: error.message });
+        }
+        employee.salaryBreakupEnabled = true;
+        delete employee.salaryHistory;
 
         let requestedId = parseInt(employee.id, 10);
         if (!Number.isInteger(requestedId) || requestedId < 1 || requestedId > MAX_SHORT_EMPLOYEE_ID) {
@@ -499,6 +529,11 @@ router.put('/:id', async (req, res) => {
         const db = getDB();
         const employeeId = parseInt(req.params.id);
         const updates = { ...req.body };
+        try {
+            normalizePayslipDetails(updates);
+        } catch (error) {
+            return res.status(400).json({ error: error.message });
+        }
 
         const existingEmployee = await db.collection('employees').findOne({ id: employeeId });
         if (!existingEmployee) {
@@ -509,9 +544,17 @@ router.put('/:id', async (req, res) => {
         delete updates._id;
         delete updates.salaryHistory;
         delete updates.id;
+        if (Object.prototype.hasOwnProperty.call(updates, 'salaryBreakupEnabled') &&
+            typeof updates.salaryBreakupEnabled !== 'boolean') {
+            return res.status(400).json({ error: 'Salary breakup flag must be a boolean' });
+        }
+        if (updates.salaryBreakupEnabled === true && !Object.prototype.hasOwnProperty.call(updates, 'salary')) {
+            return res.status(400).json({ error: 'Monthly CTC is required to record salary components' });
+        }
         if (Object.prototype.hasOwnProperty.call(updates, 'salary')) {
             let history;
             try {
+                updates.salary = salaryBreakupUtils.calculate(updates.salary).ctc.monthly;
                 history = buildSalaryChange(existingEmployee, updates, req.auth);
             } catch (error) {
                 return res.status(400).json({ error: error.message });
@@ -533,6 +576,7 @@ router.put('/:id', async (req, res) => {
         }
         delete updates.salaryEffectiveDate;
         delete updates.salaryChangeReason;
+        delete updates.salaryBreakupEnabled;
 
         if (typeof updates.email === 'string') updates.email = updates.email.trim().toLowerCase();
         if (typeof updates.companyEmail === 'string') updates.companyEmail = updates.companyEmail.trim().toLowerCase();

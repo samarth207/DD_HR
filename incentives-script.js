@@ -1289,6 +1289,7 @@ async function loadSalaryCrediting() {
             </div>
 
             <div id="${cardId}" style="display:none;margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+                ${SalaryBreakupUtils.renderTable(payrollPreview.salaryComponents, formatRupees)}
                 <div style="margin-bottom:12px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#334155;line-height:1.5;">
                     <strong>Salary Period:</strong> ${salaryPeriodStartLabel} to ${salaryPeriodEndLabel}<br>
                     <span>${cycle.isFirstSalaryMonth ? 'First salary month (joining-date proration)' : 'Standard monthly cycle (1st to last day)'}</span>
